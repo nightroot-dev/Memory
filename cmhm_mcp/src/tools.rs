@@ -1113,10 +1113,14 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
             }
 
             let outcome_label = if success { "SUCCESS" } else { "FAILURE" };
-            let idempotency_note = if retrieve_id.is_some() {
-                format!("\n**retrieve_id**: `{}` (idempotency enabled)", retrieve_id.unwrap())
+            let idempotency_note = if let Some(rid) = retrieve_id {
+                format!("\n**retrieve_id**: `{rid}` — idempotency enabled, join key recorded in feedback_ledger.jsonl")
             } else {
-                "\n_No retrieve_id provided — repeated calls are not deduplicated._".to_string()
+                // Feedback without retrieve_id is valid — applied and counted.
+                // It's marked "unjoined": cannot be linked to a retrieve_log entry for analysis.
+                // Repeated calls are not deduplicated (at-most-once guarantee requires a retrieve_id).
+                "\n_Status: unjoined — no retrieve_id provided. Feedback applied, but cannot be \
+                linked to a retrieve_log entry. Repeated calls without an ID are not deduplicated._".to_string()
             };
             let text = format!(
                 "## Memory Feedback Applied\n\

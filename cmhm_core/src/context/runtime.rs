@@ -97,8 +97,35 @@ impl ContextRuntime {
     }
 
     /// Mark a retrieve_id as having had its feedback applied and persist to ledger.
-    /// Idempotent: calling twice for the same ID is safe (second call is a no-op on the set).
-    /// Ledger write failure produces a warning but does not fail the feedback call.
+    /// Idempotent: calling twice for the same ID is safe (second call is no-op on the set).
+    /// Ledger write failure emits tracing::warn! but never fails the feedback call.
+    ///
+    /// # Crash-boundary analysis
+    ///
+    /// There are two possible orderings, each with a crash window:
+    ///
+    /// **Option A — mutate, then record (current)**
+    /// ```text
+    /// feedback_nodes() mutates Beta(α,β)   ← crash here →   ledger.append(retrieve_id)
+    /// ```
+    /// On crash: ledger missing entry → next call re-applies feedback.
+    /// Effect: Beta(α,β) incremented twice. Minor statistical bias (bounded, auto-correcting
+    /// with subsequent feedback). NOT a correctness failure.
+    ///
+    /// **Option B — record, then mutate**
+    /// ```text
+    /// ledger.append(retrieve_id)   ← crash here →   feedback_nodes() mutates Beta
+    /// ```
+    /// On crash: ledger has entry → next call skips mutation entirely.
+    /// Effect: feedback is silently and permanently lost. Worse than Option A.
+    ///
+    /// **Conclusion**: Option A (current) is correct. Double-apply on crash replay is a
+    /// statistically minor, bounded Beta bias — not a data-loss event. Beta(α+1,β) applied
+    /// twice is equivalent to Beta(α+2,β), which stays within [0,∞) regardless of k.
+    ///
+    /// If zero-tolerance is required, route feedback through the WAL as a `FeedbackNodes`
+    /// command entry (mirroring `WalLearnEntry`). That would make feedback crash-safe at the
+    /// cost of WAL growth. Deferred until the cost is justified by real usage data.
     pub fn record_feedback_applied(
         &mut self,
         retrieve_id: &str,
