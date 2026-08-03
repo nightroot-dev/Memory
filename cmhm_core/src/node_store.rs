@@ -122,6 +122,18 @@ impl NodeStore {
         scores
     }
 
+    /// Maximum cosine similarity between `query` and any existing node with `model_id`.
+    ///
+    /// Used by the shadow gate to compute `novelty = 1 − max_cosine_to_existing`.
+    /// Returns `0.0` if the store is empty or has no matching nodes
+    /// (empty store → novelty = 1.0 → gate score is maximised, which is correct).
+    pub fn max_cosine_to_existing(&self, query: &[f32], model_id: &str) -> f32 {
+        self.nodes.values()
+            .filter(|n| n.model_id == model_id && n.embedding.len() == query.len())
+            .map(|n| cosine(query, &n.embedding))
+            .fold(0.0f32, f32::max)
+    }
+
     /// Update the global EMA with a new embedding.
     /// Called on every node birth. Skips if dims don't match (transition period).
     pub fn update_global_ema(&mut self, e: &[f32]) {

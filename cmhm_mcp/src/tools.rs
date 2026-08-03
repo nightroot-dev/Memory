@@ -3,6 +3,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use parking_lot::Mutex;
+use uuid::Uuid;
 use cmhm_core::{ContextRuntime, ContextType, text_to_embedding, extract_tags, scrub::scrub_learn};
 use crate::schema::{
     RetrieveParams, LearnParams, LearnTextParams, RetrieveTextParams,
@@ -19,42 +20,176 @@ use crate::schema::{
 /// When the `onnx` feature is enabled and adopted, update this to `"minilm-l6-v2-int8-384d"`.
 const TEXT_MODEL_ID: &str = "hash-128d";
 
-// --- Retrieve audit log (JSONL) -----------------------------------------------
-//
-// Every retrieve call appends one line to `retrieve_log.jsonl` in the data dir.
-// This file is:
-//   - Append-only, never truncated — safe to tail / import incrementally.
-//   - Separate from the memory store — a bug in logging never affects retrieval.
-//   - The labeled-pairs corpus for Stage 4 reranker training and offline replay.
-//   - Required to fit λ/α/θ_min (N11) and validate bandit posteriors (N26).
-//
-// Schema (one JSON object per line):
-//   { "ts": <unix_ms>, "ctx": "<uuid>", "model": "<model_id>",
-//     "query": "<text or base64_hash>", "nodes": [<id>, ...], "n": <count> }
+/// Shadow gate policy version — bump when the gate formula changes.
+/// All gate_shadow_log.jsonl entries are stamped with this so decisions
+/// can be compared across formula versions during retrospective analysis.
+const GATE_POLICY_V: u32 = 1;
 
+/// Shadow gate κ (kappa): weight on prediction_error in the gate score formula.
+/// gate_score = novelty × (1 + κ × |prediction_error|)
+/// κ=2.0 makes a fully-surprising event (pe=1.0) worth 3× a neutral event (pe=0.0).
+const GATE_KAPPA: f32 = 2.0;
+
+/// Shadow gate threshold for "would_index" decision.
+/// gate_score >= GATE_THRESHOLD → would be indexed if gate were hard.
+/// Currently shadow-only: insertion always proceeds regardless of this value.
+const GATE_THRESHOLD: f32 = 1.0;
+
+// ─── Sidecar log writers ─────────────────────────────────────────────────────
+//
+// All three log files are:
+//   - Append-only JSONL, never truncated — safe to tail / import incrementally.
+//   - Separate from the memory store — log bugs never affect memory operations.
+//   - Best-effort: file write failures emit tracing::warn! but never fail callers.
+//
+// Files:
+//   learn_log.jsonl      — Tier 0 raw learn archive (every attempt, pre-gate)
+//   retrieve_log.jsonl   — retrieve audit log with retrieve_id and ranked scores
+//   gate_shadow_log.jsonl — shadow gate: "would index" decisions without enforcement
+
+/// Append one line to `retrieve_log.jsonl`.
+///
+/// Schema v=2:
+/// ```json
+/// { "v":2, "retrieve_id":"<uuid>", "session_id":"<uuid>", "ts":<unix_ms>,
+///   "ctx_id":"<uuid>", "model":"<model_id>", "query":"<text or b64-prefix>",
+///   "shown":[{"fn":<from_node>,"tn":<to_node>,"score":<f32>},...], "n":<count> }
+/// ```
+#[allow(clippy::too_many_arguments)]
 fn append_retrieve_log(
-    data_dir: &std::path::Path,
-    ctx_id: &str,
-    model_id: &str,
-    query_repr: &str,        // text for text-path, base64 hash for embedding-path
-    node_ids: &[u64],
+    data_dir:    &std::path::Path,
+    retrieve_id: &str,
+    session_id:  &str,
+    ctx_id:      &str,
+    model_id:    &str,
+    query_repr:  &str,
+    chain:       &[(u64, u64, f32)], // (from_node, to_node, mean_weight)
 ) {
     use std::io::Write;
     let path = data_dir.join("retrieve_log.jsonl");
-    let ts = std::time::SystemTime::now()
+    let ts = unix_ms();
+    // Build shown array: [{"fn":X,"tn":Y,"score":Z}]
+    let shown: String = chain.iter()
+        .map(|(f, t, s)| format!("{{\"fn\":{},\"tn\":{},\"score\":{:.4}}}", f, t, s))
+        .collect::<Vec<_>>()
+        .join(",");
+    let query_json = serde_json::to_string(query_repr).unwrap_or_else(|_| "\"\"".to_string());
+    let line = format!(
+        "{{\"v\":2,\"retrieve_id\":\"{}\",\"session_id\":\"{}\",\"ts\":{},\"ctx_id\":\"{}\",\
+         \"model\":\"{}\",\"query\":{},\"shown\":[{}],\"n\":{}}}\n",
+        retrieve_id, session_id, ts, ctx_id, model_id, query_json, shown, chain.len()
+    );
+    best_effort_append(&path, &line, "retrieve_log");
+}
+
+/// Append one line to `learn_log.jsonl` — the Tier 0 raw learn archive.
+///
+/// Called BEFORE the gate and BEFORE engine write, with pre-scrubbed text.
+/// Secrets MUST be scrubbed by caller before passing state/action/outcome here.
+///
+/// Schema v=1:
+/// ```json
+/// { "v":1, "event_id":"<uuid>", "session_id":"<uuid>", "ctx_id":"<uuid>",
+///   "ts":<unix_ms>, "policy_v":1, "kind":"learn_text",
+///   "state":"<scrubbed>", "action":"<scrubbed>", "outcome":"<scrubbed>",
+///   "prediction_error":<f32>, "emotional_tag":<f32|null>, "tags":["<str>",...] }
+/// ```
+#[allow(clippy::too_many_arguments)]
+fn append_learn_archive(
+    data_dir:         &std::path::Path,
+    event_id:         &str,
+    session_id:       &str,
+    ctx_id:           &str,
+    kind:             &str,           // "learn_text" | "learn_emb"
+    state:            &str,           // pre-scrubbed
+    action:           &str,           // pre-scrubbed
+    outcome:          &str,           // pre-scrubbed
+    prediction_error: f32,
+    emotional_tag:    Option<f32>,
+    tags:             &[String],
+) {
+    use std::io::Write;
+    let path = data_dir.join("learn_log.jsonl");
+    let ts = unix_ms();
+    let eta_json = match emotional_tag {
+        Some(v) => format!("{:.4}", v),
+        None    => "null".to_string(),
+    };
+    let tags_json: String = tags.iter()
+        .map(|t| serde_json::to_string(t).unwrap_or_else(|_| "\"\"".to_string()))
+        .collect::<Vec<_>>()
+        .join(",");
+    let state_json  = serde_json::to_string(state).unwrap_or_else(|_| "\"\"".to_string());
+    let action_json = serde_json::to_string(action).unwrap_or_else(|_| "\"\"".to_string());
+    let outcome_json= serde_json::to_string(outcome).unwrap_or_else(|_| "\"\"".to_string());
+    let line = format!(
+        "{{\"v\":1,\"event_id\":\"{}\",\"session_id\":\"{}\",\"ctx_id\":\"{}\",\
+         \"ts\":{},\"policy_v\":1,\"kind\":\"{}\",\
+         \"state\":{},\"action\":{},\"outcome\":{},\
+         \"prediction_error\":{:.4},\"emotional_tag\":{},\"tags\":[{}]}}\n",
+        event_id, session_id, ctx_id,
+        ts, kind,
+        state_json, action_json, outcome_json,
+        prediction_error, eta_json, tags_json
+    );
+    best_effort_append(&path, &line, "learn_log");
+}
+
+/// Append one line to `gate_shadow_log.jsonl`.
+///
+/// Logs the shadow gate's per-event decision: all components, the score,
+/// and whether it "would have" been indexed if the gate were hard.
+/// The insertion always proceeds regardless (shadow = observe only).
+///
+/// Schema v=1:
+/// ```json
+/// { "v":1, "event_id":"<uuid>", "ts":<unix_ms>, "ctx_id":"<uuid>",
+///   "novelty":<f32>, "prediction_error":<f32>, "verifiability":<f32>,
+///   "gate_score":<f32>, "threshold":<f32>, "would_index":<bool>, "policy_v":1 }
+/// ```
+fn append_gate_shadow_log(
+    data_dir:         &std::path::Path,
+    event_id:         &str,
+    ctx_id:           &str,
+    novelty:          f32,
+    prediction_error: f32,
+    gate_score:       f32,
+) {
+    let path = data_dir.join("gate_shadow_log.jsonl");
+    let ts = unix_ms();
+    let would_index = gate_score >= GATE_THRESHOLD;
+    let line = format!(
+        "{{\"v\":1,\"event_id\":\"{}\",\"ts\":{},\"ctx_id\":\"{}\",\
+         \"novelty\":{:.4},\"prediction_error\":{:.4},\"verifiability\":1.0,\
+         \"gate_score\":{:.4},\"threshold\":{:.4},\"would_index\":{},\"policy_v\":{}}}\n",
+        event_id, ts, ctx_id,
+        novelty, prediction_error,
+        gate_score, GATE_THRESHOLD, would_index, GATE_POLICY_V
+    );
+    best_effort_append(&path, &line, "gate_shadow_log");
+}
+
+/// Append `line` to `path`. Best-effort: log a warning on failure, never panic.
+fn best_effort_append(path: &std::path::Path, line: &str, log_name: &str) {
+    use std::io::Write;
+    match std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        Ok(mut f) => {
+            if f.write_all(line.as_bytes()).is_err() {
+                tracing::warn!("best_effort_append: write failed for {}", log_name);
+            }
+        }
+        Err(e) => {
+            tracing::warn!("best_effort_append: open failed for {}: {}", log_name, e);
+        }
+    }
+}
+
+/// Current time as Unix milliseconds.
+fn unix_ms() -> u128 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let line = format!(
-        "{{\"ts\":{},\"ctx\":\"{}\",\"model\":\"{}\",\"query\":{},\"nodes\":{:?},\"n\":{}}}\n",
-        ts, ctx_id, model_id,
-        serde_json::to_string(query_repr).unwrap_or_else(|_| "\"\"".to_string()),
-        node_ids, node_ids.len()
-    );
-    // Best-effort: if the log write fails, do NOT fail the retrieve
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = f.write_all(line.as_bytes());
-    }
+        .unwrap_or(0)
 }
 
 // --- Embedding helpers -------------------------------------------------------
@@ -309,20 +444,29 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Err(e) => return error_result(format!("Embedding decode error: {e}")),
     };
 
+    // Generate retrieve_id before locking — UUID v4, unique per call
+    let retrieve_id = Uuid::new_v4().to_string();
+
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
+    let session_id = rt.session_id().to_string();
 
     match rt.retrieve(ctx_id, emb, &params.model_id) {
         Ok((result, ctx)) => {
-            // Audit log: append one JSONL line per retrieve (labeled-pairs corpus)
-            let node_ids: Vec<u64> = result.causal_chain.iter()
-                .flat_map(|s| [s.from_node, s.to_node]).collect();
+            // Build chain tuples (from_node, to_node, mean_weight) for log + text
+            let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
+                .map(|s| (s.from_node, s.to_node, s.mean_weight))
+                .collect();
+
+            // Log v=2: retrieve_id + session_id + ranked scores
             append_retrieve_log(
                 rt.data_dir(),
+                &retrieve_id,
+                &session_id,
                 &ctx.id.to_string(),
                 &params.model_id,
-                &params.query_embedding[..params.query_embedding.len().min(32)], // truncate b64
-                &node_ids,
+                &params.query_embedding[..params.query_embedding.len().min(32)], // b64 prefix
+                &chain,
             );
 
             let mut text = format!(
@@ -347,6 +491,8 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     result.dense_context.len()
                 ));
             }
+            // retrieve_id: copy this into memory_feedback.retrieve_id to enable join + idempotency
+            text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
             ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
         }
         Err(e) => error_result(format!("Retrieve failed: {e}")),
@@ -584,21 +730,31 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     };
 
     let emb = text_to_embedding(&params.query).to_vec();
+
+    // Generate retrieve_id before locking — UUID v4, unique per call
+    let retrieve_id = Uuid::new_v4().to_string();
+
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
+    let session_id = rt.session_id().to_string();
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
     match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID) {
         Ok((result, ctx)) => {
-            // Audit log: append one JSONL line per retrieve (labeled-pairs corpus)
-            let node_ids: Vec<u64> = result.causal_chain.iter()
-                .flat_map(|s| [s.from_node, s.to_node]).collect();
+            // Build chain tuples (from_node, to_node, mean_weight) for log + text
+            let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
+                .map(|s| (s.from_node, s.to_node, s.mean_weight))
+                .collect();
+
+            // Log v=2: retrieve_id + session_id + ranked scores
             append_retrieve_log(
                 rt.data_dir(),
+                &retrieve_id,
+                &session_id,
                 &ctx.id.to_string(),
                 TEXT_MODEL_ID,
                 &params.query,
-                &node_ids,
+                &chain,
             );
 
             let mut text = format!(
@@ -621,6 +777,8 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                     ));
                 }
             }
+            // retrieve_id: copy into memory_feedback.retrieve_id to enable join + idempotency
+            text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
             ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
         }
         Err(e) => error_result(format!("Retrieve failed: {e}")),
@@ -638,56 +796,95 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         return error_result("prediction_error must be in [0.0, 1.0]");
     }
 
-    // Scrub secrets from all three text fields BEFORE embedding.
-    // Secrets must never enter the vector store, WAL, or snapshot.
+    // Scrub secrets from all three text fields BEFORE embedding AND before archiving.
+    // Secrets must never enter the vector store, WAL, snapshot, OR the Tier 0 archive.
     // Partial redaction: useful context is preserved, only suspicious tokens replaced.
     let (state_clean, action_clean, outcome_clean, redacted) =
         scrub_learn(&params.state, &params.action, &params.outcome);
+
+    // Generate a stable event_id linking learn_log + gate_shadow_log entries.
+    let event_id = Uuid::new_v4().to_string();
 
     let state_emb   = text_to_embedding(&state_clean).to_vec();
     let action_emb  = text_to_embedding(&action_clean).to_vec();
     let outcome_emb = text_to_embedding(&outcome_clean).to_vec();
 
-    // Capture fields before moving into the lock scope
+    // Capture fields before locking
     let auto_tag     = params.auto_tag;
     let ctx_id_owned = params.context_id.clone();
     let combined     = format!("{} {} {}", state_clean, action_clean, outcome_clean);
+    let pe           = params.prediction_error;
+    let eta          = params.emotional_tag;
 
     let mut rt_lock = rt.lock();
-    let ctx_id = ctx_id_owned.as_deref();
+    let ctx_id      = ctx_id_owned.as_deref();
+    let session_id  = rt_lock.session_id().to_string();
+    let data_dir    = rt_lock.data_dir().to_path_buf();
+
+    // Resolve ctx_id string for logging (best-effort — don't fail learn if this fails)
+    let ctx_id_str = rt_lock.list_contexts().iter()
+        .find(|c| ctx_id.map_or(c.display_name == "default", |id| c.id.to_string() == id || c.display_name == id))
+        .map(|c| c.id.to_string())
+        .unwrap_or_else(|| ctx_id.unwrap_or("default").to_string());
+
+    // ── Fix 1: Tier 0 learn archive ──────────────────────────────────────────
+    // Archive BEFORE gate and BEFORE engine write.
+    // Secrets already scrubbed above. Failure here emits warn! but does not stop learn.
+    let tags_for_archive: Vec<String> = if auto_tag {
+        extract_tags(&combined, 10)
+    } else {
+        vec![]
+    };
+    append_learn_archive(
+        &data_dir, &event_id, &session_id, &ctx_id_str,
+        "learn_text",
+        &state_clean, &action_clean, &outcome_clean,
+        pe, Some(eta), &tags_for_archive,
+    );
+
+    // ── Fix 3: Shadow gate (observe only, never suppress insertion) ─────────
+    // novelty = 1 − max_cos(new_state_emb, existing nodes in ctx)
+    // gate_score = novelty × (1 + κ × |prediction_error|)
+    // verifiability = 1.0 (placeholder; Wilson LCB not yet implemented)
+    // Insertion always proceeds regardless of gate_score.
+    let max_cos  = rt_lock.max_cosine_in_context(ctx_id, &state_emb, TEXT_MODEL_ID);
+    let novelty  = 1.0_f32 - max_cos;
+    let gate_score = novelty * (1.0 + GATE_KAPPA * pe.abs());
+    append_gate_shadow_log(&data_dir, &event_id, &ctx_id_str, novelty, pe, gate_score);
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
-    match rt_lock.learn(ctx_id, state_emb, action_emb, outcome_emb,
-                        params.prediction_error, params.emotional_tag, TEXT_MODEL_ID) {
+    match rt_lock.learn(ctx_id, state_emb, action_emb, outcome_emb, pe, eta, TEXT_MODEL_ID) {
         Ok((result, ctx)) => {
             // Auto-tag: extract keywords and add to context routing metadata
             if auto_tag {
                 let tags = extract_tags(&combined, 10);
                 if !tags.is_empty() {
-                    // Best-effort — do not fail the learn if tagging fails
                     let _ = rt_lock.add_tags(ctx_id, tags);
                 }
             }
 
-            let outcome_label = if params.prediction_error <= 0.7 { "SUCCESS" } else { "FAILURE" };
+            let outcome_label = if pe <= 0.7 { "SUCCESS" } else { "FAILURE" };
             let redaction_note = if redacted > 0 {
                 format!("\n**Security**: {redacted} sensitive token(s) redacted before storage.")
             } else {
                 String::new()
             };
+            let would_index = gate_score >= GATE_THRESHOLD;
             let text = format!(
                 "## Memory Learned (text)\n\
                 **Context**: {} ({})\n\
                 **Outcome**: {} (prediction_error: {:.2})\n\
                 **Node IDs**: state={} action={} outcome={}\n\
-                **Auto-tagged**: {}{}\n\n\
+                **Auto-tagged**: {}{}\n\
+                **Gate (shadow)**: novelty={:.3} score={:.3} would_index={}\n\n\
                 State → Action → Outcome stored as causal graph nodes.\n\
                 Use `memory_retrieve_text` with a similar query to recall this experience.",
                 ctx.display_name, ctx.id,
-                outcome_label, params.prediction_error,
+                outcome_label, pe,
                 result.state_node_id, result.action_node_id, result.outcome_node_id,
                 if auto_tag { "yes" } else { "no" },
                 redaction_note,
+                novelty, gate_score, would_index,
             );
             ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
         }
@@ -880,19 +1077,53 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
         )),
     };
 
-    let ctx_id_owned = params.context_id.clone();
-    let mut rt_lock = rt.lock();
-    let ctx_id = ctx_id_owned.as_deref();
+    let ctx_id_owned  = params.context_id.clone();
+    let retrieve_id   = params.retrieve_id.as_deref();
+    let mut rt_lock   = rt.lock();
+    let ctx_id        = ctx_id_owned.as_deref();
+
+    // Fix 2: Idempotency check
+    // If retrieve_id is provided and already in the ledger, the feedback was already applied.
+    // Return an acknowledgement WITHOUT mutating bandit or decay state a second time.
+    if let Some(rid) = retrieve_id {
+        if rt_lock.is_feedback_applied(rid) {
+            return ToolCallResult {
+                content: vec![ContentItem::text(format!(
+                    "## Memory Feedback (Already Applied)\n\
+                    **retrieve_id**: `{rid}`\n\n\
+                    Feedback for this retrieve_id was already applied in a previous call.\n\
+                    No bandit or decay state was modified. This is the idempotent acknowledgement."
+                ))],
+                isError: None,
+            };
+        }
+    }
 
     match rt_lock.feedback_nodes(ctx_id, params.node_ids.clone(), success) {
         Ok((updated, ctx)) => {
+            // Record retrieve_id in ledger AFTER successful application (not before)
+            // so a crash between apply and record replays as a second apply (safe for Beta).
+            if let Some(rid) = retrieve_id {
+                rt_lock.record_feedback_applied(
+                    rid,
+                    &ctx.id.to_string(),
+                    &outcome_str,
+                    &params.node_ids,
+                );
+            }
+
             let outcome_label = if success { "SUCCESS" } else { "FAILURE" };
+            let idempotency_note = if retrieve_id.is_some() {
+                format!("\n**retrieve_id**: `{}` (idempotency enabled)", retrieve_id.unwrap())
+            } else {
+                "\n_No retrieve_id provided — repeated calls are not deduplicated._".to_string()
+            };
             let text = format!(
                 "## Memory Feedback Applied\n\
                 **Context**: {} ({})\n\
                 **Outcome**: {}\n\
-                **Nodes requested**: {}\n\
-                **Nodes updated**: {}\n\n\
+                **Nodes requested (used)**: {}\n\
+                **Nodes updated**: {}{}\n\n\
                 Each updated node's usefulness prior (Beta posterior) and forgetting \
                 half-life have been adjusted. Future retrievals will rank these nodes \
                 {} when similar situations arise.",
@@ -900,6 +1131,7 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
                 outcome_label,
                 params.node_ids.len(),
                 updated,
+                idempotency_note,
                 if success { "higher" } else { "lower" },
             );
             ToolCallResult { content: vec![ContentItem::text(text)], isError: None }

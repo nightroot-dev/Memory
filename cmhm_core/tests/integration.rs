@@ -53,7 +53,7 @@ macro_rules! ctx {
 #[test]
 fn test_learn_and_retrieve() {
     let (cfg, dir) = make_cfg("learn_retrieve");
-    let mut rt = ContextRuntime::new(cfg).unwrap();
+    let mut rt = ContextRuntime::new(cfg, "test-session".to_string()).unwrap();
 
     let desc = ctx!(rt, "CMHM", "causal memory project",
                     vec!["rust".into(), "memory".into()]);
@@ -87,7 +87,7 @@ fn test_learn_and_retrieve() {
 #[test]
 fn test_context_isolation() {
     let (cfg, dir) = make_cfg("isolation");
-    let mut rt = ContextRuntime::new(cfg).unwrap();
+    let mut rt = ContextRuntime::new(cfg, "test-session".to_string()).unwrap();
 
     let cmhm  = ctx!(rt, "CMHM",    "causal memory", vec!["rust".into()]);
     let video = ctx!(rt, "VideoAI", "video processing", vec!["video".into()]);
@@ -118,7 +118,7 @@ fn test_context_isolation() {
 #[test]
 fn test_context_routing() {
     let (cfg, dir) = make_cfg("routing");
-    let mut rt = ContextRuntime::new(cfg).unwrap();
+    let mut rt = ContextRuntime::new(cfg, "test-session".to_string()).unwrap();
 
     let cmhm  = ctx!(rt, "CMHM",    "causal memory rust",
                      vec!["rust".into(),"memory".into(),"causal".into()]);
@@ -170,7 +170,7 @@ fn test_persistence_across_restart() {
     };
 
     let ctx_id: String = {
-        let mut rt = ContextRuntime::new(make()).unwrap();
+        let mut rt = ContextRuntime::new(make(), "test-session".to_string()).unwrap();
         let desc = rt.create_context(
             "Persist", ContextType::Project, None, "survives restart", vec![],
         ).unwrap();
@@ -184,7 +184,7 @@ fn test_persistence_across_restart() {
     };
 
     {
-        let mut rt = ContextRuntime::new(make()).unwrap();
+        let mut rt = ContextRuntime::new(make(), "test-session".to_string()).unwrap();
         let stats = rt.stats(Some(&ctx_id)).expect("[T4] Context must exist after restart");
         println!("[T4] Session 2: version={} loaded={}", stats.descriptor.version, stats.is_loaded);
         assert_eq!(stats.descriptor.version, 2, "Version must be 2 after restart");
@@ -204,7 +204,7 @@ fn test_persistence_across_restart() {
 #[test]
 fn test_delete_is_irrevocable() {
     let (cfg, dir) = make_cfg("delete");
-    let mut rt = ContextRuntime::new(cfg).unwrap();
+    let mut rt = ContextRuntime::new(cfg, "test-session".to_string()).unwrap();
 
     let desc = rt.create_context(
         "ToDelete", ContextType::Project, None, "temp", vec![],
@@ -253,7 +253,7 @@ fn test_wal_crash_recovery() {
     };
 
     let ctx_id: String = {
-        let mut rt = ContextRuntime::new(make()).unwrap();
+        let mut rt = ContextRuntime::new(make(), "test-session".to_string()).unwrap();
         let desc = rt.create_context(
             "CrashTest", ContextType::Project, None, "wal recovery", vec![],
         ).unwrap();
@@ -277,7 +277,7 @@ fn test_wal_crash_recovery() {
 
     // Session 2: WAL replay
     {
-        let mut rt = ContextRuntime::new(make()).unwrap();
+        let mut rt = ContextRuntime::new(make(), "test-session".to_string()).unwrap();
         let stats = rt.stats(Some(&ctx_id)).expect("[T6] Context must survive crash");
         println!("[T6] Session 2: version={} loaded={}", stats.descriptor.version, stats.is_loaded);
         assert!(stats.descriptor.version >= 10,

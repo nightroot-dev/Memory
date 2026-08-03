@@ -14,7 +14,7 @@
 //! use cmhm_core::{Config, EMBED_DIM, context::runtime::ContextRuntime};
 //!
 //! let cfg = Config::default();
-//! let mut rt = ContextRuntime::new(cfg).unwrap();
+//! let mut rt = ContextRuntime::new(cfg, "doc-session".to_string()).unwrap();
 //!
 //! // Learn into the default context
 //! let state_emb   = vec![0.0f32; EMBED_DIM];

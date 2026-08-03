@@ -20,7 +20,7 @@ fn make_runtime(tmp: &TempDir) -> tools::SharedRuntime {
         data_dir: tmp.path().to_path_buf(),
         ..Config::default()
     };
-    let rt = ContextRuntime::new(cfg).expect("ContextRuntime::new failed in test");
+    let rt = ContextRuntime::new(cfg, "test-session".to_string()).expect("ContextRuntime::new failed in test");
     Arc::new(Mutex::new(rt))
 }
 

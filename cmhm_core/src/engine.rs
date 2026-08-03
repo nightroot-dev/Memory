@@ -48,6 +48,13 @@ pub enum Command {
         success: bool,
         tx: mpsc::SyncSender<Result<usize>>, // returns number of nodes updated
     },
+    /// Read-only: max cosine similarity of query against all nodes with model_id.
+    /// Used by shadow gate (no WAL write, no state mutation).
+    MaxCosine {
+        query_emb: Vec<f32>,
+        model_id:  String,
+        tx: mpsc::SyncSender<f32>,
+    },
     Snapshot {
         path: PathBuf,
         tx: mpsc::SyncSender<Result<()>>,
@@ -140,8 +147,24 @@ impl EngineHandle {
         resp_rx.recv()?
     }
 
+    /// Maximum cosine similarity of `query_emb` against all existing nodes with `model_id`.
+    /// Returns 0.0 on empty store. Read-only — no WAL write.
+    /// Used by the shadow gate to compute `novelty = 1 − max_cosine_to_existing`.
+    pub fn max_cosine_to_existing(&self, query_emb: &[f32], model_id: &str) -> f32 {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::MaxCosine {
+            query_emb: query_emb.to_vec(),
+            model_id: model_id.to_string(),
+            tx: resp_tx,
+        }).is_err() {
+            return 0.0; // engine shut down
+        }
+        resp_rx.recv().unwrap_or(0.0)
+    }
+
     /// Shut down the engine gracefully (takes a final snapshot).
     pub fn shutdown(self) -> Result<()> {
+
         self.tx.send(Command::Shutdown)?;
         Ok(())
     }
@@ -343,6 +366,12 @@ fn worker_loop(
                 let result = write_snapshot(&state, &path)
                     .map_err(Into::into);
                 let _ = tx.send(result);
+            }
+
+            Command::MaxCosine { query_emb, model_id, tx } => {
+                // Read-only — no WAL, no state change.
+                let score = state.node_store.max_cosine_to_existing(&query_emb, &model_id);
+                let _ = tx.send(score);
             }
 
             Command::Shutdown => {

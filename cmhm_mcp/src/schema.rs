@@ -346,7 +346,8 @@ pub struct RetrieveTextParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct MemoryFeedbackParams {
     /// List of node IDs that were retrieved and acted upon.
-    /// These are the IDs returned in the `causal_chain` of a `memory_retrieve_text` response.
+    /// These are the IDs shown in the `causal_chain` of the `memory_retrieve_text` response.
+    /// Distinguishes *used* nodes from *shown* nodes: include only nodes you acted on.
     pub node_ids: Vec<u64>,
 
     /// Outcome of acting on the retrieved memory.
@@ -357,4 +358,15 @@ pub struct MemoryFeedbackParams {
     /// UUID or display name of the context the nodes belong to.
     /// Must match the context used for the retrieve call.
     pub context_id: Option<String>,
+
+    /// Retrieve ID returned by the preceding `memory_retrieve_text` or `memory_retrieve` call.
+    /// Format: `"retrieve_id: <uuid>"` — copy the UUID from the response.
+    ///
+    /// **Enables idempotency**: if the same retrieve_id is submitted more than once,
+    /// only the first feedback application changes the bandit/decay state.
+    /// Subsequent calls return a `"already applied"` acknowledgement without mutating state.
+    ///
+    /// **Enables join**: links this feedback to the retrieve log entry for offline analysis.
+    /// Omit only if you cannot track retrieve IDs (no deduplication in that case).
+    pub retrieve_id: Option<String>,
 }

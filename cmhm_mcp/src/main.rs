@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use tracing::info;
 
 use cmhm_core::{Config, ContextRuntime};
+use uuid::Uuid;
 use schema::{JsonRpcRequest, JsonRpcResponse, ToolCallParams, InitializeResult, ToolsListResult};
 use tools::SharedRuntime;
 // dispatch() lives in lib.rs — single source of truth, testable
@@ -81,8 +82,14 @@ fn main() -> Result<()> {
     let cfg = load_config();
     info!("Data dir: {:?} | max_active_contexts: {}", cfg.data_dir, cfg.max_active_contexts);
 
+    // Generate a UUID v4 session ID — constant for this process lifetime.
+    // Written into every learn_log.jsonl and retrieve_log.jsonl entry
+    // so all log files from one session can be joined by session_id.
+    let session_id = Uuid::new_v4().to_string();
+    info!("Session ID: {}", session_id);
+
     // Start the Context Runtime (replaces the single EngineHandle)
-    let runtime = ContextRuntime::new(cfg)?;
+    let runtime = ContextRuntime::new(cfg, session_id)?;
     let shared: SharedRuntime = Arc::new(Mutex::new(runtime));
     info!("Context Runtime started");
 
