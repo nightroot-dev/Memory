@@ -1,9 +1,3 @@
-// Private helpers in tools.rs (detect_manifest_name, detect_git_remote, detect_git_branch)
-// are called only from pub fn handle_project_detect. The lib target's dead-code analysis
-// doesn't trace through pub fn into private callees, so we suppress here rather than
-// adding #[allow] to each individual function.
-#![allow(dead_code)]
-
 pub mod schema;
 pub mod tools;
 

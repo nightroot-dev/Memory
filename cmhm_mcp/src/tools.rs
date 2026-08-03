@@ -16,8 +16,46 @@ use crate::schema::{
 ///
 /// Must match `HashEmbedder::model_id()` so nodes stored by text tools are
 /// retrievable by embedding tools (and vice versa) when the same hash backend is active.
-/// When the `onnx` feature is enabled and adopted, update this to `"minilm-l6-v2-int8"`.
+/// When the `onnx` feature is enabled and adopted, update this to `"minilm-l6-v2-int8-384d"`.
 const TEXT_MODEL_ID: &str = "hash-128d";
+
+// --- Retrieve audit log (JSONL) -----------------------------------------------
+//
+// Every retrieve call appends one line to `retrieve_log.jsonl` in the data dir.
+// This file is:
+//   - Append-only, never truncated — safe to tail / import incrementally.
+//   - Separate from the memory store — a bug in logging never affects retrieval.
+//   - The labeled-pairs corpus for Stage 4 reranker training and offline replay.
+//   - Required to fit λ/α/θ_min (N11) and validate bandit posteriors (N26).
+//
+// Schema (one JSON object per line):
+//   { "ts": <unix_ms>, "ctx": "<uuid>", "model": "<model_id>",
+//     "query": "<text or base64_hash>", "nodes": [<id>, ...], "n": <count> }
+
+fn append_retrieve_log(
+    data_dir: &std::path::Path,
+    ctx_id: &str,
+    model_id: &str,
+    query_repr: &str,        // text for text-path, base64 hash for embedding-path
+    node_ids: &[u64],
+) {
+    use std::io::Write;
+    let path = data_dir.join("retrieve_log.jsonl");
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let line = format!(
+        "{{\"ts\":{},\"ctx\":\"{}\",\"model\":\"{}\",\"query\":{},\"nodes\":{:?},\"n\":{}}}\n",
+        ts, ctx_id, model_id,
+        serde_json::to_string(query_repr).unwrap_or_else(|_| "\"\"".to_string()),
+        node_ids, node_ids.len()
+    );
+    // Best-effort: if the log write fails, do NOT fail the retrieve
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
 
 // --- Embedding helpers -------------------------------------------------------
 
@@ -276,6 +314,17 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 
     match rt.retrieve(ctx_id, emb, &params.model_id) {
         Ok((result, ctx)) => {
+            // Audit log: append one JSONL line per retrieve (labeled-pairs corpus)
+            let node_ids: Vec<u64> = result.causal_chain.iter()
+                .flat_map(|s| [s.from_node, s.to_node]).collect();
+            append_retrieve_log(
+                rt.data_dir(),
+                &ctx.id.to_string(),
+                &params.model_id,
+                &params.query_embedding[..params.query_embedding.len().min(32)], // truncate b64
+                &node_ids,
+            );
+
             let mut text = format!(
                 "## CMHM Causal Memory\n**Context**: {} ({})\n\n{}\n\n",
                 ctx.display_name, ctx.id, result.explanation
@@ -541,6 +590,17 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
     match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID) {
         Ok((result, ctx)) => {
+            // Audit log: append one JSONL line per retrieve (labeled-pairs corpus)
+            let node_ids: Vec<u64> = result.causal_chain.iter()
+                .flat_map(|s| [s.from_node, s.to_node]).collect();
+            append_retrieve_log(
+                rt.data_dir(),
+                &ctx.id.to_string(),
+                TEXT_MODEL_ID,
+                &params.query,
+                &node_ids,
+            );
+
             let mut text = format!(
                 "## CMHM Causal Memory (text query)\n\
                 **Context**: {} ({})\n\
@@ -635,6 +695,9 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     }
 }
 
+// Called by every handler that produces an error response.
+// The lib target can't see through pub fn handler -> private fn, so suppress here.
+#[allow(dead_code)]
 fn error_result(msg: impl Into<String>) -> ToolCallResult {
     ToolCallResult {
         content: vec![ContentItem::text(msg.into())],
@@ -642,6 +705,8 @@ fn error_result(msg: impl Into<String>) -> ToolCallResult {
     }
 }
 
+// Called by create/list/delete/route handlers. Same visibility issue as error_result.
+#[allow(dead_code)]
 fn ctx_type_from_param(p: &ContextTypeParam) -> ContextType {
     match p {
         ContextTypeParam::Session   => ContextType::Session,
@@ -719,6 +784,9 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
 }
 
 /// Read project name from the first manifest found in `dir`.
+// Called only from handle_project_detect. The lib target can't trace
+// through pub fn boundaries, so targeted #[allow] instead of crate-wide.
+#[allow(dead_code)]
 fn detect_manifest_name(dir: &std::path::Path) -> Option<String> {
     // Cargo.toml → [package] name
     let cargo = dir.join("Cargo.toml");
@@ -766,6 +834,7 @@ fn detect_manifest_name(dir: &std::path::Path) -> Option<String> {
 }
 
 /// Get the git remote origin URL via `git remote get-url origin`.
+#[allow(dead_code)]
 fn detect_git_remote(dir: &std::path::Path) -> Option<String> {
     std::process::Command::new("git")
         .args(["remote", "get-url", "origin"])
@@ -778,6 +847,7 @@ fn detect_git_remote(dir: &std::path::Path) -> Option<String> {
 }
 
 /// Get current git branch via `git branch --show-current`.
+#[allow(dead_code)]
 fn detect_git_branch(dir: &std::path::Path) -> Option<String> {
     std::process::Command::new("git")
         .args(["branch", "--show-current"])

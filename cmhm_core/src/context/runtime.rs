@@ -67,6 +67,12 @@ impl ContextRuntime {
         Ok(rt)
     }
 
+    /// Return the root data directory for this runtime.
+    /// Used by the MCP layer to locate sidecar files (e.g. retrieve_log.jsonl).
+    pub fn data_dir(&self) -> &std::path::Path {
+        &self.cfg.data_dir
+    }
+
     // ── Context Lifecycle API ────────────────────────────────────────────────
 
     /// Create a new context. Returns its descriptor.

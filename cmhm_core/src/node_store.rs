@@ -80,16 +80,41 @@ impl NodeStore {
     ///
     /// Only compares against nodes with matching `model_id` (N3).
     /// Returns `Vec<(NodeId, cosine)>` sorted descending by similarity.
+    ///
+    /// Emits a `tracing::warn!` when every node in the store is skipped due to
+    /// model_id mismatch — that is the signature of a stale rename or wrong embedder.
     pub fn nearest(&self, query: &[f32], model_id: &str, k: usize) -> Vec<(u64, f32)> {
         if self.nodes.is_empty() {
             return vec![];
         }
 
+        let total = self.nodes.len();
         let mut scores: Vec<(u64, f32)> = self.nodes.iter()
             .filter(|(_, node)| node.model_id == model_id)
             .filter(|(_, node)| node.embedding.len() == query.len())
             .map(|(&id, node)| (id, cosine(query, &node.embedding)))
             .collect();
+
+        // Mismatch metric: nodes that exist but were invisible to this query.
+        // If ALL nodes were skipped, something is structurally wrong — log loudly.
+        let nodes_skipped_model_mismatch = total.saturating_sub(scores.len());
+        if nodes_skipped_model_mismatch > 0 && scores.is_empty() {
+            tracing::warn!(
+                model_id,
+                total_nodes = total,
+                nodes_skipped_model_mismatch,
+                "nearest(): ALL nodes skipped — model_id mismatch. \
+                 This produces silently empty results. \
+                 Did a model_id rename leave stale nodes on disk? \
+                 Known good id: 'hash-128d'."
+            );
+        } else if nodes_skipped_model_mismatch > 0 {
+            tracing::debug!(
+                model_id,
+                nodes_skipped_model_mismatch,
+                "nearest(): some nodes skipped due to model_id mismatch (expected during embedder migration)"
+            );
+        }
 
         // Partial sort: we only need top-k
         scores.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
