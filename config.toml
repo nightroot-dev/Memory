@@ -1,0 +1,95 @@
+# CMHM Configuration
+# All values shown are the spec defaults. Edit and place this file
+# next to the cmhm_mcp binary (or in the working directory).
+
+# Working memory buffer capacity
+working_memory_size = 5
+
+# Edge birth: minimum similarity score to create an inferred edge
+edge_birth_threshold = 0.35
+
+# Node birth: maximum cosine to nearest neighbor (below = novel)
+novelty_threshold = 0.55
+
+# Node birth: minimum salience to force creation even if not novel
+salience_threshold = 0.70
+
+# Edge forgetting rate lambda_c in hr^-1 (half-life ≈ 7 hours)
+forgetting_lambda_c = 0.1
+
+# Edge birth temporal decay lambda_t in s^-1
+temporal_decay_lambda_t = 0.0001
+
+# Number of cohort centroids for superstition filter
+cohort_count = 512
+
+# Dense core relation slices
+dense_core_slices = 8
+
+# Hours between consolidation passes
+consolidation_interval_hours = 24.0
+
+# Node count trigger for consolidation
+consolidation_node_trigger = 8000
+
+# Cumulative reinforcement trigger for consolidation
+consolidation_reinforce_trigger = 50.0
+
+# Data directory (WAL, snapshots)
+data_dir = "data"
+
+# Projection matrices directory (one .bin file per model)
+projections_dir = "data/projections"
+
+# Maximum hops in Dijkstra retrieval
+retrieval_max_depth = 3
+
+# ── Context Runtime ────────────────────────────────────────────────────────────
+# Maximum number of contexts loaded in RAM simultaneously.
+# When exceeded, the least-recently-used context is checkpointed and evicted.
+max_active_contexts = 10
+
+# Seconds without a request before Active → Idle transition (default: 5 min).
+idle_timeout_secs = 300
+
+# Seconds in Idle before Idle → Sleeping (checkpoint + evict from RAM) (default: 30 min).
+sleep_timeout_secs = 1800
+
+# Take a snapshot every N learn commands per context (default: 1000).
+# Lower values = more durable, more disk I/O.
+snapshot_interval_cmds = 1000
+
+# ── Context Router Weights ─────────────────────────────────────────────────────
+# score(c) = alpha*Sq + beta*Sh + gamma*St + delta*Sa
+#
+# Sq = keyword/tag overlap between query and context metadata
+# Sh = normalised access frequency (0..1)
+# St = recency: exp(-ln(2)/half_life * age_seconds)
+# Sa = 1 if context is Active/Idle (already in RAM), else 0
+#
+# Weights should sum to 1.0.
+router_alpha = 0.50   # semantic keyword overlap
+router_beta  = 0.20   # frequency of access
+router_gamma = 0.20   # recency
+router_delta = 0.10   # in-RAM bonus
+
+# Recency half-life in seconds.
+# 86400 = 1 day: a context used 1 day ago scores St=0.5.
+# 3600  = 1 hour: fast decay, recent sessions dominate.
+router_recency_half_life_secs = 86400.0
+
+# ── Retrieval Blend Weights ────────────────────────────────────────────────────
+# seed_score = retrieval_query_weight   * cos(query, node)
+#            + retrieval_context_weight * cos(dense_context, node)
+#
+# query_weight   → how much the literal query similarity drives seed selection
+# context_weight → how much the dense causal context vector drives it
+# Both must sum to 1.0. Increase query_weight for keyword tasks;
+# increase context_weight for long-horizon reasoning tasks.
+retrieval_query_weight   = 0.7
+retrieval_context_weight = 0.3
+
+# Variance threshold above which an edge is flagged as uncertain (curious).
+# Lower → more edges flagged as uncertain; higher → only the most volatile edges.
+# Range: (0.0, 1.0). Default 0.1 flags edges with < ~10 observations.
+retrieval_curiosity_threshold = 0.1

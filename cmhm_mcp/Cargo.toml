@@ -1,0 +1,29 @@
+[package]
+name = "cmhm_mcp"
+version = "0.1.0"
+edition = "2021"
+description = "CMHM MCP server — stdio JSON-RPC, compatible with any MCP client (Claude, Cursor, OpenCode, Continue, etc.)"
+
+[[bin]]
+name = "cmhm_mcp"
+path = "src/main.rs"
+
+[lib]
+name = "cmhm_mcp_lib"
+path = "src/lib.rs"
+
+[dependencies]
+cmhm_core = { path = "../cmhm_core" }
+serde = { workspace = true }
+serde_json = "1"
+schemars = { version = "0.8", features = ["preserve_order"] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+base64 = "0.22"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+

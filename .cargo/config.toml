@@ -1,0 +1,24 @@
+[build]
+target = "x86_64-pc-windows-gnu"
+
+[target.x86_64-pc-windows-gnu]
+linker = "rust-lld"
+ar = "C:/msys64/mingw64/bin/ar.exe"
+
+# ─── To activate the `onnx` feature (MiniLM-L6-v2-int8 embeddings) ───────────
+#
+# Requires MSVC linker (link.exe). VS Build Tools must be installed:
+#
+#   winget install Microsoft.VisualStudio.2022.BuildTools `
+#     --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet --wait"
+#
+# Then switch this file to MSVC target:
+#   1. Comment out the `[build] target = gnu` line above
+#   2. Uncomment the two lines below
+#   3. Run: cargo build --features onnx
+#
+# [build]
+# target = "x86_64-pc-windows-msvc"
+#
+# The `Embedder` trait, feature flags, and all code wiring are already in place.
+# Switching back: re-comment the msvc lines, uncomment the gnu lines.

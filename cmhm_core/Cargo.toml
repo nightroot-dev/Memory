@@ -1,0 +1,43 @@
+[package]
+name = "cmhm_core"
+version = "0.1.0"
+edition = "2021"
+description = "Causal-Matrix Hybrid Memory — core engine"
+
+[lib]
+name = "cmhm_core"
+crate-type = ["lib", "staticlib"]
+
+# ─── Feature flags ────────────────────────────────────────────────────────────
+#
+# hash  (default): FNV-128 hash-projection embedder. Zero deps. Always compiles.
+#                  Works on any toolchain (GNU, MSVC, wasm, etc.)
+#
+# onnx  (opt-in):  all-MiniLM-L6-v2-int8 via fastembed + ONNX Runtime.
+#                  Requires MSVC toolchain (per-project override in this dir).
+#                  Downloads ~14 MB model on first run. ~4 MB ORT DLL at build time.
+#                  Enable: cargo build --features onnx
+#                  NOTE: Claims of "no runtime dependencies" are false once this is enabled.
+#                        See CMHM_Design_v2.md §7 for the full dependency statement.
+[features]
+default = ["hash"]
+hash    = []
+onnx    = ["dep:fastembed"]
+
+[dependencies]
+serde = { workspace = true }
+bincode = { workspace = true }
+rand = { workspace = true }
+libm = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+toml = { workspace = true }
+
+# ONNX backend — optional, only pulled in with --features onnx
+# Pinned to 5.x (latest stable as of 2026-08). Provides TextEmbedding wrapper over ORT.
+# ort-download-binaries-native-tls: fetches ORT DLL at build time via native TLS (no vendored OpenSSL).
+fastembed = { version = "5", optional = true, features = ["ort-download-binaries-native-tls"] }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }

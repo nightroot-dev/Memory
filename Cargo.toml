@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "cmhm_core",
+    "cmhm_mcp",
+]
+resolver = "2"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "=1.0.210", features = ["derive"] }
+bincode = "1"
+# Numerics
+rand = { version = "0.8", features = ["small_rng"] }
+libm = "0.2"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Async (MCP server)
+tokio = { version = "1", features = ["full"] }
+# Error handling
+thiserror = "1"
+anyhow = "1"
+# Config
+toml = "0.8"

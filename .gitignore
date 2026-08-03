@@ -1,0 +1,17 @@
+# Build artifacts
+/target/
+
+# WAL and snapshot files (data, not code)
+*.wal
+*.snapshot
+*.snap.tmp
+
+# Runtime data directory
+/data/
+
+# IDE
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
