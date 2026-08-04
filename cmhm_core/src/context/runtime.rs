@@ -368,6 +368,29 @@ impl ContextRuntime {
         Ok((updated, desc))
     }
 
+    /// Number of nodes in the default (or specified) context's node store.
+    /// Read-only — no WAL write. Returns 0 if context is not loaded or on error.
+    /// Used by tests to assert insertion without depending on retrieval traversal.
+    pub fn node_count(&mut self, context_id: Option<&str>) -> usize {
+        let id = match self.resolve_context(context_id) {
+            Ok(id) => id,
+            Err(_) => return 0,
+        };
+        match self.ensure_loaded(&id) {
+            Ok(handle) => handle.node_count(),
+            Err(_) => 0,
+        }
+    }
+
+    /// Beta posterior `(bandit_alpha, bandit_beta)` for a specific node ID in the given context.
+    /// Returns `None` if the context is not loaded, or if the node ID is absent.
+    /// Read-only — no WAL write. Used by tests to verify Beta parameter correctness.
+    pub fn get_node_beta(&mut self, context_id: Option<&str>, node_id: u64) -> Option<(f32, f32)> {
+        let id = self.resolve_context(context_id).ok()?;
+        let handle = self.ensure_loaded(&id).ok()?;
+        handle.get_node_beta(node_id)
+    }
+
     /// Graceful shutdown: checkpoint all loaded contexts.
     pub fn shutdown(&mut self) {
         // Transition all loaded Active/Idle contexts to Sleeping so registry

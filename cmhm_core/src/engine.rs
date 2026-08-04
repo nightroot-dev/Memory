@@ -55,6 +55,16 @@ pub enum Command {
         model_id:  String,
         tx: mpsc::SyncSender<f32>,
     },
+    /// Read-only: number of nodes currently in the store. Used by tests.
+    NodeCount {
+        tx: mpsc::SyncSender<usize>,
+    },
+    /// Read-only: Beta posterior (alpha, beta) for a specific node ID.
+    /// Returns None if the node ID is not present. Used by tests.
+    GetNodeBeta {
+        node_id: u64,
+        tx: mpsc::SyncSender<Option<(f32, f32)>>,
+    },
     Snapshot {
         path: PathBuf,
         tx: mpsc::SyncSender<Result<()>>,
@@ -160,6 +170,27 @@ impl EngineHandle {
             return 0.0; // engine shut down
         }
         resp_rx.recv().unwrap_or(0.0)
+    }
+
+    /// Number of nodes currently in the node store. Read-only — no WAL write.
+    /// Returns 0 if the engine has shut down.
+    pub fn node_count(&self) -> usize {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::NodeCount { tx: resp_tx }).is_err() {
+            return 0;
+        }
+        resp_rx.recv().unwrap_or(0)
+    }
+
+    /// Beta posterior `(bandit_alpha, bandit_beta)` for a specific node ID.
+    /// Returns `None` if the node is not present. Read-only — no WAL write.
+    /// Used by tests to verify Beta parameter correctness after feedback.
+    pub fn get_node_beta(&self, node_id: u64) -> Option<(f32, f32)> {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::GetNodeBeta { node_id, tx: resp_tx }).is_err() {
+            return None;
+        }
+        resp_rx.recv().unwrap_or(None)
     }
 
     /// Shut down the engine gracefully (takes a final snapshot).
@@ -372,6 +403,18 @@ fn worker_loop(
                 // Read-only — no WAL, no state change.
                 let score = state.node_store.max_cosine_to_existing(&query_emb, &model_id);
                 let _ = tx.send(score);
+            }
+
+            Command::NodeCount { tx } => {
+                // Read-only — no WAL, no state change.
+                let _ = tx.send(state.node_store.len());
+            }
+
+            Command::GetNodeBeta { node_id, tx } => {
+                // Read-only — no WAL, no state change.
+                let result = state.node_store.get(node_id)
+                    .map(|n| (n.bandit_alpha, n.bandit_beta));
+                let _ = tx.send(result);
             }
 
             Command::Shutdown => {
