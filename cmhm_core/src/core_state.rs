@@ -34,12 +34,13 @@ pub struct CoreState {
     #[serde(with = "crate::serde_helpers::f32_128")]
     pub global_ema: [f32; 128],
 
-    /// Content-addressed set of applied feedback keys.
-    /// Key format: `"{retrieve_id}/{node_id}/{success_as_01}"`
+    /// Content-addressed set of applied feedback keys (stored as FNV-1a 64-bit hashes).
+    /// Original key format: `"{retrieve_id}/{node_id}/{success_as_01}"`
+    /// Hashed as: `fnv64(key)` → u64  (60 B/entry → 8 B/entry, P(collision) ≈ 2⁻⁶⁴).
     /// Prevents Beta(α,β) from being updated twice for the same (retrieve, node, outcome) triple.
     /// `#[serde(default)]` ensures old snapshots without this field deserialise to empty set.
     #[serde(default)]
-    pub feedback_seen: HashSet<String>,
+    pub feedback_seen: HashSet<u64>,
 }
 
 impl CoreState {
@@ -77,4 +78,18 @@ pub fn now_secs() -> f64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs_f64()
+}
+
+/// FNV-1a 64-bit hash of a UTF-8 string.
+///
+/// Deterministic across Rust versions, builds, and platforms.
+/// Used for `feedback_seen` key compaction: 60 B/entry → 8 B/entry.
+/// P(collision for two distinct keys) ≈ 2⁻⁶⁴ per pair.
+pub fn fnv64(s: &str) -> u64 {
+    let mut h: u64 = 14695981039346656037u64; // FNV offset basis
+    for b in s.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(1099511628211u64); // FNV prime
+    }
+    h
 }

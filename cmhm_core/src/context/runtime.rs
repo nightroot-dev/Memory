@@ -290,7 +290,8 @@ impl ContextRuntime {
 
     /// Maximum cosine similarity between `query_emb` and any existing node in a context.
     ///
-    /// Used by the shadow gate: `novelty = 1.0 - max_cosine_in_context(...)`.
+    /// `node_type`: when `Some`, restricts to that role. Pass `Some(NodeType::State)` from
+    /// the shadow gate so state novelty is measured against state nodes only.
     /// Returns `0.0` on empty or unloaded context (novelty = 1.0, gate score maximised).
     /// Does NOT load the context — if it's sleeping, we skip the novelty check (safe: returns 0).
     pub fn max_cosine_in_context(
@@ -298,6 +299,7 @@ impl ContextRuntime {
         context_id: Option<&str>,
         query_emb: &[f32],
         model_id: &str,
+        node_type: Option<crate::node::NodeType>,
     ) -> f32 {
         let id = match self.resolve_context(context_id) {
             Ok(id) => id,
@@ -305,7 +307,7 @@ impl ContextRuntime {
         };
         // Only check if context is already loaded — avoid a disk load just for shadow gate
         match self.cache.get(&id) {
-            Some(handle) => handle.max_cosine_to_existing(query_emb, model_id),
+            Some(handle) => handle.max_cosine_to_existing(query_emb, model_id, node_type),
             None => 0.0, // not loaded → treat as novel
         }
     }

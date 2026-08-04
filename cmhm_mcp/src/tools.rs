@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use parking_lot::Mutex;
 use uuid::Uuid;
-use cmhm_core::{ContextRuntime, ContextType, text_to_embedding, extract_tags, scrub::scrub_learn};
+use cmhm_core::{ContextRuntime, ContextType, text_to_embedding, extract_tags, scrub::scrub_learn, node::NodeType};
 use crate::schema::{
     RetrieveParams, LearnParams, LearnTextParams, RetrieveTextParams,
     CreateContextParams, ListContextsParams, DeleteContextParams,
@@ -843,11 +843,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     );
 
     // ── Fix 3: Shadow gate (observe only, never suppress insertion) ─────────
-    // novelty = 1 − max_cos(new_state_emb, existing nodes in ctx)
+    // novelty = 1 − max_cos(new_state_emb, existing STATE nodes in ctx)
+    // Role-scoped: compare state embedding against State nodes only.
+    // Cross-role comparison (against Action/Outcome) creates a spurious 0.34 floor.
     // gate_score = novelty × (1 + κ × |prediction_error|)
     // verifiability = 1.0 (placeholder; Wilson LCB not yet implemented)
     // Insertion always proceeds regardless of gate_score.
-    let max_cos  = rt_lock.max_cosine_in_context(ctx_id, &state_emb, TEXT_MODEL_ID);
+    let max_cos  = rt_lock.max_cosine_in_context(ctx_id, &state_emb, TEXT_MODEL_ID, Some(NodeType::State));
     let novelty  = 1.0_f32 - max_cos;
     let gate_score = novelty * (1.0 + GATE_KAPPA * pe.abs());
     append_gate_shadow_log(&data_dir, &event_id, &ctx_id_str, novelty, pe, gate_score);
