@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use crate::{
     node_store::NodeStore,
     edge_store::EdgeStore,
@@ -32,6 +33,13 @@ pub struct CoreState {
     /// Global EMA of embeddings (used in node birth blending).
     #[serde(with = "crate::serde_helpers::f32_128")]
     pub global_ema: [f32; 128],
+
+    /// Content-addressed set of applied feedback keys.
+    /// Key format: `"{retrieve_id}/{node_id}/{success_as_01}"`
+    /// Prevents Beta(α,β) from being updated twice for the same (retrieve, node, outcome) triple.
+    /// `#[serde(default)]` ensures old snapshots without this field deserialise to empty set.
+    #[serde(default)]
+    pub feedback_seen: HashSet<String>,
 }
 
 impl CoreState {
@@ -49,6 +57,7 @@ impl CoreState {
             last_consolidation_secs: 0.0,
             cumulative_reinforce: 0.0,
             global_ema: [0.0f32; 128],
+            feedback_seen: HashSet::new(),
         }
     }
 

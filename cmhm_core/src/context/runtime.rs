@@ -352,16 +352,19 @@ impl ContextRuntime {
     /// Provide outcome feedback for a list of node IDs after a retrieve → act → observe cycle.
     ///
     /// Updates each node's Beta(α, β) bandit posterior and half-life.
+    /// `feedback_key`: stable base key for per-node deduplication (typically the retrieve_id).
+    /// When provided, the engine skips any (key, node_id, outcome) triple it has already applied.
     /// Returns (updated_count, ContextDescriptor).
     pub fn feedback_nodes(
         &mut self,
         context_id: Option<&str>,
         node_ids: Vec<u64>,
         success: bool,
+        feedback_key: Option<String>,
     ) -> Result<(usize, ContextDescriptor)> {
         let id = self.resolve_context(context_id)?;
         let handle = self.ensure_loaded(&id)?;
-        let updated = handle.feedback_nodes(node_ids, success)?;
+        let updated = handle.feedback_nodes(node_ids, success, feedback_key)?;
         let desc = self.registry.get(&id)
             .map(ContextDescriptor::from)
             .ok_or_else(|| anyhow::anyhow!("context vanished after feedback"))?;

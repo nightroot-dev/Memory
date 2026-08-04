@@ -1099,7 +1099,13 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
         }
     }
 
-    match rt_lock.feedback_nodes(ctx_id, params.node_ids.clone(), success) {
+    // Build the engine-level feedback key from retrieve_id.
+    // Key format per node inside the engine: "{retrieve_id}/{node_id}/{success_as_01}"
+    // This makes Beta(α,β) reflect evidence count, not submission count.
+    // Unjoined feedback (no retrieve_id) passes None — applied unconditionally, no dedup.
+    let feedback_key = retrieve_id.map(|r| r.to_string());
+
+    match rt_lock.feedback_nodes(ctx_id, params.node_ids.clone(), success, feedback_key) {
         Ok((updated, ctx)) => {
             // Record retrieve_id in ledger AFTER successful application (not before)
             // so a crash between apply and record replays as a second apply (safe for Beta).

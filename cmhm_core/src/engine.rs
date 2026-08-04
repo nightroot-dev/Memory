@@ -43,10 +43,14 @@ pub enum Command {
     },
     /// Outcome feedback for a set of retrieved node IDs.
     /// Updates each node's Beta bandit posterior and half-life.
+    /// `feedback_key`: base key for deduplication — keyed per (base_key, node_id, success).
+    /// When present, the engine skips nodes whose key is already in `feedback_seen`.
+    /// When None (unjoined feedback): applied unconditionally with no dedup guarantee.
     FeedbackNodes {
         node_ids: Vec<u64>,
         success: bool,
-        tx: mpsc::SyncSender<Result<usize>>, // returns number of nodes updated
+        feedback_key: Option<String>,
+        tx: mpsc::SyncSender<Result<usize>>, // returns number of nodes actually updated
     },
     /// Read-only: max cosine similarity of query against all nodes with model_id.
     /// Used by shadow gate (no WAL write, no state mutation).
@@ -149,11 +153,13 @@ impl EngineHandle {
 
     /// Provide outcome feedback for a set of retrieved node IDs.
     ///
-    /// Updates each node's Beta(α,β) bandit posterior and half-life.
-    /// Returns the number of nodes that were actually found and updated.
-    pub fn feedback_nodes(&self, node_ids: Vec<u64>, success: bool) -> Result<usize> {
+    /// `feedback_key`: base key for deduplication (typically the retrieve_id).
+    /// When provided, the engine skips any node whose `"{key}/{node_id}/{success}"` is already
+    /// in `CoreState::feedback_seen`. This makes duplicate MCP calls and WAL replays no-ops.
+    /// Returns the number of nodes that were actually updated (0 if all duplicates).
+    pub fn feedback_nodes(&self, node_ids: Vec<u64>, success: bool, feedback_key: Option<String>) -> Result<usize> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
-        self.tx.send(Command::FeedbackNodes { node_ids, success, tx: resp_tx })?;
+        self.tx.send(Command::FeedbackNodes { node_ids, success, feedback_key, tx: resp_tx })?;
         resp_rx.recv()?
     }
 
@@ -388,8 +394,8 @@ fn worker_loop(
                 let _ = tx.send(result);
             }
 
-            Command::FeedbackNodes { node_ids, success, tx } => {
-                let result = process_feedback_nodes(&mut state, &node_ids, success);
+            Command::FeedbackNodes { node_ids, success, feedback_key, tx } => {
+                let result = process_feedback_nodes(&mut state, &node_ids, success, feedback_key.as_deref());
                 let _ = tx.send(result);
             }
 
@@ -721,18 +727,43 @@ fn update_causal_edge(
 ///
 /// Returns the count of node IDs that were found and updated.
 /// Node IDs not found in the store are silently skipped (stale references are fine).
+/// Apply outcome feedback to the given node IDs.
+///
+/// If `feedback_key` is provided, each node's effective key is
+/// `"{feedback_key}/{node_id}/{success_as_01}"`. Nodes whose key is already in
+/// `state.feedback_seen` are skipped — their Beta posterior is NOT updated again.
+/// This makes duplicate calls (from retries, WAL replays, or concurrent MCP calls)
+/// a no-op: Alpha(α,β) reflects evidence count, not submission count.
+///
+/// If `feedback_key` is None (unjoined feedback), feedback is applied unconditionally.
+/// The caller is responsible for upstream dedup in this case.
 fn process_feedback_nodes(
     state: &mut CoreState,
     node_ids: &[u64],
     success: bool,
+    feedback_key: Option<&str>,
 ) -> Result<usize> {
     let now = now_secs() as i64;
+    let outcome_bit = if success { 1 } else { 0 };
     let mut updated = 0usize;
     for &id in node_ids {
+        // Dedup check: if a stable key exists, skip already-applied feedback.
+        let seen_key = feedback_key.map(|k| format!("{k}/{id}/{outcome_bit}"));
+        if let Some(ref key) = seen_key {
+            if state.feedback_seen.contains(key) {
+                // Duplicate: this (retrieve, node, outcome) triple was already applied.
+                // Skipping prevents Alpha from being inflated by call volume.
+                continue;
+            }
+        }
         if let Some(node) = state.node_store.get_mut(id) {
             node.update_from_outcome(success);
             node.record_retrieval(now);
             updated += 1;
+            // Mark applied — subsequent identical calls are no-ops.
+            if let Some(key) = seen_key {
+                state.feedback_seen.insert(key);
+            }
         }
     }
     Ok(updated)
