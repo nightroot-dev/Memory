@@ -122,14 +122,11 @@ impl NodeStore {
         scores
     }
 
-    /// Brute-force top-k nearest neighbours, restricted to nodes of a specific
-    /// `NodeType`. Used by `birth_node` to prevent cross-role embedding contamination.
+    /// Brute-force top-k nearest neighbours restricted to a specific `NodeType`.
     ///
-    /// A STATE embedding is only compared against STATE nodes, ACTION against ACTION,
-    /// etc. This removes the floor effect caused by the EMA-shifted action/outcome
-    /// nodes inflating max_cosine for any state query.
-    ///
-    /// Returns `Vec<(NodeId, cosine)>` sorted descending by similarity.
+    /// Used by `birth_node` so that STATE embeddings are only compared against
+    /// other STATE nodes, ACTION against ACTION, etc. This prevents cross-role
+    /// EMA contamination (the 0.34 floor observed in `test_diagnose_cosines`).
     pub fn nearest_by_type(
         &self,
         query: &[f32],
@@ -140,8 +137,8 @@ impl NodeStore {
         if self.nodes.is_empty() { return vec![]; }
         let mut scores: Vec<(u64, f32)> = self.nodes.iter()
             .filter(|(_, n)| n.model_id == model_id
-                          && n.node_type == node_type
-                          && n.embedding.len() == query.len())
+                           && n.node_type == node_type
+                           && n.embedding.len() == query.len())
             .map(|(&id, n)| (id, cosine(query, &n.embedding)))
             .collect();
         scores.sort_unstable_by(|a, b|
@@ -162,11 +159,10 @@ impl NodeStore {
             .fold(0.0f32, f32::max)
     }
 
-    /// Maximum cosine similarity between `query` and any existing node of a specific
-    /// `NodeType` with `model_id`.
+    /// Maximum cosine similarity restricted to a specific `NodeType`.
     ///
-    /// Used by the shadow gate when evaluating STATE embedding novelty — only comparing
-    /// against other STATE nodes removes cross-role contamination.
+    /// Used by the shadow gate when evaluating STATE embedding novelty — only
+    /// STATE nodes are relevant for deciding whether a new state is novel.
     pub fn max_cosine_to_existing_typed(
         &self,
         query: &[f32],
@@ -257,10 +253,14 @@ mod tests {
     use crate::node::NodeType;
 
     fn dummy_node(v: f32, model_id: &str) -> Node {
+        dummy_node_typed(v, model_id, NodeType::State)
+    }
+
+    fn dummy_node_typed(v: f32, model_id: &str, node_type: NodeType) -> Node {
         let mut emb = vec![0.0f32; 128];
         emb[0] = v;
         let emb = l2_normalize(&emb);
-        Node::new(emb, model_id.to_string(), 0.5, 0, 0.0, NodeType::State)
+        Node::new(emb, model_id.to_string(), 0.5, 0, 0.0, node_type)
     }
 
     #[test]
@@ -284,41 +284,6 @@ mod tests {
         let results = store.nearest(&query, "hash-128d", 1);
         assert_eq!(results.len(), 1);
         assert!((results[0].1 - 1.0).abs() < 1e-5, "expected cosine≈1.0, got {}", results[0].1);
-    }
-
-    #[test]
-    fn test_nearest_by_type_isolates_roles() {
-        // State and Action nodes with identical embeddings in the same model.
-        // nearest_by_type must return only the node of the requested type.
-        let mut store = NodeStore::new();
-        let mut e = vec![0.0f32; 128]; e[0] = 1.0;
-        let e_norm = l2_normalize(&e);
-        // Insert one State node and one Action node with the same embedding
-        let state_id = store.insert(Node::new(e_norm.clone(), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State));
-        let action_id = store.insert(Node::new(e_norm.clone(), "hash-128d".into(), 0.5, 0, 0.0, NodeType::Action));
-        let query = e_norm.clone();
-
-        // State query → only state node
-        let state_res = store.nearest_by_type(&query, "hash-128d", 10, NodeType::State);
-        assert_eq!(state_res.len(), 1);
-        assert_eq!(state_res[0].0, state_id, "should return the State node");
-
-        // Action query → only action node
-        let action_res = store.nearest_by_type(&query, "hash-128d", 10, NodeType::Action);
-        assert_eq!(action_res.len(), 1);
-        assert_eq!(action_res[0].0, action_id, "should return the Action node");
-
-        // Outcome query → empty (no Outcome nodes)
-        let outcome_res = store.nearest_by_type(&query, "hash-128d", 10, NodeType::Outcome);
-        assert!(outcome_res.is_empty(), "no Outcome nodes → empty result");
-
-        // max_cosine_to_existing_typed respects role
-        let cos_state  = store.max_cosine_to_existing_typed(&query, "hash-128d", NodeType::State);
-        let cos_action = store.max_cosine_to_existing_typed(&query, "hash-128d", NodeType::Action);
-        let cos_outcome= store.max_cosine_to_existing_typed(&query, "hash-128d", NodeType::Outcome);
-        assert!((cos_state  - 1.0).abs() < 1e-5, "state cos should be 1.0");
-        assert!((cos_action - 1.0).abs() < 1e-5, "action cos should be 1.0");
-        assert!((cos_outcome - 0.0).abs() < 1e-5, "outcome cos should be 0.0 (no nodes)");
     }
 
     #[test]
@@ -352,6 +317,35 @@ mod tests {
         let n = l2_normalize(&v);
         let norm: f32 = n.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-5, "norm should be 1.0, got {norm:.6}");
+    }
+
+    #[test]
+    fn nearest_by_type_isolates_roles() {
+        // A STATE and an ACTION node with identical embeddings: each role's
+        // nearest_by_type must only see nodes of its own type.
+        let mut store = NodeStore::new();
+        let mut e = vec![0.0f32; 128]; e[0] = 1.0;
+        let e = l2_normalize(&e);
+        let state_id  = store.insert(dummy_node_typed(1.0, "hash-128d", NodeType::State));
+        let action_id = store.insert(dummy_node_typed(1.0, "hash-128d", NodeType::Action));
+
+        let results_state  = store.nearest_by_type(&e, "hash-128d", 10, NodeType::State);
+        let results_action = store.nearest_by_type(&e, "hash-128d", 10, NodeType::Action);
+
+        assert_eq!(results_state.len(), 1);
+        assert_eq!(results_state[0].0, state_id,  "STATE query must only return STATE node");
+        assert_eq!(results_action.len(), 1);
+        assert_eq!(results_action[0].0, action_id, "ACTION query must only return ACTION node");
+
+        // max_cosine_to_existing_typed must also scope correctly
+        let mc_state  = store.max_cosine_to_existing_typed(&e, "hash-128d", NodeType::State);
+        let mc_action = store.max_cosine_to_existing_typed(&e, "hash-128d", NodeType::Action);
+        assert!((mc_state  - 1.0).abs() < 1e-5);
+        assert!((mc_action - 1.0).abs() < 1e-5);
+
+        // Outcome namespace is empty — must return 0.0 ("maximally novel")
+        let mc_outcome = store.max_cosine_to_existing_typed(&e, "hash-128d", NodeType::Outcome);
+        assert!((mc_outcome - 0.0).abs() < 1e-5);
     }
 
     #[test]

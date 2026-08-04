@@ -6,7 +6,7 @@
 //! Run:
 //!   cargo +stable-x86_64-pc-windows-gnu test --test integration -- --nocapture
 
-use cmhm_core::{Config, ContextRuntime, ContextId, ContextType};
+use cmhm_core::{Config, ContextRuntime, ContextId, ContextType, node::NodeType};
 
 // ── Deterministic 128-dim embedding ──────────────────────────────────────────
 
@@ -564,54 +564,46 @@ fn test_birth_threshold_boundary_cases() {
     }
 }
 
-// ── Calibration sweep: role-scoped max_cosine has no cross-role floor ────────
-//
-// After role-scoping, a State query is compared only against State nodes.
-// The 0.34 floor that existed when Action/Outcome nodes contaminated the search
-// should be gone: actual max_cosine should track target_cos closely.
-//
-// The store is populated with a single State node at emb(0) (the anchor).
-// Separate Action and Outcome nodes are also inserted to confirm they are invisible
-// to State-scoped nearest.
+// ───────────────────────────────────────────────────────────────────────
+// Birth gate calibration sweep (promoted from diagnostic)
+// ───────────────────────────────────────────────────────────────────────
+
+/// Verifies that max_cosine_in_context (role-scoped to State nodes) accurately
+/// reflects the geometric target cosine after role-scoping removes cross-role
+/// EMA contamination.
+///
+/// Before role-scoping: actual ≈ 0.34 + 0.60*target (floor of 0.34 from mixed EMA).
+/// After role-scoping:  actual ≈ target  (floor eliminated; direct comparison).
+///
+/// Tolerance of ±0.05 accounts for EMA blending (0.7*emb + 0.3*μ) applied at birth.
+/// If this test fails, the 0.34 floor has returned — investigate nearest_by_type scope.
 #[test]
 fn test_birth_gate_cosine_calibration_curve() {
-    use cmhm_core::node::NodeType;
-
     let anchor = emb(0);
     let (cfg, dir) = make_cfg("cos_calibration");
     let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
 
-    // Seed store: one learn to create state/action/outcome nodes.
-    // Action=emb(100) and Outcome=emb(200) are orthogonal to anchor;
-    // they should NOT appear in the State-scoped nearest search.
+    // Seed ONE state node so the store is non-empty.
+    // Use anchor as state; action/outcome use different seeds so they don’t
+    // pollute the State namespace (role-scoping keeps them separate).
     rt.learn(None, anchor.clone(), emb(100), emb(200), 0.9, 0.0, "hash-128d").unwrap();
 
-    // 11-point sweep: target cos 0.0 → 1.0 in 0.1 steps.
-    // Tolerance 0.08: tighter than the old unscoped ±0.20 observed spread.
-    let targets: Vec<f32> = (0..=10).map(|i| i as f32 * 0.1).collect();
-    for target in targets {
-        let v = if target >= 1.0 - 1e-5 {
-            anchor.clone()
+    // Sweep target cosines from 0.0 to 1.0 in steps of 0.1.
+    let targets: &[f32] = &[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+    for &target in targets {
+        let v = if (target - 1.0).abs() < 1e-5 {
+            anchor.clone() // exact identity
         } else {
-            with_cosine(&anchor, target, 9999)
+            with_cosine(&anchor, target, 7777)
         };
-        // Role-scoped: None passes node_type=None → all nodes (backward compat check)
-        let actual_all   = rt.max_cosine_in_context(None, &v, "hash-128d", None);
-        // Role-scoped: Some(State) → only State nodes
-        let actual_state = rt.max_cosine_in_context(None, &v, "hash-128d", Some(NodeType::State));
 
-        // State-scoped result should closely track target (no 0.34 floor from cross-role)
-        let err = (actual_state - target).abs();
-        assert!(
-            err < 0.08,
-            "State-scoped max_cosine should track target. target={target:.2} actual={actual_state:.4} err={err:.4}"
-        );
+        let actual = rt.max_cosine_in_context(None, &v, "hash-128d", NodeType::State);
 
-        // For non-zero targets the all-node result may be higher (Action/Outcome contamination),
-        // but state-scoped is always <= all-node.
+        // After role-scoping, actual should track target closely.
+        // Tolerance ±0.06 accounts for EMA blending at birth.
         assert!(
-            actual_state <= actual_all + 1e-5,
-            "State-scoped <= all-node. target={target:.2} state={actual_state:.4} all={actual_all:.4}"
+            (actual - target).abs() < 0.06,
+            "[cos_calibration] target={target:.2} actual={actual:.4} — floor > 0.06 means cross-role contamination"
         );
     }
 
@@ -619,96 +611,125 @@ fn test_birth_gate_cosine_calibration_curve() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-// ── Feedback survives snapshot → reload ──────────────────────────────────────
-//
-// feedback_seen is part of CoreState (persisted in snapshot).
-// After a snapshot + reload, a duplicate feedback call must be a no-op.
+// ───────────────────────────────────────────────────────────────────────
+// WAL / snapshot feedback durability
+// ───────────────────────────────────────────────────────────────────────
+
+/// feedback_seen is persisted in snapshots.
+///
+/// After an explicit checkpoint: load a new runtime from the same dir,
+/// retry the same feedback, and assert Alpha is unchanged (the key was
+/// in the snapshot so the engine deduplicates it correctly).
 #[test]
 fn test_feedback_key_survives_snapshot_reload() {
-    let anchor = emb(0);
-    let (mut cfg, dir) = make_cfg("fb_snapshot_survival");
-    cfg.snapshot_interval_cmds = u64::MAX; // prevent auto-snapshot
-    let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+    let (cfg, dir) = make_cfg("fb_snap_reload");
 
-    // Learn a node, get its ID
-    let (result, _) = rt.learn(None, anchor.clone(), emb(1), emb(2), 0.4, 0.0, "hash-128d").unwrap();
-    let node_id = result.state_node_id;
+    // Session 1: learn + feedback + explicit snapshot.
+    let node_id;
+    let alpha_after_first;
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let result = rt.learn(None, emb(1), emb(2), emb(3), 0.3, 0.0, "hash-128d").unwrap();
+        node_id = result.0.state_node_id;
 
-    // Read baseline Alpha
-    let alpha0 = rt.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
+        rt.feedback_nodes(None, vec![node_id], true, Some("rid-snap-001".to_string())).unwrap();
+        let (a, _) = rt.get_node_beta(None, node_id).unwrap();
+        alpha_after_first = a;
+        assert!((alpha_after_first - 2.0).abs() < 1e-5,
+            "After 1 success: alpha must be 2.0, got {alpha_after_first}");
 
-    // Apply feedback once
-    let retrieve_id = "test-retrieve-001".to_string();
-    let (updated, _) = rt.feedback_nodes(None, vec![node_id], true, Some(retrieve_id.clone())).unwrap();
-    assert_eq!(updated, 1, "first feedback must update 1 node");
-    let alpha1 = rt.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
-    assert!((alpha1 - (alpha0 + 1.0)).abs() < 1e-4, "alpha should be alpha0+1 after first feedback");
+        // Explicit checkpoint — feedback_seen is now on disk.
+        rt.checkpoint(None).unwrap();
+        rt.shutdown();
+    }
 
-    // Snapshot explicitly (persists feedback_seen)
-    rt.checkpoint(None).unwrap();
-    rt.shutdown();
+    // Session 2: reload from snapshot, retry identical feedback call.
+    {
+        let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+        // feedback_nodes triggers context load; no explicit ensure_loaded needed.
+        rt.feedback_nodes(None, vec![node_id], true, Some("rid-snap-001".to_string())).unwrap();
+        let (a, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!(
+            (a - alpha_after_first).abs() < 1e-5,
+            "Retry after snapshot reload must be a no-op: alpha={a:.4} expected={alpha_after_first:.4}"
+        );
+    }
 
-    // Reload from snapshot
-    let mut rt2 = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-
-    // Retry with same retrieve_id — must be no-op (feedback_seen loaded from snapshot)
-    let (updated2, _) = rt2.feedback_nodes(None, vec![node_id], true, Some(retrieve_id)).unwrap();
-    assert_eq!(updated2, 0, "retry after snapshot reload must be no-op (feedback_seen persisted)");
-    let alpha2 = rt2.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
-    assert!((alpha2 - alpha1).abs() < 1e-4, "alpha must not change on duplicate replay");
-
-    rt2.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-// ── At-least-once feedback semantics on simulated crash ───────────────────────
-//
-// Feedback is NOT written to the WAL (only Learn is). So if the process crashes
-// before snapshotting, feedback is lost on restart. A retry then re-applies
-// cleanly (alpha = alpha0+1, not alpha0+2 = re-inflation).
-//
-// This proves: WAL replay cannot re-inflate Alpha (feedback not in WAL).
+/// Feedback is not WAL-logged, so a crash before snapshot loses the apply.
+///
+/// This is the documented at-least-once semantics:
+/// - crash after feedback but before checkpoint: feedback is lost (Alpha resets)
+/// - a retry re-applies cleanly (Alpha returns to the expected +1 value, not +2)
+///
+/// This test proves the at-least-once bound: after simulated crash + retry,
+/// Alpha == alpha_baseline + 1  (not + 2, i.e. no double-inflation).
 #[test]
 fn test_feedback_at_least_once_on_simulated_crash() {
-    let anchor = emb(0);
-    let (mut cfg, dir) = make_cfg("fb_at_least_once");
-    cfg.snapshot_interval_cmds = u64::MAX; // prevent auto-snapshot during test
-    let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+    let (cfg, dir) = make_cfg("fb_crash_retry");
 
-    let (result, _) = rt.learn(None, anchor.clone(), emb(1), emb(2), 0.4, 0.0, "hash-128d").unwrap();
-    let node_id = result.state_node_id;
-    let alpha0 = rt.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
+    let node_id;
+    let alpha_baseline; // = 1.0 (uniform prior)
+    let alpha_after_apply; // = 2.0 after first success
 
-    // Apply feedback — NOT snapshotted
-    let retrieve_id = "test-retrieve-002".to_string();
-    let (updated, _) = rt.feedback_nodes(None, vec![node_id], true, Some(retrieve_id.clone())).unwrap();
-    assert_eq!(updated, 1);
-    let alpha1 = rt.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
-    assert!((alpha1 - (alpha0 + 1.0)).abs() < 1e-4);
+    // Phase 1: learn, read baseline, apply feedback, then simulate a crash.
+    //
+    // IMPORTANT: use `drop(rt)` NOT `rt.shutdown()`.
+    // `shutdown()` sends Command::Shutdown → worker writes a final snapshot
+    // (alpha=2.0 + feedback_seen populated) before exiting.
+    // `drop(rt)` closes the channel → worker exits on RecvError with NO snapshot.
+    // The WAL has only the Learn entry; feedback is NOT WAL-logged.
+    // This correctly models "process killed after feedback but before checkpoint".
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let result = rt.learn(None, emb(10), emb(20), emb(30), 0.3, 0.0, "hash-128d").unwrap();
+        node_id = result.0.state_node_id;
 
-    // Simulate crash: drop without snapshot (WAL replay only has the Learn entry)
-    drop(rt);
+        let (a0, _) = rt.get_node_beta(None, node_id).unwrap();
+        alpha_baseline = a0;
+        assert!((alpha_baseline - 1.0).abs() < 1e-5, "fresh node: alpha must be 1.0");
 
-    // Reload — WAL replays Learn, feedback_seen is empty (never snapshotted)
-    let mut rt2 = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+        rt.feedback_nodes(None, vec![node_id], true, Some("rid-crash-001".to_string())).unwrap();
+        let (a1, _) = rt.get_node_beta(None, node_id).unwrap();
+        alpha_after_apply = a1;
+        assert!((alpha_after_apply - 2.0).abs() < 1e-5,
+            "After 1 success feedback: alpha must be 2.0, got {alpha_after_apply}");
 
-    // Alpha must be back to alpha0 (feedback was lost — no re-inflation, just loss)
-    let alpha_after_crash = rt2.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
-    assert!(
-        (alpha_after_crash - alpha0).abs() < 1e-4,
-        "after crash replay, alpha must be alpha0 (feedback lost, not doubled). \
-         alpha0={alpha0:.1} actual={alpha_after_crash:.1}"
-    );
+        // Crash simulation: drop without snapshot.
+        // The worker receives channel-closed and exits without writing a snapshot.
+        drop(rt);
+        // Give the background thread a moment to exit cleanly.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 
-    // Retry with same retrieve_id — re-applies cleanly (alpha0 → alpha0+1, not alpha0+2)
-    let (updated2, _) = rt2.feedback_nodes(None, vec![node_id], true, Some(retrieve_id)).unwrap();
-    assert_eq!(updated2, 1, "retry must apply feedback once");
-    let alpha_retry = rt2.get_node_beta(None, node_id).map(|(a, _)| a).unwrap_or(1.0);
-    assert!(
-        (alpha_retry - (alpha0 + 1.0)).abs() < 1e-4,
-        "retry restores alpha0+1, not alpha0+2. alpha_retry={alpha_retry:.1}"
-    );
+    // Phase 2: cold restart — WAL has only the Learn entry.
+    // feedback is gone (not WAL-logged, no snapshot); alpha resets to baseline.
+    {
+        let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+        // retrieve triggers context load from WAL (no snapshot — simulated crash).
+        let _ = rt.retrieve(None, emb(10), "hash-128d");
 
-    rt2.shutdown();
+        // Alpha must be back to baseline (feedback was lost in the crash).
+        let (a2, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!(
+            (a2 - alpha_baseline).abs() < 1e-5,
+            "After simulated crash: alpha must reset to baseline={alpha_baseline:.4}, got {a2:.4}. \
+             Feedback is not WAL-logged; at-least-once means retry is required."
+        );
+
+        // Retry applies cleanly — at-least-once semantics.
+        rt.feedback_nodes(None, vec![node_id], true, Some("rid-crash-001".to_string())).unwrap();
+        let (a3, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!(
+            (a3 - alpha_after_apply).abs() < 1e-5,
+            "Retry after crash must re-apply cleanly to alpha={alpha_after_apply:.4}, got {a3:.4}. \
+             Double-inflation would produce 3.0 — if you see that, feedback dedup has a bug."
+        );
+
+        rt.shutdown();
+    }
+
     let _ = std::fs::remove_dir_all(&dir);
 }

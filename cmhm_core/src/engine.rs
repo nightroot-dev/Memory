@@ -7,7 +7,7 @@ use rand::SeedableRng;
 use crate::{
     EMBED_DIM,
     config::Config,
-    core_state::{CoreState, now_secs, fnv64},
+    core_state::{CoreState, now_secs},
     node::{Node, NodeType},
     edge::{Edge, EdgeType, EvidenceType},
     dense_core::DenseCore,
@@ -52,8 +52,9 @@ pub enum Command {
         feedback_key: Option<String>,
         tx: mpsc::SyncSender<Result<usize>>, // returns number of nodes actually updated
     },
-    /// Read-only: max cosine similarity of query against nodes with model_id.
-    /// `node_type`: when Some, restricts to that role (e.g. State for shadow gate).
+    /// Read-only: max cosine similarity of query against all nodes with model_id.
+    /// `node_type`: when Some, restricts search to nodes of that type (role-scoped gate).
+    ///              when None, searches all nodes (backward-compat path).
     /// Used by shadow gate (no WAL write, no state mutation).
     MaxCosine {
         query_emb: Vec<f32>,
@@ -166,8 +167,8 @@ impl EngineHandle {
     }
 
     /// Maximum cosine similarity of `query_emb` against existing nodes with `model_id`.
-    /// `node_type`: when `Some`, restricts comparison to that role.
-    /// Pass `Some(NodeType::State)` from the shadow gate to avoid cross-role contamination.
+    /// `node_type`: `Some(NodeType::State)` for the shadow gate (role-scoped);
+    ///              `None` for unscoped all-roles comparison.
     /// Returns 0.0 on empty store or engine shutdown. Read-only — no WAL write.
     pub fn max_cosine_to_existing(
         &self,
@@ -564,9 +565,9 @@ fn birth_node(
     // Salience calculation
     let salience = state.salience_engine.update_and_calc(epsilon, eta) as f32;
 
-    // Novelty check: role-scoped — STATE only compares against STATE nodes,
-    // ACTION against ACTION, etc. This prevents cross-role EMA contamination
-    // that would otherwise create a ~0.34 floor on the effective max_cosine.
+    // Novelty check: only compare against nodes of the same role.
+    // Prevents cross-role EMA contamination (e.g. STATE emb vs stored ACTION nodes)
+    // which inflated max_cosine by ~0.34, compressing the usable gate range.
     let nearest = state.node_store.nearest_by_type(proj_emb, model_id, 1, node_type);
     let cos_max = nearest.first().map(|(_, c)| *c).unwrap_or(-1.0);
 
@@ -762,9 +763,10 @@ fn process_feedback_nodes(
     let mut updated = 0usize;
     for &id in node_ids {
         // Dedup check: if a stable key exists, skip already-applied feedback.
-        // Key is stored as FNV-1a 64-bit hash: 60 B/entry → 8 B/entry.
-        let seen_hash: Option<u64> = feedback_key
-            .map(|k| fnv64(&format!("{k}/{id}/{outcome_bit}")));
+        // Key is hashed via FNV-1a 64-bit to reduce snapshot size (8 B vs 60 B/entry).
+        let seen_hash = feedback_key.map(|k| {
+            crate::core_state::fnv64(&format!("{k}/{id}/{outcome_bit}"))
+        });
         if let Some(h) = seen_hash {
             if state.feedback_seen.contains(&h) {
                 // Duplicate: this (retrieve, node, outcome) triple was already applied.
