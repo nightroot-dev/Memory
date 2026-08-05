@@ -267,11 +267,22 @@ impl EngineHandle {
 /// Returns an `EngineHandle` for the caller to interact with.
 ///
 /// ## Startup sequence
-/// 1. Load snapshot (if present)
-/// 2. Replay WAL on top of snapshot (if WAL present) — this is the crash recovery path
-/// 3. Take a fresh snapshot and truncate the WAL (clean state for next session)
+/// 1. Load versioned snapshot (if present)
+/// 2. Replay WAL on top of snapshot — crash recovery for entries since last compaction
+/// 3. Write a post-replay snapshot and delete the WAL (compaction point)
 /// 4. Open a fresh WAL for the new session
 /// 5. Start the worker thread
+///
+/// ## Recovery boundary
+/// The WAL is **compacted at each clean startup** (Step 3). After compaction, the WAL
+/// only contains entries from the current session. This means:
+///
+/// - **Crash recovery**: Full recovery of any Learn or Feedback entries written since
+///   the last successful startup (the WAL captured everything from that session).
+/// - **Schema version mismatch**: Only WAL entries from the last session are replayed.
+///   Any state from earlier sessions (present in the discarded snapshot) is **permanently
+///   lost**. This is logged at ERROR. A migration path or backup restore is needed if
+///   that data is required.
 pub fn start(cfg: Config) -> Result<EngineHandle> {
     // Ensure data dirs exist
     std::fs::create_dir_all(&cfg.data_dir)?;
@@ -287,11 +298,24 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             s
         }
         Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
-            // Schema changed — expected after a version bump. NOT a corruption event.
-            // WAL replay below reconstructs state from scratch.
-            tracing::warn!(
-                "Snapshot schema mismatch (found=v{found}, expected=v{expected}); \
-                 discarding and rebuilding from WAL"
+            // Schema version changed. The snapshot cannot be decoded.
+            //
+            // ⚠ DATA LOSS: This is NOT a clean "rebuild from WAL."
+            // The WAL only contains entries since the LAST STARTUP (compaction
+            // deletes the WAL after each clean startup). Any state that was in
+            // the discarded snapshot but not in the current WAL is permanently lost.
+            //
+            // Recovery boundary:
+            //   Recoverable  → WAL entries since last compaction
+            //   Unrecoverable → everything committed before last compaction
+            //
+            // If this is not acceptable, stop here and restore from a backup,
+            // or implement a snapshot migration path before deploying the version bump.
+            tracing::error!(
+                "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                 Discarding snapshot. State since last compaction will be replayed \
+                 from WAL; older state is permanently lost. \
+                 If this data loss is not acceptable, restore from backup before continuing."
             );
             CoreState::new(cfg.working_memory_size)
         }
@@ -308,6 +332,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             CoreState::new(cfg.working_memory_size)
         }
     };
+
 
     // ── Step 2: WAL replay ────────────────────────────────────────────────
     // Dispatches on a leading type byte:

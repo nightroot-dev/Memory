@@ -702,8 +702,118 @@ fn test_birth_q30_converges_to_target_quantile() {
 
 
 // ───────────────────────────────────────────────────────────────────────
+// WAL compaction + schema version recovery boundary
+// ───────────────────────────────────────────────────────────────────────
+
+/// Documents and verifies the WAL recovery boundary after a schema version mismatch.
+///
+/// ## The invariant
+/// The WAL is **compacted at each clean startup**: the engine writes a fresh snapshot
+/// and deletes the old WAL after each startup's replay phase. This means:
+///
+/// - The WAL only contains entries from the **current session** (since last compaction).
+/// - On a schema version mismatch, the snapshot is discarded and the engine starts fresh.
+///   Only WAL entries written in the same session as the version-mismatched startup survive.
+/// - Any state committed before the last compaction is **permanently lost**.
+///
+/// ## Why this is accepted (not a bug to fix now)
+/// A migration path requires maintaining old `CoreState` schema structs. Until then,
+/// the contract is: backup before schema bumps, or accept data loss bounded to
+/// pre-compaction sessions. This test documents that boundary so future migration
+/// work is testable.
+///
+/// ## Proof structure
+/// 1. Session A: learn triple A (eps=0.9 → forced birth), clean shutdown → S_A in
+///    `contexts/<uuid>/snapshot.bin`.
+/// 2. Session B: starts fresh (S_A loads), learns B, clean shutdown → S_B.
+///    WAL is gone (clean startup compacted it). S_B contains A+B.
+/// 3. Schema bump: overwrite every `contexts/*/snapshot.bin` and `wal.dat` with
+///    4 raw bytes (no SnapshotEnvelope) → `read_snapshot` returns VersionMismatch.
+///    WAL also corrupted so replay provides nothing new.
+/// 4. Session C: snapshot → VersionMismatch → fresh CoreState + no usable WAL → empty.
+/// 5. Assert: A's node_id is absent. Store starts empty. Engine is still usable (learns C).
+#[test]
+fn test_version_mismatch_loses_pre_compaction_state() {
+    let (cfg, dir) = make_cfg("ver_mismatch_boundary");
+    let contexts_dir = cfg.data_dir.join("contexts");
+
+    // ── Session A ─────────────────────────────────────────────────────────
+    let a_state_id;
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let res = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d").unwrap();
+        a_state_id = res.0.state_node_id;
+        rt.shutdown(); // writes S_A at contexts/<uuid>/snapshot.bin
+    }
+
+    // ── Session B ─────────────────────────────────────────────────────────
+    // Loads S_A (compacts WAL into it), learns B, shuts down → S_B.
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d").unwrap();
+        rt.shutdown(); // writes S_B (A+B). WAL gone (compacted at startup).
+    }
+
+    // ── Simulate schema bump ───────────────────────────────────────────────
+    // Walk contexts/*/ and overwrite every snapshot.bin and wal.dat with 4 raw
+    // bytes (no SnapshotEnvelope). read_snapshot will return VersionMismatch.
+    // This mirrors a real version bump where old bincode layouts are unreadable.
+    let v1_bytes = b"\x00\x00\x00\x00";
+    if let Ok(entries) = std::fs::read_dir(&contexts_dir) {
+        for entry in entries.flatten() {
+            let ctx_dir = entry.path();
+            if ctx_dir.is_dir() {
+                let snap = ctx_dir.join("snapshot.bin");
+                let wal  = ctx_dir.join("wal.dat");
+                if snap.exists() { let _ = std::fs::write(&snap, v1_bytes); }
+                if wal.exists()  { let _ = std::fs::write(&wal,  v1_bytes); }
+            }
+        }
+    }
+
+    // ── Session C ─────────────────────────────────────────────────────────
+    // Startup: every context snapshot → VersionMismatch → fresh CoreState.
+    // WAL is either absent or contains 4 garbage bytes → replay produces 0 entries.
+    // Engine starts empty.
+    {
+        let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+
+        // A's node must be gone — pre-compaction data is permanently lost on schema bump.
+        let a_beta = rt.get_node_beta(None, a_state_id);
+        assert!(
+            a_beta.is_none(),
+            "Node A (id={a_state_id}) must NOT survive schema version mismatch. \
+             Pre-compaction data is permanently lost when the snapshot is discarded. \
+             If this node is present, the snapshot discard or context loading is not working."
+        );
+
+        // Store must be empty (no usable snapshot, no usable WAL).
+        let n_before = rt.node_count(None);
+        assert_eq!(
+            n_before, 0,
+            "After version mismatch with no usable WAL, store must be empty. \
+             Got {n_before} nodes — snapshot discard may not have taken effect."
+        );
+
+        // Engine is still healthy: learn C (eps=0.9 → forced birth = 3 nodes).
+        let _ = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d").unwrap();
+        let n_after = rt.node_count(None);
+        assert_eq!(
+            n_after, 3,
+            "After learning triple C (eps=0.9 → forced birth), expected 3 nodes \
+             (state+action+outcome). Got {n_after}."
+        );
+
+        rt.shutdown();
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ───────────────────────────────────────────────────────────────────────
 // WAL / snapshot feedback durability
 // ───────────────────────────────────────────────────────────────────────
+
 
 /// feedback_seen is persisted in snapshots.
 ///
