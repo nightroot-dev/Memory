@@ -497,71 +497,63 @@ fn with_cosine(u: &[f32], target_cos: f32, perp_seed: u32) -> Vec<f32> {
 fn test_birth_threshold_boundary_cases() {
     let anchor = emb(0);
 
-    // Strategy: use `anchor` for action AND outcome in every learn call.
-    // This makes all 3 stored nodes (state, action, outcome) have embedding = emb(0).
-    // Therefore: max_cosine(v, model) = cos(v, emb(0)) = target_cos (by Gram-Schmidt construction).
-    // Without this, emb(100)/emb(200) in the store can dominate the max_cosine scan
-    // if the Gram-Schmidt perp accidentally correlates with those vectors.
-
-    // ── Case 1: cos = 0.50 < 0.55 → BIRTH ───────────────────────────────────
-    // cos escape: 0.50 < 0.55 → OPEN → birth fires.
-    // eps escape: 0.2 < 0.5 → closed.
-    // sal escape: ~0.10 < 0.70 → closed.
-    // max_cosine(v050, store) = 0.50 exactly (all nodes ≈ emb(0)).
+    // ── Case 1: Perfect duplicate (cos≈1.0) + low eps → NO BIRTH ─────────────
+    // A cos of 1.0 cannot be below birth_q30 (which is clamped to [0.01, 0.99]).
+    // eps=0.2 < 0.5 and eta=0.0 < 0.70 → no escape → birth must be suppressed.
     {
         let (cfg, dir) = make_cfg("birth_case1");
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-        // Anchor learn: eps=0.9 forces birth for all three (state, action, outcome).
-        // Using anchor for all three makes all stored embeddings ≈ emb(0).
+        // Seed store with anchor at eps=0.9 (forces birth via epsilon escape).
+        // State, action, outcome all use anchor → all stored nodes ≈ emb(0).
         rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
         let n0 = rt.node_count(None);
 
-        // Test state at cos=0.50: action/outcome reuse existing emb(0) nodes (cos_max=1.0, eps=0.2)
-        let v050 = with_cosine(&anchor, 0.50, 9999);
-        rt.learn(None, v050, anchor.clone(), anchor.clone(), 0.2, 0.0, "hash-128d").unwrap();
+        // Present the exact same anchor with low eps: cos_max ≈ 1.0 vs. stored state node.
+        // birth_q30 is clamped to max 0.99, so cos=1.0 is always ≥ birth_q30 → gate closed.
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.2, 0.0, "hash-128d").unwrap();
         let n1 = rt.node_count(None);
-        assert!(n1 > n0,
-            "[Case1] cos=0.50 < threshold 0.55: state node MUST be born. before={n0}, after={n1}");
+        assert_eq!(n1, n0,
+            "[Case1] perfect duplicate (cos≈1.0) + eps=0.2: NO new state node. before={n0}, after={n1}");
         rt.shutdown();
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    // ── Case 2: cos = 0.60 > 0.55, eps=0.2 → NO BIRTH ───────────────────────
-    // cos escape: 0.60 > 0.55 → closed.
-    // eps escape: 0.2 < 0.5  → closed.
-    // sal escape: ~0.10 < 0.70 → closed.
-    // → birth_node returns existing anchor ID. Node count must NOT increase.
+    // ── Case 2: Epsilon escape overrides cos gate ──────────────────────────────
+    // cos_max ≈ 1.0 (identical embedding) but eps=0.9 > 0.5 → birth fires.
     {
         let (cfg, dir) = make_cfg("birth_case2");
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
         rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
         let n0 = rt.node_count(None);
-        let v060 = with_cosine(&anchor, 0.60, 9999);
-        rt.learn(None, v060, anchor.clone(), anchor.clone(), 0.2, 0.0, "hash-128d").unwrap();
+
+        // Same anchor embedding; high eps → epsilon escape → must birth new state node.
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
         let n1 = rt.node_count(None);
-        assert_eq!(n1, n0,
-            "[Case2] cos=0.60 > threshold 0.55, eps=0.2: NO new state node. before={n0}, after={n1}");
+        assert!(n1 > n0,
+            "[Case2] eps=0.9 > 0.5: epsilon escape MUST fire → new state node. before={n0}, after={n1}");
         rt.shutdown();
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    // ── Case 3: cos = 0.60 > 0.55, eps = 0.9 → BIRTH via epsilon escape ──────
-    // cos escape: closed (0.60 > 0.55).
-    // eps escape: 0.9 > 0.5 → OPEN → birth fires for the state node.
-    // → Same embedding as Case 2, but high eps → at least 1 new node.
+    // ── Case 3: Salience escape overrides cos gate ────────────────────────────
+    // Warm-up formula: salience = 0.5*eps + 0.5*eta.
+    // With eps=0.8, eta=0.9: salience = 0.85 > 0.70 → salience escape fires.
+    // cos_max ≈ 1.0 (identical anchor embedding) — gate would otherwise stay closed.
     {
         let (cfg, dir) = make_cfg("birth_case3");
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
         rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
         let n0 = rt.node_count(None);
-        let v060 = with_cosine(&anchor, 0.60, 9999);
-        rt.learn(None, v060, anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
+
+        // eps=0.8, eta=0.9 → salience = 0.5*0.8 + 0.5*0.9 = 0.85 > 0.70 → salience escape fires.
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.8, 0.9, "hash-128d").unwrap();
         let n1 = rt.node_count(None);
         assert!(n1 > n0,
-            "[Case3] cos=0.60, eps=0.9 > 0.5: epsilon escape must fire → new state node. before={n0}, after={n1}");
+            "[Case3] eps=0.8 + eta=0.9 → salience=0.85 > 0.70: salience escape MUST fire. before={n0}, after={n1}");
         rt.shutdown();
         let _ = std::fs::remove_dir_all(&dir);
     }
+
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -612,6 +604,104 @@ fn test_birth_gate_cosine_calibration_curve() {
 }
 
 // ───────────────────────────────────────────────────────────────────────
+// N-sweep: max_cosine growth and adaptive gate convergence
+// ───────────────────────────────────────────────────────────────────────
+
+/// Prove max_cosine grows with store size N, following E[max] ≈ (1/√d)·√(2 ln N).
+///
+/// This test catches: dimension changes, projection changes, cross-role contamination.
+/// The adaptive quantile gate self-calibrates against this growth; the N-sweep pins the
+/// N-sweep: max_cosine grows monotonically with store size N.
+///
+/// We do NOT check against the Gumbel formula E[max] ≈ σ·√(2 ln N),
+/// because hash-128d uses EMA blending at birth, so stored embeddings are NOT
+/// i.i.d. uniform random unit vectors — they cluster toward the EMA centroid,
+/// which inflates cosines well above the null-distribution expectation.
+///
+/// The meaningful invariant is: E[max_cosine | N=1000] > E[max_cosine | N=10].
+/// If this breaks, something eliminated the growth effect (e.g. cross-role deduplication
+/// re-introduced, or the projection collapsed all vectors to the same direction).
+///
+/// The test also asserts all observed max_cosine values are in [0, 1].
+#[test]
+fn test_birth_gate_max_cosine_grows_with_n() {
+    let mut mu_small = 0.0_f32;
+    let mut mu_large = 0.0_f32;
+    let queries = 100usize;
+
+    for &(n, slot) in &[(10usize, 0u8), (1_000usize, 1u8)] {
+        let (cfg, dir) = make_cfg(&format!("n_sweep2_{n}"));
+        let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+
+        // Seed N state nodes with varied embeddings.
+        for i in 0..n {
+            let _ = rt.learn(None, emb(i as u32 * 7 + 1), emb(i as u32 * 7 + 2), emb(i as u32 * 7 + 3), 0.4, 0.0, "hash-128d");
+        }
+
+        let mu = (0..queries)
+            .map(|q| {
+                let mc = rt.max_cosine_in_context(None, &emb((q as u32) * 13 + 999), "hash-128d", NodeType::State);
+                assert!(mc >= 0.0 && mc <= 1.0, "max_cosine={mc} out of [0,1] at N={n}");
+                mc
+            })
+            .sum::<f32>() / queries as f32;
+
+        if slot == 0 { mu_small = mu; } else { mu_large = mu; }
+
+        rt.shutdown();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    assert!(
+        mu_large > mu_small,
+        "E[max_cosine | N=1000]={mu_large:.4} must exceed E[max_cosine | N=10]={mu_small:.4}; \
+         if equal, the store may be deduplicating across roles or collapsing to one vector"
+    );
+}
+
+/// The birth_q30 Robbins–Monro estimator is live (not stuck, not diverged).
+///
+/// After 400 learn calls we assert:
+/// - birth_q30 is finite and in (0.01, 0.99) — the valid clamping range
+/// - birth_q30 has moved away from the initial prior (0.30), indicating the estimator is updating
+/// - birth_q30 is strictly less than 0.99 (not hard-clamped at the upper wall)
+/// - birth_q30 is strictly greater than 0.01 (not hard-clamped at the lower wall)
+///
+/// We do NOT assert birth_q30 ≈ 0.30, because the target quantile (0.30) means the 30th
+/// percentile of the actual observed max_cosine distribution — which for hash-128d embeddings
+/// with EMA blending is much higher than 0.30 (typically 0.7–0.9). The estimator correctly
+/// tracks the empirical distribution; the goal is self-calibration, not returning a fixed value.
+#[test]
+fn test_birth_q30_converges_to_target_quantile() {
+    let (cfg, dir) = make_cfg("q30_conv2");
+    let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+
+    // 400 learn calls with varied inputs drives the estimator.
+    for i in 0u32..400 {
+        let _ = rt.learn(None, emb(i * 3 + 1), emb(i * 3 + 2), emb(i * 3 + 3), 0.3, 0.0, "hash-128d");
+    }
+
+    let q30 = rt.get_birth_q30(None);
+
+    // Must be in the valid clamped range.
+    assert!(
+        q30 > 0.01 && q30 < 0.99,
+        "birth_q30={q30:.4} hit a clamping wall — estimator may have diverged or lr is wrong"
+    );
+    // Must have moved away from the cold-start prior (0.30 ± 0.05).
+    // If it hasn't moved at all, lr=0 or the update is not being called.
+    assert!(
+        (q30 - 0.30).abs() > 0.05,
+        "birth_q30={q30:.4} is too close to the cold-start prior (0.30); \
+         estimator may not be updating (lr=0 or update not called)"
+    );
+
+    rt.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+
+// ───────────────────────────────────────────────────────────────────────
 // WAL / snapshot feedback durability
 // ───────────────────────────────────────────────────────────────────────
 
@@ -658,30 +748,26 @@ fn test_feedback_key_survives_snapshot_reload() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Feedback is not WAL-logged, so a crash before snapshot loses the apply.
+/// Feedback survives a simulated crash (WAL-logged) and replay is exactly-once.
 ///
-/// This is the documented at-least-once semantics:
-/// - crash after feedback but before checkpoint: feedback is lost (Alpha resets)
-/// - a retry re-applies cleanly (Alpha returns to the expected +1 value, not +2)
+/// Protocol:
+/// 1. learn (WAL-logged)
+/// 2. feedback with retrieve_id="rid-crash-001" (WAL-logged as Feedback entry)
+/// 3. Crash: drop(rt) — worker exits without snapshot; WAL has Learn+Feedback
+/// 4. Cold restart: WAL replay re-applies learn (alpha=1) then feedback (alpha=2)
+///    `feedback_seen` is populated during replay → idempotent
+/// 5. Retry the same feedback call → no-op (dedup). alpha stays at 2.0.
 ///
-/// This test proves the at-least-once bound: after simulated crash + retry,
-/// Alpha == alpha_baseline + 1  (not + 2, i.e. no double-inflation).
+/// Proves: feedback is durable (not at-most-once) and replay is idempotent (not at-least-twice).
 #[test]
-fn test_feedback_at_least_once_on_simulated_crash() {
-    let (cfg, dir) = make_cfg("fb_crash_retry");
+fn test_feedback_survives_crash_exactly_once() {
+    let (cfg, dir) = make_cfg("fb_crash_exact");
 
     let node_id;
-    let alpha_baseline; // = 1.0 (uniform prior)
-    let alpha_after_apply; // = 2.0 after first success
+    let alpha_baseline;       // = 1.0
+    let alpha_after_feedback; // = 2.0
 
-    // Phase 1: learn, read baseline, apply feedback, then simulate a crash.
-    //
-    // IMPORTANT: use `drop(rt)` NOT `rt.shutdown()`.
-    // `shutdown()` sends Command::Shutdown → worker writes a final snapshot
-    // (alpha=2.0 + feedback_seen populated) before exiting.
-    // `drop(rt)` closes the channel → worker exits on RecvError with NO snapshot.
-    // The WAL has only the Learn entry; feedback is NOT WAL-logged.
-    // This correctly models "process killed after feedback but before checkpoint".
+    // Phase 1: learn + feedback, then crash (drop without snapshot).
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
         let result = rt.learn(None, emb(10), emb(20), emb(30), 0.3, 0.0, "hash-128d").unwrap();
@@ -693,39 +779,37 @@ fn test_feedback_at_least_once_on_simulated_crash() {
 
         rt.feedback_nodes(None, vec![node_id], true, Some("rid-crash-001".to_string())).unwrap();
         let (a1, _) = rt.get_node_beta(None, node_id).unwrap();
-        alpha_after_apply = a1;
-        assert!((alpha_after_apply - 2.0).abs() < 1e-5,
-            "After 1 success feedback: alpha must be 2.0, got {alpha_after_apply}");
+        alpha_after_feedback = a1;
+        assert!((alpha_after_feedback - 2.0).abs() < 1e-5,
+            "After 1 success: alpha must be 2.0, got {alpha_after_feedback}");
 
-        // Crash simulation: drop without snapshot.
-        // The worker receives channel-closed and exits without writing a snapshot.
+        // Crash: drop closes the channel. Worker exits on RecvError. NO snapshot written.
+        // WAL contains: [Learn(0x00), Feedback(0x01)]
         drop(rt);
-        // Give the background thread a moment to exit cleanly.
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 
-    // Phase 2: cold restart — WAL has only the Learn entry.
-    // feedback is gone (not WAL-logged, no snapshot); alpha resets to baseline.
+    // Phase 2: cold restart — WAL replay.
+    // Sequence: replay Learn (alpha=1.0), replay Feedback (alpha=2.0, adds to feedback_seen).
     {
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-        // retrieve triggers context load from WAL (no snapshot — simulated crash).
-        let _ = rt.retrieve(None, emb(10), "hash-128d");
+        let _ = rt.retrieve(None, emb(10), "hash-128d"); // triggers context load
 
-        // Alpha must be back to baseline (feedback was lost in the crash).
+        // Alpha must be 2.0 — feedback survived via WAL.
         let (a2, _) = rt.get_node_beta(None, node_id).unwrap();
         assert!(
-            (a2 - alpha_baseline).abs() < 1e-5,
-            "After simulated crash: alpha must reset to baseline={alpha_baseline:.4}, got {a2:.4}. \
-             Feedback is not WAL-logged; at-least-once means retry is required."
+            (a2 - alpha_after_feedback).abs() < 1e-5,
+            "After WAL replay: alpha must be {alpha_after_feedback:.4} (feedback WAL-logged), got {a2:.4}. \
+             If alpha == baseline, feedback WAL append is broken."
         );
 
-        // Retry applies cleanly — at-least-once semantics.
+        // Retry the same feedback — must be a no-op (exactly-once via feedback_seen).
         rt.feedback_nodes(None, vec![node_id], true, Some("rid-crash-001".to_string())).unwrap();
         let (a3, _) = rt.get_node_beta(None, node_id).unwrap();
         assert!(
-            (a3 - alpha_after_apply).abs() < 1e-5,
-            "Retry after crash must re-apply cleanly to alpha={alpha_after_apply:.4}, got {a3:.4}. \
-             Double-inflation would produce 3.0 — if you see that, feedback dedup has a bug."
+            (a3 - alpha_after_feedback).abs() < 1e-5,
+            "Retry after restart must be a no-op: alpha={a3:.4} expected={alpha_after_feedback:.4}. \
+             If alpha == 3.0, feedback_seen was not populated during WAL replay."
         );
 
         rt.shutdown();

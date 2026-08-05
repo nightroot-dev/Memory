@@ -397,6 +397,15 @@ impl ContextRuntime {
         handle.get_node_beta(node_id)
     }
 
+    /// Current value of the adaptive birth gate quantile (P₀.₃₀ estimator).
+    /// Returns 0.30 (the default prior) if the context is not loaded.
+    /// Read-only — no WAL write. Used by tests to verify quantile convergence.
+    pub fn get_birth_q30(&mut self, context_id: Option<&str>) -> f32 {
+        let id = match self.resolve_context(context_id) { Ok(i) => i, Err(_) => return 0.30 };
+        let handle = match self.ensure_loaded(&id) { Ok(h) => h, Err(_) => return 0.30 };
+        handle.get_birth_q30()
+    }
+
     /// Graceful shutdown: checkpoint all loaded contexts.
     pub fn shutdown(&mut self) {
         // Transition all loaded Active/Idle contexts to Sleeping so registry

@@ -17,6 +17,59 @@ const WAL_MAX_RECORD_BYTES: usize = 64 * 1024 * 1024; // 64 MiB
 /// Keep 3: current + 2 fallbacks. Never delete old until new is durable.
 const SNAPSHOT_GENERATIONS: u32 = 3;
 
+/// Current snapshot schema version.
+/// **Bump this whenever `CoreState` gains, loses, or reorders fields.**
+///
+/// Version history:
+///   1 = pre-versioned (no envelope; feedback_seen: HashSet<String>)
+///   2 = SnapshotEnvelope added; feedback_seen: HashSet<u64> (FNV-1a); WAL type tags
+///
+/// On version mismatch, `read_snapshot` returns `SnapshotLoadError::VersionMismatch`.
+/// The engine discards the snapshot and rebuilds from WAL — it does NOT treat this as
+/// corruption (no quarantine, no fsck). A genuine bit-flip produces a bincode error,
+/// which becomes `SnapshotLoadError::Corrupt`.
+pub const SNAPSHOT_VERSION: u32 = 2;
+
+/// Thin envelope that tags snapshot bytes with a schema version.
+/// Bincode-serialized as the outer container in every snapshot file.
+///
+/// ## Why not `#[serde(default)]` on `CoreState`?
+/// Bincode is non-self-describing. Deserializing a struct with a new field into bytes
+/// from an old version reads the next bytes as the new field — silent misparse.
+/// A version envelope makes the format self-describing at the outer level:
+/// we validate the version before handing the inner bytes to bincode.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SnapshotEnvelope {
+    version: u32,
+    payload: Vec<u8>, // bincode-serialized CoreState
+}
+
+/// Error returned by `read_snapshot` with a cause classification.
+/// Callers MUST distinguish `VersionMismatch` from `Corrupt`:
+/// - `VersionMismatch` → discard snapshot, rebuild from WAL (expected after schema bump)
+/// - `Corrupt`         → potential data loss; log at ERROR, consider quarantine
+#[derive(Debug)]
+pub enum SnapshotLoadError {
+    /// Snapshot exists but was written by a different schema version.
+    /// Safe to discard; rebuild state from WAL.
+    VersionMismatch { found: u32, expected: u32 },
+    /// Snapshot is present but bytes are unreadable (I/O, corrupt envelope, etc.).
+    Corrupt(anyhow::Error),
+    /// No snapshot file exists at any generation.
+    NotFound,
+}
+
+impl std::fmt::Display for SnapshotLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::VersionMismatch { found, expected } =>
+                write!(f, "snapshot version mismatch (found={found}, expected={expected})"),
+            Self::Corrupt(e) => write!(f, "snapshot corrupt: {e}"),
+            Self::NotFound   => write!(f, "no snapshot found"),
+        }
+    }
+}
+
 // ─── Write-Ahead Log ─────────────────────────────────────────────────────────
 
 /// Write-Ahead Log writer.
@@ -194,22 +247,25 @@ pub fn crc32(data: &[u8]) -> u32 {
 
 // ─── Snapshot (atomic, N-generation) ─────────────────────────────────────────
 
-/// Write a bincode snapshot atomically, keeping `SNAPSHOT_GENERATIONS` old copies.
+/// Write a versioned bincode snapshot atomically, keeping `SNAPSHOT_GENERATIONS` copies.
+///
+/// ## On-disk format
+/// `[bincode(SnapshotEnvelope { version: SNAPSHOT_VERSION, payload: bincode(T) })]`
 ///
 /// ## Write sequence (prevents partial-write corruption)
-/// 1. Serialize to `path.tmp`
-/// 2. `sync_all()` on the `.tmp` file  ← data + metadata durable
-/// 3. Rotate generations: `.2 ← .1 ← current ← .tmp`
-/// 4. `sync_all()` on parent directory ← rename durable (POSIX only)
-///
-/// On Windows, step 4 is a no-op with a trace-level warning. Windows NTFS
-/// journals renames, so data-loss risk is low but not zero.
+/// 1. Serialize T → payload bytes
+/// 2. Wrap in `SnapshotEnvelope` → envelope bytes
+/// 3. Write envelope to `.tmp`, `sync_all()`
+/// 4. Rotate generations: `.2 ← .1 ← current ← .tmp`
+/// 5. `sync_all()` on parent directory (POSIX; no-op on Windows)
 ///
 /// ## Generation rotation
 /// On every save: current → `.1`, `.1` → `.2`, `.2` is deleted.
 /// If the current save fails, the caller still has `.1` and `.2` as fallbacks.
-pub fn write_snapshot<T: Serialize>(state: &T, path: &PathBuf) -> Result<()> {
-    let bytes = bincode::serialize(state)?;
+pub fn write_snapshot<T: serde::Serialize>(state: &T, path: &PathBuf) -> Result<()> {
+    let payload = bincode::serialize(state)?;
+    let envelope = SnapshotEnvelope { version: SNAPSHOT_VERSION, payload };
+    let bytes = bincode::serialize(&envelope)?;
     let tmp_path = path.with_extension("bin.tmp");
 
     // Step 1+2: Write to .tmp and fsync it
@@ -232,36 +288,84 @@ pub fn write_snapshot<T: Serialize>(state: &T, path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Deserialize snapshot from disk.
+/// Deserialize a versioned snapshot.
 ///
-/// Falls back through generations (.1, .2) if the primary is missing or corrupt.
-/// Never panics — returns `Err` if all generations fail.
-pub fn read_snapshot<T: for<'de> Deserialize<'de>>(path: &PathBuf) -> Result<T> {
-    // Try current, then .1, then .2
+/// ## Error classification
+/// - `SnapshotLoadError::NotFound`        — no file at any generation
+/// - `SnapshotLoadError::VersionMismatch` — file readable, version tag wrong → rebuild from WAL
+/// - `SnapshotLoadError::Corrupt`         — bytes unreadable → log ERROR, consider fsck
+///
+/// Falls back through generations (`.1`, `.2`) for `Corrupt` only.
+/// A `VersionMismatch` on the primary generation is returned immediately
+/// (older generations have the same or older version — no point trying them).
+pub fn read_snapshot<T: for<'de> serde::Deserialize<'de>>(path: &PathBuf)
+    -> std::result::Result<T, SnapshotLoadError>
+{
     let candidates = [
         path.clone(),
         generation_path(path, 1),
         generation_path(path, 2),
     ];
 
-    let mut last_err = anyhow!("no snapshot file exists at {:?}", path);
+    let mut found_any = false;
     for candidate in &candidates {
         if !candidate.exists() { continue; }
-        match std::fs::read(candidate) {
-            Err(e) => { last_err = e.into(); continue; }
-            Ok(bytes) => match bincode::deserialize::<T>(&bytes) {
-                Err(e) => {
-                    tracing::warn!("Snapshot {:?} corrupt ({e}), trying next generation", candidate);
-                    last_err = e.into();
-                }
-                Ok(state) => {
-                    tracing::info!("Snapshot loaded from {:?}", candidate);
-                    return Ok(state);
-                }
+        found_any = true;
+
+        let bytes = match std::fs::read(candidate) {
+            Err(e) => {
+                tracing::warn!("Snapshot {:?} unreadable: {e}", candidate);
+                continue; // try next generation
+            }
+            Ok(b) => b,
+        };
+
+        // Try to parse the outer envelope first.
+        let envelope = match bincode::deserialize::<SnapshotEnvelope>(&bytes) {
+            Ok(env) => env,
+            Err(_) => {
+                // Could not deserialize envelope — either corrupt or pre-versioned (v1).
+                // Treat as VersionMismatch (version=1 implied) so the caller rebuilds from WAL.
+                tracing::warn!(
+                    "Snapshot {:?}: no version envelope (pre-v{SNAPSHOT_VERSION} format) — \
+                     discarding, will rebuild from WAL", candidate
+                );
+                return Err(SnapshotLoadError::VersionMismatch {
+                    found: 1,
+                    expected: SNAPSHOT_VERSION,
+                });
+            }
+        };
+
+        if envelope.version != SNAPSHOT_VERSION {
+            tracing::warn!(
+                "Snapshot {:?}: version {} ≠ expected {} — discarding, will rebuild from WAL",
+                candidate, envelope.version, SNAPSHOT_VERSION
+            );
+            return Err(SnapshotLoadError::VersionMismatch {
+                found:    envelope.version,
+                expected: SNAPSHOT_VERSION,
+            });
+        }
+
+        // Version matches: deserialize inner payload.
+        match bincode::deserialize::<T>(&envelope.payload) {
+            Ok(state) => {
+                tracing::info!("Snapshot v{} loaded from {:?}", SNAPSHOT_VERSION, candidate);
+                return Ok(state);
+            }
+            Err(e) => {
+                tracing::warn!("Snapshot {:?} payload corrupt ({e}), trying next generation", candidate);
+                // Fall through to next generation.
             }
         }
     }
-    Err(last_err)
+
+    if found_any {
+        Err(SnapshotLoadError::Corrupt(anyhow!("all snapshot generations failed to deserialize")))
+    } else {
+        Err(SnapshotLoadError::NotFound)
+    }
 }
 
 // ─── Generation helpers ───────────────────────────────────────────────────────
@@ -472,7 +576,7 @@ mod tests {
         let path = dir.join("state.bin");
 
         write_snapshot(&42u32, &path)?;
-        let v: u32 = read_snapshot(&path)?;
+        let v: u32 = read_snapshot(&path).expect("round-trip must succeed");
         assert_eq!(v, 42);
 
         std::fs::remove_dir_all(&dir).ok();
@@ -489,15 +593,15 @@ mod tests {
         write_snapshot(&3u32, &path)?;
 
         // Current must be 3
-        let v: u32 = read_snapshot(&path)?;
+        let v: u32 = read_snapshot(&path).expect("current snapshot must load");
         assert_eq!(v, 3, "Current snapshot must be latest");
 
         // .1 must exist and be 2
-        let gen1: u32 = read_snapshot(&generation_path(&path, 1))?;
+        let gen1: u32 = read_snapshot(&generation_path(&path, 1)).expect(".1 must load");
         assert_eq!(gen1, 2, "Generation .1 must be the previous save");
 
         // .2 must exist and be 1
-        let gen2: u32 = read_snapshot(&generation_path(&path, 2))?;
+        let gen2: u32 = read_snapshot(&generation_path(&path, 2)).expect(".2 must load");
         assert_eq!(gen2, 1, "Generation .2 must be oldest");
 
         std::fs::remove_dir_all(&dir).ok();
@@ -505,23 +609,153 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_fallback_to_generation() -> Result<()> {
+    fn snapshot_fallback_to_generation() {
         let dir  = tmp_dir("snap_fallback");
         let path = dir.join("state.bin");
 
-        write_snapshot(&99u32, &path)?;
-        write_snapshot(&100u32, &path)?;
+        write_snapshot(&99u32, &path).unwrap();
+        write_snapshot(&100u32, &path).unwrap();
 
-        // Corrupt the primary by truncating to 2 bytes.
-        // bincode::deserialize::<u32> needs exactly 4 bytes → will fail with IoError.
-        // This proves read_snapshot falls back to generation .1 on deserialise failure.
-        std::fs::write(&path, b"\xFF\xFF")?;
+        // Corrupt the primary: write a valid-version envelope but a 3-byte payload
+        // (bincode needs ≥4 bytes for u32 → UnexpectedEof → Corrupt → falls back to .1).
+        let corrupt_envelope = SnapshotEnvelope {
+            version: SNAPSHOT_VERSION,
+            payload: vec![0xAB, 0xCD, 0xEF], // 3 bytes — UnexpectedEof decoding u32
+        };
+        let bytes = bincode::serialize(&corrupt_envelope).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
 
         // read_snapshot must fall back to .1 = 99
-        let v: u32 = read_snapshot(&path)?;
-        assert_eq!(v, 99, "Should fall back to generation .1 when primary is corrupt");
+        let v: u32 = read_snapshot(&path).expect("should fall back to .1 on Corrupt primary");
+        assert_eq!(v, 99, "Should fall back to generation .1 when primary payload is corrupt");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+
+    // ── New: WAL torn-write recovery ──────────────────────────────────────────
+
+    /// A truncated final record (torn write) must be silently ignored.
+    /// Only the preceding complete records should be returned.
+    #[test]
+    fn wal_torn_write_truncated_payload() -> Result<()> {
+        let dir  = tmp_dir("wal_torn");
+        let path = dir.join("wal.dat");
+
+        // Write one clean record.
+        let mut w = WalWriter::open(&path)?;
+        w.append(b"hello-world")?;
+        drop(w);
+
+        // Append partial bytes: a length field (say 1024) with no payload.
+        // This simulates a torn write where the process died after writing len
+        // but before writing the payload.
+        let partial_len: u32 = 1024;
+        let mut file = std::fs::OpenOptions::new().append(true).open(&path)?;
+        file.write_all(&partial_len.to_le_bytes())?;
+        // (no payload, no CRC)
+        drop(file);
+
+        let entries = read_wal(&path)?;
+        assert_eq!(entries.len(), 1, "Torn tail must be silently truncated; only complete records returned");
+        assert_eq!(&entries[0].payload, b"hello-world");
 
         std::fs::remove_dir_all(&dir).ok();
         Ok(())
+    }
+
+    /// A CRC-mismatched record stops replay; preceding records survive.
+    #[test]
+    fn wal_corrupt_payload_crc_flip_stops_replay() -> Result<()> {
+        let dir  = tmp_dir("wal_crc_flip");
+        let path = dir.join("wal.dat");
+
+        // Write two records.
+        let mut w = WalWriter::open(&path)?;
+        w.append(b"good-record")?;
+        w.append(b"will-be-corrupted")?;
+        drop(w);
+
+        // Read the raw file, find the second record's payload, flip a bit.
+        let mut bytes = std::fs::read(&path)?;
+        // File layout: [MAGIC:4][len:4][payload:N][crc:4][len:4][payload:M][crc:4]
+        // First record: len=11 ("good-record"), payload starts at offset 8.
+        // Second record starts at: 4 + 4 + 11 + 4 = 23.
+        // Second record payload starts at: 23 + 4 = 27.
+        let second_payload_start = 4 + 4 + b"good-record".len() + 4 + 4;
+        if second_payload_start < bytes.len() {
+            bytes[second_payload_start] ^= 0xFF; // flip all bits in first byte of second payload
+        }
+        std::fs::write(&path, &bytes)?;
+
+        let entries = read_wal(&path)?;
+        assert_eq!(entries.len(), 1,
+            "CRC mismatch on second record must stop replay; first record must survive");
+        assert_eq!(&entries[0].payload, b"good-record");
+
+        std::fs::remove_dir_all(&dir).ok();
+        Ok(())
+    }
+
+    // ── New: Snapshot version classification ──────────────────────────────────
+
+    /// A snapshot written with the wrong version tag must produce VersionMismatch,
+    /// NOT Corrupt. The caller uses this to trigger WAL rebuild without alerting monitoring.
+    #[test]
+    fn snapshot_version_mismatch_is_distinct_from_corrupt() {
+        let dir  = tmp_dir("snap_ver_mismatch");
+        let path = dir.join("state.bin");
+
+        // Write an envelope with a wrong version number directly.
+        let wrong_envelope = SnapshotEnvelope {
+            version: SNAPSHOT_VERSION + 1, // future version
+            payload: bincode::serialize(&999u32).unwrap(),
+        };
+        let bytes = bincode::serialize(&wrong_envelope).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+
+        let result: std::result::Result<u32, SnapshotLoadError> = read_snapshot(&path);
+        match result {
+            Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
+                assert_eq!(found, SNAPSHOT_VERSION + 1);
+                assert_eq!(expected, SNAPSHOT_VERSION);
+            }
+            Err(SnapshotLoadError::Corrupt(_)) =>
+                panic!("version mismatch must NOT be classified as Corrupt"),
+            Ok(_) =>
+                panic!("must not succeed with wrong version"),
+            Err(SnapshotLoadError::NotFound) =>
+                panic!("file exists — must not be NotFound"),
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Raw bytes (no envelope) — e.g., a snapshot from before versioning was added —
+    /// must produce VersionMismatch (version=1 implied), NOT Corrupt.
+    #[test]
+    fn snapshot_pre_versioned_is_version_mismatch_not_corrupt() {
+        let dir  = tmp_dir("snap_pre_ver");
+        let path = dir.join("state.bin");
+
+        // Write raw u32 bytes with no envelope — mimics a v1 (pre-envelope) snapshot.
+        let raw_bytes = bincode::serialize(&42u32).unwrap();
+        std::fs::write(&path, &raw_bytes).unwrap();
+
+        let result: std::result::Result<u32, SnapshotLoadError> = read_snapshot(&path);
+        match result {
+            Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
+                assert_eq!(found, 1, "pre-versioned implies version=1");
+                assert_eq!(expected, SNAPSHOT_VERSION);
+            }
+            Err(SnapshotLoadError::Corrupt(_)) =>
+                panic!("pre-versioned snapshot must NOT be classified as Corrupt"),
+            Ok(_) =>
+                panic!("must not deserialize successfully from wrong format"),
+            Err(SnapshotLoadError::NotFound) =>
+                panic!("file exists — must not be NotFound"),
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

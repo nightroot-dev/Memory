@@ -38,9 +38,28 @@ pub struct CoreState {
     /// Original key format: `"{retrieve_id}/{node_id}/{success_as_01}"`.
     /// Stored as u64 (8 B/entry) instead of String (60 B/entry) — P(collision) ≈ 2⁻⁶⁴.
     /// Prevents Beta(α,β) from being updated twice for the same (retrieve, node, outcome) triple.
-    /// `#[serde(default)]` ensures old snapshots without this field deserialise to empty set.
     #[serde(default)]
     pub feedback_seen: HashSet<u64>,
+
+    /// Running P₀.₃₀ quantile of observed max_cosine values (one per `birth_node` call).
+    ///
+    /// Used as the adaptive birth gate threshold: a candidate is admitted when its
+    /// `max_cosine < birth_q30`, which targets a ~30% birth rate regardless of store size N.
+    ///
+    /// ## Estimator (Robbins–Monro stochastic gradient, p = 0.30)
+    /// ```text
+    ///   err = max_cosine − birth_q30
+    ///   birth_q30 += lr · (0.30 − I[err < 0])
+    /// ```
+    /// With lr = 0.01, the estimator converges in ~100 observations.
+    ///
+    /// ## Why not τ = constant?
+    /// E[max cosine over N random vectors] ≈ σ√(2 ln N), σ = 1/√d.
+    /// At d=128: σ = 0.0884. The expected max grows from ~0 at N=1 to ~0.33 at N=10k.
+    /// A fixed threshold collapses birth rate to zero as the store grows.
+    /// A running quantile is self-calibrating across N, dimension, and embedding backends.
+    #[serde(default = "default_birth_q30")]
+    pub birth_q30: f32,
 }
 
 impl CoreState {
@@ -59,6 +78,7 @@ impl CoreState {
             cumulative_reinforce: 0.0,
             global_ema: [0.0f32; 128],
             feedback_seen: HashSet::new(),
+            birth_q30: default_birth_q30(),
         }
     }
 
@@ -72,11 +92,19 @@ impl CoreState {
     }
 }
 
+/// Default value for `birth_q30`. Set to 0.30 — a reasonable prior before any observations.
+/// The Robbins–Monro estimator will adapt it within ~100 learn calls.
+fn default_birth_q30() -> f32 { 0.30 }
+
 /// FNV-1a 64-bit hash of a UTF-8 string. Deterministic and stable across builds.
 ///
 /// Used for feedback dedup key compaction: 60 B/entry → 8 B/entry.
 /// P(accidental collision for any two distinct keys) ≈ n²/2⁵³ per Bloom argument;
 /// for 10M feedback events this is ~10⁻³, far below the 0.1% FP design target.
+///
+/// # TODO
+/// FNV-1a has weak avalanche on structured suffixes (`/{node_id}/{outcome}`).
+/// Upgrade to xxh3 (xxhash-rust, no_std, tiny) once added to the workspace.
 pub(crate) fn fnv64(s: &str) -> u64 {
     let mut h: u64 = 14695981039346656037;
     for b in s.bytes() {

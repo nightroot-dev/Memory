@@ -12,7 +12,7 @@ use crate::{
     edge::{Edge, EdgeType, EvidenceType},
     dense_core::DenseCore,
     consolidation::run_consolidation,
-    persistence::{WalWriter, read_wal, write_snapshot, read_snapshot},
+    persistence::{WalWriter, read_wal, write_snapshot, read_snapshot, SnapshotLoadError},
     retrieval::{self, RetrievalResult},
 };
 
@@ -72,6 +72,10 @@ pub enum Command {
         node_id: u64,
         tx: mpsc::SyncSender<Option<(f32, f32)>>,
     },
+    /// Read the current adaptive quantile gate value (birth_q30).
+    GetBirthQ30 {
+        tx: mpsc::SyncSender<f32>,
+    },
     Snapshot {
         path: PathBuf,
         tx: mpsc::SyncSender<Result<()>>,
@@ -90,6 +94,35 @@ struct WalLearnEntry {
     emotional_tag:    f32,
     model_id:         String,
 }
+
+/// Serialisable record written to WAL for every applied feedback node.
+///
+/// One record per (retrieve_id, node_id, outcome) triple that was **actually applied**
+/// (i.e. not already in `feedback_seen`). Per-node granularity keeps replay idempotent:
+/// each record is self-contained and re-checked against `feedback_seen` on replay.
+///
+/// WAL type byte: `0x01`
+///
+/// # TODO
+/// FNV-1a is used for `feedback_seen` key hashing. It has weak avalanche on structured
+/// suffixes (`/{node_id}/{outcome}`). Upgrade to xxh3 (xxhash-rust, no_std, tiny) once
+/// that crate is added to the workspace. A collision here silently drops a posterior update.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct WalFeedbackEntry {
+    retrieve_id: String,
+    node_id:     u64,
+    outcome:     bool,
+    ts_secs:     f64,
+}
+
+/// WAL record type tags.
+/// New WAL payloads are prefixed with one of these bytes.
+/// Legacy WAL payloads (pre-typed format) have no prefix byte;
+/// their first byte will be the low byte of `state_emb.len()` (a u64 LE).
+/// For 128-dim embeddings that byte is `0x80` — safely outside [0x00, 0x01],
+/// so the `_` (legacy) arm of the replay dispatch fires correctly.
+const WAL_TYPE_LEARN:    u8 = 0x00;
+const WAL_TYPE_FEEDBACK: u8 = 0x01;
 
 /// Result of a Learn command.
 #[derive(Debug, Clone)]
@@ -209,6 +242,17 @@ impl EngineHandle {
         resp_rx.recv().unwrap_or(None)
     }
 
+    /// Current value of the adaptive P₀.₃₀ birth gate quantile.
+    /// Returns 0.30 (the prior) if the channel is closed.
+    /// Read-only — no WAL write. Used by tests to verify quantile convergence.
+    pub fn get_birth_q30(&self) -> f32 {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::GetBirthQ30 { tx: resp_tx }).is_err() {
+            return 0.30;
+        }
+        resp_rx.recv().unwrap_or(0.30)
+    }
+
     /// Shut down the engine gracefully (takes a final snapshot).
     pub fn shutdown(self) -> Result<()> {
 
@@ -237,24 +281,39 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     let wal_path      = cfg.data_dir.join("wal.dat");
 
     // ── Step 1: Load snapshot ─────────────────────────────────────────────
-    let mut state: CoreState = if snapshot_path.exists() {
-        match read_snapshot::<CoreState>(&snapshot_path) {
-            Ok(s) => {
-                tracing::info!("Snapshot loaded from {:?} ({} nodes)",
-                    snapshot_path, s.node_store.len());
-                s
-            }
-            Err(e) => {
-                tracing::warn!("Snapshot corrupt ({}); starting fresh", e);
-                CoreState::new(cfg.working_memory_size)
-            }
+    let mut state: CoreState = match read_snapshot::<CoreState>(&snapshot_path) {
+        Ok(s) => {
+            tracing::info!("Snapshot loaded: {} nodes", s.node_store.len());
+            s
         }
-    } else {
-        tracing::info!("No snapshot — starting fresh");
-        CoreState::new(cfg.working_memory_size)
+        Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
+            // Schema changed — expected after a version bump. NOT a corruption event.
+            // WAL replay below reconstructs state from scratch.
+            tracing::warn!(
+                "Snapshot schema mismatch (found=v{found}, expected=v{expected}); \
+                 discarding and rebuilding from WAL"
+            );
+            CoreState::new(cfg.working_memory_size)
+        }
+        Err(SnapshotLoadError::NotFound) => {
+            tracing::info!("No snapshot — starting fresh");
+            CoreState::new(cfg.working_memory_size)
+        }
+        Err(SnapshotLoadError::Corrupt(e)) => {
+            // Genuine corruption. Log at ERROR for monitoring. Recover via WAL.
+            tracing::error!(
+                "Snapshot corrupt ({e}); all generations failed. \
+                 Starting fresh and replaying WAL. Some data may be lost."
+            );
+            CoreState::new(cfg.working_memory_size)
+        }
     };
 
     // ── Step 2: WAL replay ────────────────────────────────────────────────
+    // Dispatches on a leading type byte:
+    //   0x00 = typed Learn   (post-44e4b15)
+    //   0x01 = typed Feedback (new, this commit)
+    //   _    = legacy untyped Learn (pre-44e4b15; first byte is low byte of vec len)
     let mut replayed: usize = 0;
     let mut replay_failed = false;
     if wal_path.exists() {
@@ -264,26 +323,57 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             }
             Ok(entries) => {
                 tracing::info!("Replaying {} WAL entries from {:?}", entries.len(), wal_path);
-                let _rng = rand::rngs::SmallRng::from_entropy();
                 for entry in &entries {
-                    match bincode::deserialize::<WalLearnEntry>(&entry.payload) {
-                        Ok(cmd) => {
-                            let _ = process_learn(
-                                &mut state,
-                                &cmd.state_emb,
-                                &cmd.action_emb,
-                                &cmd.outcome_emb,
-                                cmd.prediction_error,
-                                cmd.emotional_tag,
-                                &cmd.model_id,
-                                &cfg,
-                            );
-                            replayed += 1;
+                    let payload = &entry.payload;
+                    if payload.is_empty() {
+                        tracing::debug!("WAL: empty payload, skipping");
+                        continue;
+                    }
+                    match payload[0] {
+                        WAL_TYPE_LEARN => {
+                            // Typed Learn record: strip type byte, then deserialize.
+                            match bincode::deserialize::<WalLearnEntry>(&payload[1..]) {
+                                Ok(cmd) => {
+                                    let _ = process_learn(
+                                        &mut state,
+                                        &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
+                                        cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        &cfg,
+                                    );
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL Learn[typed] decode error: {e}"),
+                            }
                         }
-                        Err(e) => {
-                            // WAL entry is a non-Learn record (e.g. debug string from old version);
-                            // skip it rather than failing the whole replay.
-                            tracing::debug!("Skipping non-Learn WAL entry: {e}");
+                        WAL_TYPE_FEEDBACK => {
+                            // Feedback record: re-apply with feedback_seen dedup → exactly-once.
+                            match bincode::deserialize::<WalFeedbackEntry>(&payload[1..]) {
+                                Ok(fb) => {
+                                    let _ = process_feedback_nodes(
+                                        &mut state,
+                                        &[fb.node_id],
+                                        fb.outcome,
+                                        Some(&fb.retrieve_id),
+                                    );
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL Feedback decode error: {e}"),
+                            }
+                        }
+                        _ => {
+                            // Legacy untyped Learn (pre-44e4b15): whole payload = WalLearnEntry.
+                            match bincode::deserialize::<WalLearnEntry>(payload) {
+                                Ok(cmd) => {
+                                    let _ = process_learn(
+                                        &mut state,
+                                        &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
+                                        cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        &cfg,
+                                    );
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::debug!("WAL legacy decode error (skipping): {e}"),
+                            }
                         }
                     }
                 }
@@ -295,6 +385,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             }
         }
     }
+
 
     if replay_failed {
         return Err(anyhow::anyhow!("WAL replay failed — context cannot be recovered"));
@@ -382,7 +473,9 @@ fn worker_loop(
                     &mut state, &state_emb, &action_emb, &outcome_emb,
                     prediction_error, emotional_tag, &model_id, &cfg,
                 );
-                // WAL append: write the full entry so it can be replayed on crash recovery
+                // WAL append: type byte 0x00 + serialized WalLearnEntry.
+                // Type byte allows the replay loop to distinguish Learn from Feedback
+                // records. Legacy WAL files (no type byte) are handled by the `_` arm.
                 if let Some(wal) = &mut wal {
                     let entry = WalLearnEntry {
                         state_emb:        state_emb.clone(),
@@ -392,8 +485,11 @@ fn worker_loop(
                         emotional_tag,
                         model_id:         model_id.clone(),
                     };
-                    if let Ok(bytes) = bincode::serialize(&entry) {
-                        let _ = wal.append(&bytes);
+                    if let Ok(payload) = bincode::serialize(&entry) {
+                        let mut tagged = Vec::with_capacity(1 + payload.len());
+                        tagged.push(WAL_TYPE_LEARN);
+                        tagged.extend_from_slice(&payload);
+                        let _ = wal.append(&tagged);
                     }
                 }
                 let _ = tx.send(result);
@@ -406,6 +502,33 @@ fn worker_loop(
 
             Command::FeedbackNodes { node_ids, success, feedback_key, tx } => {
                 let result = process_feedback_nodes(&mut state, &node_ids, success, feedback_key.as_deref());
+                // WAL append: one typed record per applied (not skipped) node.
+                // Replay re-checks feedback_seen → exactly-once even if WAL is replayed twice.
+                if let Some(wal) = &mut wal {
+                    if let Some(key) = &feedback_key {
+                        let ts = crate::core_state::now_secs();
+                        let outcome_bit = if success { 1u64 } else { 0u64 };
+                        for &nid in &node_ids {
+                            // Only WAL-log nodes that were actually applied (check seen set).
+                            let hash = crate::core_state::fnv64(&format!("{key}/{nid}/{outcome_bit}"));
+                            if state.feedback_seen.contains(&hash) {
+                                // This node is now in feedback_seen → it was just applied.
+                                let fb = WalFeedbackEntry {
+                                    retrieve_id: key.clone(),
+                                    node_id:     nid,
+                                    outcome:     success,
+                                    ts_secs:     ts,
+                                };
+                                if let Ok(payload) = bincode::serialize(&fb) {
+                                    let mut tagged = Vec::with_capacity(1 + payload.len());
+                                    tagged.push(WAL_TYPE_FEEDBACK);
+                                    tagged.extend_from_slice(&payload);
+                                    let _ = wal.append(&tagged);
+                                }
+                            }
+                        }
+                    }
+                }
                 let _ = tx.send(result);
             }
 
@@ -434,6 +557,11 @@ fn worker_loop(
                 let result = state.node_store.get(node_id)
                     .map(|n| (n.bandit_alpha, n.bandit_beta));
                 let _ = tx.send(result);
+            }
+
+            Command::GetBirthQ30 { tx } => {
+                // Read-only — no WAL, no state change.
+                let _ = tx.send(state.birth_q30);
             }
 
             Command::Shutdown => {
@@ -571,7 +699,26 @@ fn birth_node(
     let nearest = state.node_store.nearest_by_type(proj_emb, model_id, 1, node_type);
     let cos_max = nearest.first().map(|(_, c)| *c).unwrap_or(-1.0);
 
-    let should_birth = cos_max < 0.55 || salience > 0.70 || epsilon > 0.5;
+    // Adaptive birth gate: admit when max_cosine falls in the bottom 30th percentile
+    // of observed values. The Robbins–Monro estimator updates birth_q30 on every call,
+    // so the threshold self-calibrates as the store grows.
+    //
+    // Update rule (p = 0.30, lr = 0.01):
+    //   err = cos_max - birth_q30
+    //   birth_q30 += 0.01 * (0.30 - I[err < 0.0])
+    //
+    // E[max cosine over N random 128-dim unit vectors] ≈ 0.0884 * √(2 ln N).
+    // At N=10k this is ~0.33 — a fixed τ=0.55 would work; with real embeddings
+    // (MiniLM unrelated pairs: 0.1–0.3) the max easily exceeds 0.55, collapsing birth.
+    // The quantile adapts to whichever backend and dimension is actually in use.
+    let lr = 0.01_f32;
+    let indicator = if cos_max < state.birth_q30 { 1.0_f32 } else { 0.0_f32 };
+    state.birth_q30 += lr * (0.30 - indicator);
+    // Clamp to valid cosine range to guard against warm-up drift.
+    state.birth_q30 = state.birth_q30.clamp(0.01, 0.99);
+
+    let should_birth = cos_max < state.birth_q30 || salience > 0.70 || epsilon > 0.5;
+
 
     if should_birth {
         // Update global EMA with full_emb (tracks semantic centroid)
