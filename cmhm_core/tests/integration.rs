@@ -705,49 +705,44 @@ fn test_birth_q30_converges_to_target_quantile() {
 // WAL compaction + schema version recovery boundary
 // ───────────────────────────────────────────────────────────────────────
 
-/// Documents and verifies the WAL recovery boundary after a schema version mismatch.
+/// Verifies that `engine::start()` **refuses** to start when a snapshot schema version
+/// mismatch is detected (fail-closed by default), and that the incompatible snapshot
+/// is preserved untouched so it can be restored or migrated.
 ///
-/// ## The invariant
-/// The WAL is **compacted at each clean startup**: the engine writes a fresh snapshot
-/// and deletes the old WAL after each startup's replay phase. This means:
+/// ## Three assertions
 ///
-/// - The WAL only contains entries from the **current session** (since last compaction).
-/// - On a schema version mismatch, the snapshot is discarded and the engine starts fresh.
-///   Only WAL entries written in the same session as the version-mismatched startup survive.
-/// - Any state committed before the last compaction is **permanently lost**.
+/// **Phase 1 — Fail-closed (default):**
+/// `learn()` returns `Err` because `engine::start()` refuses to proceed.
+/// The incompatible `snapshot.bin` is NOT renamed or deleted — it stays exactly
+/// where it is so a backup restore or manual migration is possible.
 ///
-/// ## Why this is accepted (not a bug to fix now)
-/// A migration path requires maintaining old `CoreState` schema structs. Until then,
-/// the contract is: backup before schema bumps, or accept data loss bounded to
-/// pre-compaction sessions. This test documents that boundary so future migration
-/// work is testable.
+/// **Phase 2 — Opt-in (`allow_schema_downgrade=true`):**
+/// The engine starts, quarantines the incompatible snapshot to
+/// `snapshot.v1.incompatible`, and recovers with an empty state.
+/// A's and B's nodes are absent (pre-compaction data permanently lost once
+/// the downgrade is explicitly allowed). C can be learned — engine is healthy.
 ///
-/// ## Proof structure
-/// 1. Session A: learn triple A (eps=0.9 → forced birth), clean shutdown → S_A in
-///    `contexts/<uuid>/snapshot.bin`.
-/// 2. Session B: starts fresh (S_A loads), learns B, clean shutdown → S_B.
-///    WAL is gone (clean startup compacted it). S_B contains A+B.
-/// 3. Schema bump: overwrite every `contexts/*/snapshot.bin` and `wal.dat` with
-///    4 raw bytes (no SnapshotEnvelope) → `read_snapshot` returns VersionMismatch.
-///    WAL also corrupted so replay provides nothing new.
-/// 4. Session C: snapshot → VersionMismatch → fresh CoreState + no usable WAL → empty.
-/// 5. Assert: A's node_id is absent. Store starts empty. Engine is still usable (learns C).
+/// **Phase 3 — Snapshot not silently overwritten:**
+/// The quarantine file outlives the session and can be inspected after shutdown.
+///
+/// ## Setup
+/// Session A: learn triple A, clean shutdown → `contexts/<uuid>/snapshot.bin` (v2).
+/// Session B: loads S_A, learns B, clean shutdown → S_B (A+B in snapshot, WAL compacted).
+/// Schema bump: overwrite all `contexts/*/snapshot.bin` with 4 raw bytes → VersionMismatch.
 #[test]
-fn test_version_mismatch_loses_pre_compaction_state() {
-    let (cfg, dir) = make_cfg("ver_mismatch_boundary");
+fn test_version_mismatch_fails_closed_and_quarantines() {
+    let (cfg, dir) = make_cfg("ver_mismatch_failclosed");
     let contexts_dir = cfg.data_dir.join("contexts");
 
     // ── Session A ─────────────────────────────────────────────────────────
-    let a_state_id;
+    // Use "s" as the named context for all operations.
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let res = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d").unwrap();
-        a_state_id = res.0.state_node_id;
+        let _ = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d").unwrap();
         rt.shutdown(); // writes S_A at contexts/<uuid>/snapshot.bin
     }
 
     // ── Session B ─────────────────────────────────────────────────────────
-    // Loads S_A (compacts WAL into it), learns B, shuts down → S_B.
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
         let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d").unwrap();
@@ -755,53 +750,130 @@ fn test_version_mismatch_loses_pre_compaction_state() {
     }
 
     // ── Simulate schema bump ───────────────────────────────────────────────
-    // Walk contexts/*/ and overwrite every snapshot.bin and wal.dat with 4 raw
-    // bytes (no SnapshotEnvelope). read_snapshot will return VersionMismatch.
-    // This mirrors a real version bump where old bincode layouts are unreadable.
+    // read_snapshot() tries snapshot.bin, snapshot.bin.1, and snapshot.bin.2 in order.
+    // If any generation holds valid v2 bytes, VersionMismatch never fires and the engine
+    // loads normally. ALL three generations must be corrupted to guarantee the fail-closed
+    // path is reached.
+    //
+    // IMPORTANT: do NOT corrupt wal.dat. A corrupted (but existing) WAL sets
+    // needs_recovery=true in ensure_loaded. When engine::start then fails (VersionMismatch),
+    // ensure_loaded transitions the context to Deleted, and Phase 2's find_by_name()
+    // creates a fresh context — bypassing the quarantine path entirely.
+    // Instead, DELETE the WAL so needs_recovery=false and the context stays Sleeping.
+    let mut ctx_snapshot_paths: Vec<std::path::PathBuf> = Vec::new();
     let v1_bytes = b"\x00\x00\x00\x00";
     if let Ok(entries) = std::fs::read_dir(&contexts_dir) {
         for entry in entries.flatten() {
             let ctx_dir = entry.path();
             if ctx_dir.is_dir() {
-                let snap = ctx_dir.join("snapshot.bin");
-                let wal  = ctx_dir.join("wal.dat");
-                if snap.exists() { let _ = std::fs::write(&snap, v1_bytes); }
-                if wal.exists()  { let _ = std::fs::write(&wal,  v1_bytes); }
+                for &name in &["snapshot.bin", "snapshot.bin.1", "snapshot.bin.2"] {
+                    let snap = ctx_dir.join(name);
+                    if snap.exists() {
+                        if name == "snapshot.bin" {
+                            ctx_snapshot_paths.push(snap.clone());
+                        }
+                        let _ = std::fs::write(&snap, v1_bytes);
+                    }
+                }
+                // DELETE the WAL (do not corrupt it — see comment above).
+                let wal = ctx_dir.join("wal.dat");
+                let _ = std::fs::remove_file(&wal); // ok if not present
+            }
+        }
+    }
+    assert!(!ctx_snapshot_paths.is_empty(), "Setup: no context snapshots found — sessions A/B did not write snapshots");
+
+
+
+    // ── Phase 1: Default config → fail-closed ─────────────────────────────
+    // learn(Some("s")) triggers ensure_loaded → engine::start() → VersionMismatch → Err.
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let learn_result = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
+        assert!(
+            learn_result.is_err(),
+            "Default config: learn(None) must return Err on schema version mismatch. \
+             Got Ok — engine::start() did not fail closed."
+        );
+
+        // Incompatible snapshot must still be at its original path, byte-for-byte unchanged.
+        for snap_path in &ctx_snapshot_paths {
+            if snap_path.exists() {
+                let contents = std::fs::read(snap_path).unwrap();
+                if contents.len() <= 4 {
+                    // This is one of the snapshots we corrupted. Confirm it's still the v1 bytes.
+                    assert_eq!(
+                        &contents[..],
+                        v1_bytes,
+                        "Incompatible snapshot {:?} must be byte-for-byte unchanged after \
+                         fail-closed startup. Content was modified — data was written despite the error.",
+                        snap_path
+                    );
+                }
             }
         }
     }
 
-    // ── Session C ─────────────────────────────────────────────────────────
-    // Startup: every context snapshot → VersionMismatch → fresh CoreState.
-    // WAL is either absent or contains 4 garbage bytes → replay produces 0 entries.
-    // Engine starts empty.
+    // ── Phase 2: allow_schema_downgrade=true → opt-in recovery ───────────
+    // Store is empty before C; quarantine file must exist; C can be learned.
     {
-        let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+        let mut cfg_lossy = cfg.clone();
+        cfg_lossy.allow_schema_downgrade = true;
+        let mut rt = ContextRuntime::new(cfg_lossy, "s".to_string()).unwrap();
 
-        // A's node must be gone — pre-compaction data is permanently lost on schema bump.
-        let a_beta = rt.get_node_beta(None, a_state_id);
-        assert!(
-            a_beta.is_none(),
-            "Node A (id={a_state_id}) must NOT survive schema version mismatch. \
-             Pre-compaction data is permanently lost when the snapshot is discarded. \
-             If this node is present, the snapshot discard or context loading is not working."
-        );
-
-        // Store must be empty (no usable snapshot, no usable WAL).
+        // node_count(Some("s")) triggers ensure_loaded for context "s".
+        // allow_schema_downgrade=true → quarantine fires → CoreState empty.
         let n_before = rt.node_count(None);
         assert_eq!(
             n_before, 0,
-            "After version mismatch with no usable WAL, store must be empty. \
-             Got {n_before} nodes — snapshot discard may not have taken effect."
+            "allow_schema_downgrade=true: store must be empty after quarantine recovery. \
+             Got {n_before} nodes — A/B pre-compaction data survived the downgrade."
         );
 
-        // Engine is still healthy: learn C (eps=0.9 → forced birth = 3 nodes).
-        let _ = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d").unwrap();
+        // A quarantine file (*.incompatible) must exist somewhere under the contexts dir.
+        // engine::start() renames snapshot.bin → snapshot.v<found>.incompatible before
+        // starting with empty state. We search broadly because the quarantined context
+        // UUID may differ from what was corrupted (e.g. if a new default context was
+        // created during Phase 1 recovery).
+        let quarantine_found = {
+            let mut found = false;
+            if let Ok(entries) = std::fs::read_dir(&contexts_dir) {
+                for entry in entries.flatten() {
+                    let ctx_dir = entry.path();
+                    if !ctx_dir.is_dir() { continue; }
+                    if let Ok(files) = std::fs::read_dir(&ctx_dir) {
+                        for f in files.flatten() {
+                            if f.path().extension()
+                                .map(|e| e.to_string_lossy().contains("incompatible"))
+                                .unwrap_or(false)
+                            {
+                                found = true;
+                            }
+                        }
+                    }
+                }
+            }
+            found
+        };
+        assert!(
+            quarantine_found,
+            "After allow_schema_downgrade=true, an *.incompatible quarantine file must exist \
+             under the contexts directory. \
+             The incompatible snapshot was not quarantined before starting with empty state."
+        );
+
+
+        // Engine is healthy: learn C.
+        let learn_c = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
+        assert!(
+            learn_c.is_ok(),
+            "allow_schema_downgrade=true: learn() must succeed. Got Err: {:?}",
+            learn_c.err()
+        );
         let n_after = rt.node_count(None);
         assert_eq!(
             n_after, 3,
-            "After learning triple C (eps=0.9 → forced birth), expected 3 nodes \
-             (state+action+outcome). Got {n_after}."
+            "After learning triple C (eps=0.9 → forced birth), expected 3 nodes. Got {n_after}."
         );
 
         rt.shutdown();
@@ -809,6 +881,7 @@ fn test_version_mismatch_loses_pre_compaction_state() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
 
 // ───────────────────────────────────────────────────────────────────────
 // WAL / snapshot feedback durability

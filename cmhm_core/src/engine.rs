@@ -263,6 +263,24 @@ impl EngineHandle {
 
 // ─── Engine Startup ────────────────────────────────────────────────────────
 
+/// Attempt to migrate a v1 snapshot (no `SnapshotEnvelope` wrapper) into the
+/// current `CoreState` layout.
+///
+/// v1 snapshots are raw `bincode(CoreState)` bytes written before the envelope
+/// was introduced. Migration succeeds only if the `CoreState` struct layout is
+/// backward-compatible with the bytes on disk. If new fields were added (e.g.
+/// `birth_q30` in v2), bincode will return an error because the byte offsets
+/// shifted.
+///
+/// The caller decides what to do on failure: quarantine + opt-in data loss, or
+/// fail closed (return `Err` from `start()`).
+fn try_migrate_v1_snapshot(snapshot_path: &std::path::Path) -> anyhow::Result<CoreState> {
+    let bytes = std::fs::read(snapshot_path)?;
+    let state = bincode::deserialize::<CoreState>(&bytes)
+        .map_err(|e| anyhow::anyhow!("v1 layout deserialization failed: {e}"))?;
+    Ok(state)
+}
+
 /// Launch the CMHM engine on a background thread.
 /// Returns an `EngineHandle` for the caller to interact with.
 ///
@@ -279,10 +297,9 @@ impl EngineHandle {
 ///
 /// - **Crash recovery**: Full recovery of any Learn or Feedback entries written since
 ///   the last successful startup (the WAL captured everything from that session).
-/// - **Schema version mismatch**: Only WAL entries from the last session are replayed.
-///   Any state from earlier sessions (present in the discarded snapshot) is **permanently
-///   lost**. This is logged at ERROR. A migration path or backup restore is needed if
-///   that data is required.
+/// - **Schema version mismatch**: `start()` returns `Err` by default — the incompatible
+///   snapshot is left untouched so it can be inspected or restored. Set
+///   `Config::allow_schema_downgrade = true` to explicitly opt into data loss.
 pub fn start(cfg: Config) -> Result<EngineHandle> {
     // Ensure data dirs exist
     std::fs::create_dir_all(&cfg.data_dir)?;
@@ -298,26 +315,65 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             s
         }
         Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
-            // Schema version changed. The snapshot cannot be decoded.
-            //
-            // ⚠ DATA LOSS: This is NOT a clean "rebuild from WAL."
-            // The WAL only contains entries since the LAST STARTUP (compaction
-            // deletes the WAL after each clean startup). Any state that was in
-            // the discarded snapshot but not in the current WAL is permanently lost.
-            //
-            // Recovery boundary:
-            //   Recoverable  → WAL entries since last compaction
-            //   Unrecoverable → everything committed before last compaction
-            //
-            // If this is not acceptable, stop here and restore from a backup,
-            // or implement a snapshot migration path before deploying the version bump.
-            tracing::error!(
-                "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
-                 Discarding snapshot. State since last compaction will be replayed \
-                 from WAL; older state is permanently lost. \
-                 If this data loss is not acceptable, restore from backup before continuing."
-            );
-            CoreState::new(cfg.working_memory_size)
+            // ── Step A: Best-effort migration from the previous schema version ─────
+            // Attempt to deserialize the raw bytes as v1 CoreState (no envelope).
+            // This only succeeds if the CoreState struct layout is unchanged between
+            // versions (e.g., only the envelope wrapper was added). For v1→v2, the
+            // birth_q30 field was added, shifting the bincode layout — likely fails.
+            match try_migrate_v1_snapshot(&snapshot_path) {
+                Ok(migrated) => {
+                    tracing::warn!(
+                        "Snapshot v{found}→v{expected} migration succeeded: {} nodes recovered. \
+                         Re-encoding as v{expected} envelope on next compaction.",
+                        migrated.node_store.len()
+                    );
+                    migrated // no data loss, no quarantine needed
+                }
+                Err(migration_err) => {
+                    // ── Step B: Migration failed — choose fail-closed or opt-in path ──
+                    tracing::error!(
+                        "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                         Migration attempt failed: {migration_err}."
+                    );
+
+                    if cfg.allow_schema_downgrade {
+                        // Explicit opt-in: quarantine the incompatible snapshot so it is
+                        // preserved for forensics, then start with empty state + WAL replay.
+                        // The quarantine rename happens BEFORE any write, so the original
+                        // data is never silently overwritten.
+                        let quarantine_path = snapshot_path.with_extension(
+                            format!("v{found}.incompatible")
+                        );
+                        match std::fs::rename(&snapshot_path, &quarantine_path) {
+                            Ok(()) => tracing::error!(
+                                "allow_schema_downgrade=true: incompatible snapshot quarantined \
+                                 to {:?}. Starting with empty state; state before last compaction \
+                                 is permanently lost. WAL replay will supply post-compaction entries.",
+                                quarantine_path
+                            ),
+                            Err(e) => tracing::error!(
+                                "allow_schema_downgrade=true: could not quarantine snapshot \
+                                 ({e}). Manual intervention required before data may be overwritten."
+                            ),
+                        }
+                        CoreState::new(cfg.working_memory_size)
+                    } else {
+                        // Default: fail closed. The incompatible snapshot is left UNTOUCHED
+                        // at its original path. No data is written. The caller must either:
+                        //   (a) restore from backup,
+                        //   (b) implement a migration path,
+                        //   (c) set allow_schema_downgrade=true to accept data loss.
+                        return Err(anyhow::anyhow!(
+                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                             Migration failed. Incompatible snapshot preserved at {:?}. \
+                             To recover: restore from backup, implement a migration path, \
+                             or set allow_schema_downgrade=true to accept data loss \
+                             bounded to pre-compaction sessions.",
+                            snapshot_path
+                        ));
+                    }
+                }
+            }
         }
         Err(SnapshotLoadError::NotFound) => {
             tracing::info!("No snapshot — starting fresh");

@@ -68,6 +68,18 @@ pub struct Config {
     /// Lower → more edges flagged; higher → only highly uncertain edges flagged.
     #[serde(default = "default_retrieval_curiosity_threshold")]
     pub retrieval_curiosity_threshold: f32,
+    // ── Persistence Safety ─────────────────────────────────────────────────
+    /// If true, engine::start() will proceed with an empty CoreState when a snapshot
+    /// schema version mismatch is detected, quarantining the incompatible file first.
+    ///
+    /// **Default: false (fail-closed).** With the default, start() returns Err on
+    /// version mismatch, the incompatible snapshot is left untouched, and no data is
+    /// written. This is the safe default for production deployments.
+    ///
+    /// Set to true only when you have confirmed the data loss is acceptable and have
+    /// made a backup, or when running a controlled migration procedure.
+    #[serde(default = "default_allow_schema_downgrade")]
+    pub allow_schema_downgrade: bool,
 }
 
 impl Default for Config {
@@ -99,13 +111,15 @@ impl Default for Config {
             retrieval_query_weight: 0.7,
             retrieval_context_weight: 0.3,
             retrieval_curiosity_threshold: 0.1,
+            allow_schema_downgrade: false,
         }
     }
 }
 
-fn default_retrieval_query_weight()        -> f32 { 0.7 }
-fn default_retrieval_context_weight()      -> f32 { 0.3 }
-fn default_retrieval_curiosity_threshold() -> f32 { 0.1 }
+fn default_retrieval_query_weight()        -> f32  { 0.7 }
+fn default_retrieval_context_weight()      -> f32  { 0.3 }
+fn default_retrieval_curiosity_threshold() -> f32  { 0.1 }
+fn default_allow_schema_downgrade()        -> bool { false }
 
 impl Config {
     /// Load from a TOML file. Missing fields fall back to defaults.
