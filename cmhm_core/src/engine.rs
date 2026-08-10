@@ -261,7 +261,42 @@ impl EngineHandle {
     }
 }
 
-// ─── Engine Startup ────────────────────────────────────────────────────────
+// ─── Engine Startup ───────────────────────────────────────────────────
+
+/// Returned by [`start`] when a snapshot schema version mismatch is detected
+/// and the engine is configured to fail closed
+/// (`allow_incompatible_snapshot_reset = false`, the default).
+///
+/// ## Why a typed error?
+/// A schema mismatch is fundamentally different from a WAL replay failure:
+/// the data on disk is **intact** — nothing was written, nothing was lost.
+/// Callers (specifically `ContextRuntime::ensure_loaded`) inspect this type
+/// to decide whether to preserve the context identity (`Sleeping`) rather than
+/// mark it `Deleted`.
+#[derive(Debug)]
+pub struct SchemaMismatchError {
+    /// Schema version found in the snapshot file.
+    pub found: u32,
+    /// Schema version currently expected by this build.
+    pub expected: u32,
+    /// Path of the incompatible snapshot that was preserved.
+    pub snapshot_path: std::path::PathBuf,
+}
+
+impl std::fmt::Display for SchemaMismatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "snapshot schema mismatch (found=v{}, expected=v{}, path={:?}). \
+             Snapshot is untouched. \
+             Set allow_incompatible_snapshot_reset=true to quarantine and reset, \
+             or provide a migration path.",
+            self.found, self.expected, self.snapshot_path
+        )
+    }
+}
+
+impl std::error::Error for SchemaMismatchError {}
 
 /// Attempt to migrate a v1 snapshot (no `SnapshotEnvelope` wrapper) into the
 /// current `CoreState` layout.
@@ -299,7 +334,7 @@ fn try_migrate_v1_snapshot(snapshot_path: &std::path::Path) -> anyhow::Result<Co
 ///   the last successful startup (the WAL captured everything from that session).
 /// - **Schema version mismatch**: `start()` returns `Err` by default — the incompatible
 ///   snapshot is left untouched so it can be inspected or restored. Set
-///   `Config::allow_schema_downgrade = true` to explicitly opt into data loss.
+///   `Config::allow_incompatible_snapshot_reset = true` to explicitly opt into data loss.
 pub fn start(cfg: Config) -> Result<EngineHandle> {
     // Ensure data dirs exist
     std::fs::create_dir_all(&cfg.data_dir)?;
@@ -336,41 +371,56 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                          Migration attempt failed: {migration_err}."
                     );
 
-                    if cfg.allow_schema_downgrade {
-                        // Explicit opt-in: quarantine the incompatible snapshot so it is
-                        // preserved for forensics, then start with empty state + WAL replay.
-                        // The quarantine rename happens BEFORE any write, so the original
-                        // data is never silently overwritten.
+                    if cfg.allow_incompatible_snapshot_reset {
+                        // Explicit opt-in: quarantine ALL snapshot generations so that
+                        // generation fallback cannot later load incompatible data, then
+                        // start with empty state. The renames happen BEFORE any write.
                         let quarantine_path = snapshot_path.with_extension(
                             format!("v{found}.incompatible")
                         );
                         match std::fs::rename(&snapshot_path, &quarantine_path) {
                             Ok(()) => tracing::error!(
-                                "allow_schema_downgrade=true: incompatible snapshot quarantined \
-                                 to {:?}. Starting with empty state; state before last compaction \
-                                 is permanently lost. WAL replay will supply post-compaction entries.",
+                                "allow_incompatible_snapshot_reset=true: primary snapshot \
+                                 quarantined to {:?}. Starting with empty state; data before \
+                                 last compaction is permanently lost. WAL replay will supply \
+                                 post-compaction entries.",
                                 quarantine_path
                             ),
                             Err(e) => tracing::error!(
-                                "allow_schema_downgrade=true: could not quarantine snapshot \
-                                 ({e}). Manual intervention required before data may be overwritten."
+                                "allow_incompatible_snapshot_reset=true: could not quarantine \
+                                 primary snapshot ({e}). Manual intervention required."
                             ),
+                        }
+                        // Quarantine generation fallbacks (snapshot.bin.1, snapshot.bin.2).
+                        // Generation N has extension "bin.N" (same scheme as
+                        // persistence::generation_path). Without this, a later read_snapshot
+                        // could fall through to a valid older generation.
+                        for n in 1u32..=2 {
+                            let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                            if gen_path.exists() {
+                                let q = snapshot_path.with_extension(
+                                    format!("v{found}.incompatible.{n}")
+                                );
+                                if let Err(e) = std::fs::rename(&gen_path, &q) {
+                                    tracing::warn!(
+                                        "Could not quarantine snapshot generation {n}: {e}. \
+                                         Manual removal of {:?} recommended.", gen_path
+                                    );
+                                }
+                            }
                         }
                         CoreState::new(cfg.working_memory_size)
                     } else {
-                        // Default: fail closed. The incompatible snapshot is left UNTOUCHED
-                        // at its original path. No data is written. The caller must either:
-                        //   (a) restore from backup,
-                        //   (b) implement a migration path,
-                        //   (c) set allow_schema_downgrade=true to accept data loss.
-                        return Err(anyhow::anyhow!(
-                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
-                             Migration failed. Incompatible snapshot preserved at {:?}. \
-                             To recover: restore from backup, implement a migration path, \
-                             or set allow_schema_downgrade=true to accept data loss \
-                             bounded to pre-compaction sessions.",
-                            snapshot_path
-                        ));
+                        // Default: fail closed. The incompatible snapshot and WAL are left
+                        // UNTOUCHED at their original paths. No data is written.
+                        // A typed SchemaMismatchError is returned so callers (e.g.
+                        // ContextRuntime::ensure_loaded) can distinguish this from a
+                        // genuine WAL replay failure and preserve the context identity.
+                        return Err(anyhow::Error::new(SchemaMismatchError {
+                            found,
+                            expected,
+                            snapshot_path: snapshot_path.clone(),
+                        }));
                     }
                 }
             }

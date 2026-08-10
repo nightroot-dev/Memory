@@ -716,11 +716,11 @@ fn test_birth_q30_converges_to_target_quantile() {
 /// The incompatible `snapshot.bin` is NOT renamed or deleted — it stays exactly
 /// where it is so a backup restore or manual migration is possible.
 ///
-/// **Phase 2 — Opt-in (`allow_schema_downgrade=true`):**
-/// The engine starts, quarantines the incompatible snapshot to
-/// `snapshot.v1.incompatible`, and recovers with an empty state.
+/// **Phase 2 — Opt-in (`allow_incompatible_snapshot_reset=true`):**
+/// The engine starts, quarantines all incompatible snapshot generations to
+/// `snapshot.v1.incompatible[.N]`, and recovers with an empty state.
 /// A's and B's nodes are absent (pre-compaction data permanently lost once
-/// the downgrade is explicitly allowed). C can be learned — engine is healthy.
+/// the reset is explicitly allowed). C can be learned — engine is healthy.
 ///
 /// **Phase 3 — Snapshot not silently overwritten:**
 /// The quarantine file outlives the session and can be inspected after shutdown.
@@ -814,19 +814,19 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
         }
     }
 
-    // ── Phase 2: allow_schema_downgrade=true → opt-in recovery ───────────
+    // ── Phase 2: allow_incompatible_snapshot_reset=true → opt-in recovery ─
     // Store is empty before C; quarantine file must exist; C can be learned.
     {
         let mut cfg_lossy = cfg.clone();
-        cfg_lossy.allow_schema_downgrade = true;
+        cfg_lossy.allow_incompatible_snapshot_reset = true;
         let mut rt = ContextRuntime::new(cfg_lossy, "s".to_string()).unwrap();
 
         // node_count(Some("s")) triggers ensure_loaded for context "s".
-        // allow_schema_downgrade=true → quarantine fires → CoreState empty.
+        // allow_incompatible_snapshot_reset=true → quarantine fires → CoreState empty.
         let n_before = rt.node_count(None);
         assert_eq!(
             n_before, 0,
-            "allow_schema_downgrade=true: store must be empty after quarantine recovery. \
+            "allow_incompatible_snapshot_reset=true: store must be empty after quarantine recovery. \
              Got {n_before} nodes — A/B pre-compaction data survived the downgrade."
         );
 
@@ -857,8 +857,8 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
         };
         assert!(
             quarantine_found,
-            "After allow_schema_downgrade=true, an *.incompatible quarantine file must exist \
-             under the contexts directory. \
+            "After allow_incompatible_snapshot_reset=true, an *.incompatible quarantine file \
+             must exist under the contexts directory. \
              The incompatible snapshot was not quarantined before starting with empty state."
         );
 
@@ -867,7 +867,7 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
         let learn_c = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
         assert!(
             learn_c.is_ok(),
-            "allow_schema_downgrade=true: learn() must succeed. Got Err: {:?}",
+            "allow_incompatible_snapshot_reset=true: learn() must succeed. Got Err: {:?}",
             learn_c.err()
         );
         let n_after = rt.node_count(None);
@@ -876,6 +876,201 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
             "After learning triple C (eps=0.9 → forced birth), expected 3 nodes. Got {n_after}."
         );
 
+        rt.shutdown();
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+
+
+// ───────────────────────────────────────────────────────────────────────
+// Schema mismatch with WAL present — stable context identity
+// ───────────────────────────────────────────────────────────────────────
+
+/// Verifies that a schema version mismatch while a WAL file is present does NOT
+/// delete the context or its UUID registration.
+///
+/// ## The production-path bug this closes
+///
+/// When `engine::start()` returned `Err` after `ensure_loaded` had transitioned
+/// the context to `Recovering`, the error handler unconditionally called
+/// `registry.transition(id, Deleted)` — even for schema mismatches where no
+/// data was written and the disk is intact. This caused:
+///   - The original context UUID to vanish from the registry.
+///   - The next `find_by_name("default")` to create a *fresh* context.
+///   - No quarantine file ever created (fresh context has no incompatible snapshot).
+///
+/// The fix: `ensure_loaded` downcasts to `SchemaMismatchError` and rolls back
+/// via `Recovering → Sleeping` (a new FSM edge) instead of `Recovering → Deleted`.
+///
+/// ## Three phases
+///
+/// **Phase 1 — Fail-closed, WAL present:**
+/// `learn()` returns `Err`. The original context UUID is still registered in
+/// `Sleeping` state (not `Deleted`). `snapshot.bin` and `wal.dat` are
+/// byte-for-byte unchanged. `default_context_id()` returns the same UUID before
+/// and after the failed load.
+///
+/// **Phase 2 — Opt-in reset (`allow_incompatible_snapshot_reset=true`):**
+/// The same UUID is loaded (not a replacement). A quarantine file exists.
+/// `node_count == 0`. `learn()` succeeds — engine is healthy.
+///
+/// **Phase 3 — Restart after reset:**
+/// A fresh runtime starts cleanly from Phase 2's shutdown snapshot. No
+/// `VersionMismatch`. `learn()` succeeds.
+///
+/// ## Setup
+/// Sessions A+B: learn triples, clean shutdown → `contexts/<uuid>/snapshot.bin` (v2).
+/// Schema bump: corrupt all snapshot generations; write WAL magic (`"CWAL"` only,
+/// no records) so `wal_path.exists()=true` and `needs_recovery=true`.
+#[test]
+fn test_version_mismatch_wal_present_preserves_uuid() {
+    let (cfg, dir) = make_cfg("ver_mismatch_wal");
+    let contexts_dir = cfg.data_dir.join("contexts");
+
+    // ── Sessions A + B ────────────────────────────────────────────────────
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let _ = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d").unwrap();
+        rt.shutdown();
+    }
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d").unwrap();
+        rt.shutdown();
+    }
+
+    // ── Schema bump + leave WAL present ───────────────────────────────────
+    // Corrupt all snapshot generations so VersionMismatch fires on any generation.
+    // Write a minimal WAL (CWAL magic only, no records) so needs_recovery=true.
+    // This is the exact production scenario: VersionMismatch AND wal.dat present.
+    let v1_bytes  = b"\x00\x00\x00\x00";
+    let wal_magic = b"CWAL"; // WAL_MAGIC from persistence.rs
+    let mut ctx_dirs: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&contexts_dir) {
+        for entry in entries.flatten() {
+            let ctx_dir = entry.path();
+            if ctx_dir.is_dir() {
+                ctx_dirs.push(ctx_dir.clone());
+                for &name in &["snapshot.bin", "snapshot.bin.1", "snapshot.bin.2"] {
+                    let snap = ctx_dir.join(name);
+                    if snap.exists() { let _ = std::fs::write(&snap, v1_bytes); }
+                }
+                // Write minimal WAL (magic only, 0 records) → needs_recovery=true.
+                let _ = std::fs::write(ctx_dir.join("wal.dat"), wal_magic);
+            }
+        }
+    }
+    assert!(!ctx_dirs.is_empty(), "Setup: no context dirs after sessions A/B");
+
+    // ── Phase 1: Fail-closed with WAL present ─────────────────────────────
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+
+        // UUID before the failed load.
+        let uuid_before = rt.default_context_id()
+            .map(|id| id.to_string())
+            .unwrap_or_default();
+        assert!(!uuid_before.is_empty(),
+            "Phase 1: default context must be registered before the failed load.");
+
+        let learn_result = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
+        assert!(
+            learn_result.is_err(),
+            "Phase 1: learn() must return Err on schema mismatch. Got Ok."
+        );
+
+        // UUID must be stable — context is Sleeping, not Deleted.
+        let uuid_after = rt.default_context_id()
+            .map(|id| id.to_string())
+            .unwrap_or_default();
+        assert_eq!(
+            uuid_before, uuid_after,
+            "Phase 1: default context UUID must be stable across a fail-closed startup. \
+             Before={uuid_before}, after={uuid_after} — context was replaced or deleted."
+        );
+
+        // Snapshot and WAL must be byte-for-byte unchanged.
+        for ctx_dir in &ctx_dirs {
+            let snap = ctx_dir.join("snapshot.bin");
+            if snap.exists() {
+                let got = std::fs::read(&snap).unwrap();
+                assert_eq!(
+                    got.len(), v1_bytes.len(),
+                    "Phase 1: snapshot.bin must be untouched (still {}-byte v1_bytes). \
+                     Got {} bytes.", v1_bytes.len(), got.len()
+                );
+            }
+            let wal = ctx_dir.join("wal.dat");
+            if wal.exists() {
+                let got = std::fs::read(&wal).unwrap();
+                let cmp_len = wal_magic.len().min(got.len());
+                assert_eq!(
+                    &got[..cmp_len], &wal_magic[..cmp_len],
+                    "Phase 1: wal.dat must be untouched. Content changed despite fail-closed startup."
+                );
+            }
+        }
+    }
+
+    // ── Phase 2: Opt-in reset (allow_incompatible_snapshot_reset=true) ────
+    {
+        let mut cfg_reset = cfg.clone();
+        cfg_reset.allow_incompatible_snapshot_reset = true;
+        let mut rt = ContextRuntime::new(cfg_reset, "s".to_string()).unwrap();
+
+        let n_before = rt.node_count(None);
+        assert_eq!(
+            n_before, 0,
+            "Phase 2: store must be empty after incompatible-snapshot reset. Got {n_before} nodes."
+        );
+
+        // At least one quarantine file must exist.
+        let quarantine_found = {
+            let mut found = false;
+            if let Ok(entries) = std::fs::read_dir(&contexts_dir) {
+                for entry in entries.flatten() {
+                    let ctx_dir = entry.path();
+                    if !ctx_dir.is_dir() { continue; }
+                    if let Ok(files) = std::fs::read_dir(&ctx_dir) {
+                        for f in files.flatten() {
+                            if f.path().extension()
+                                .map(|e| e.to_string_lossy().contains("incompatible"))
+                                .unwrap_or(false)
+                            { found = true; }
+                        }
+                    }
+                }
+            }
+            found
+        };
+        assert!(
+            quarantine_found,
+            "Phase 2: an *.incompatible quarantine file must exist after opt-in reset. \
+             Incompatible snapshot was not quarantined."
+        );
+
+        let learn_d = rt.learn(None, emb(50), emb(51), emb(52), 0.9, 0.0, "hash-128d");
+        assert!(
+            learn_d.is_ok(),
+            "Phase 2: learn() must succeed after reset. Got Err: {:?}", learn_d.err()
+        );
+        assert_eq!(rt.node_count(None), 3, "Phase 2: expected 3 nodes after learning triple D.");
+
+        rt.shutdown();
+    }
+
+    // ── Phase 3: Restart after reset — must start cleanly ─────────────────
+    // Phase 2's shutdown wrote a fresh v2 snapshot. A new runtime must start
+    // without hitting VersionMismatch (no more incompatible snapshot in place).
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let learn_e = rt.learn(None, emb(60), emb(61), emb(62), 0.9, 0.0, "hash-128d");
+        assert!(
+            learn_e.is_ok(),
+            "Phase 3: learn() must succeed after clean restart. Got Err: {:?}", learn_e.err()
+        );
         rt.shutdown();
     }
 

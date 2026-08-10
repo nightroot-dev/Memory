@@ -68,18 +68,22 @@ pub struct Config {
     /// Lower → more edges flagged; higher → only highly uncertain edges flagged.
     #[serde(default = "default_retrieval_curiosity_threshold")]
     pub retrieval_curiosity_threshold: f32,
-    // ── Persistence Safety ─────────────────────────────────────────────────
-    /// If true, engine::start() will proceed with an empty CoreState when a snapshot
-    /// schema version mismatch is detected, quarantining the incompatible file first.
+    /// If true, `engine::start()` will quarantine the incompatible snapshot and
+    /// proceed with an empty `CoreState` when a snapshot schema version mismatch
+    /// is detected AND migration fails.
     ///
-    /// **Default: false (fail-closed).** With the default, start() returns Err on
-    /// version mismatch, the incompatible snapshot is left untouched, and no data is
-    /// written. This is the safe default for production deployments.
+    /// **Default: false (fail-closed).** With the default, `start()` returns `Err`
+    /// on version mismatch, the incompatible snapshot is left byte-for-byte untouched,
+    /// and no data is written. The original context UUID is preserved so the operator
+    /// can inspect, restore from backup, or provide a migration.
     ///
-    /// Set to true only when you have confirmed the data loss is acceptable and have
-    /// made a backup, or when running a controlled migration procedure.
-    #[serde(default = "default_allow_schema_downgrade")]
-    pub allow_schema_downgrade: bool,
+    /// Set to `true` only when you have:
+    ///   1. Confirmed that the data loss (all state before last compaction) is acceptable.
+    ///   2. Made a backup of the context directory.
+    ///   3. Understood that this option resets the engine to an empty state, not a
+    ///      "downgrade" — hence the name `incompatible_snapshot_reset`.
+    #[serde(default = "default_allow_incompatible_snapshot_reset")]
+    pub allow_incompatible_snapshot_reset: bool,
 }
 
 impl Default for Config {
@@ -111,7 +115,7 @@ impl Default for Config {
             retrieval_query_weight: 0.7,
             retrieval_context_weight: 0.3,
             retrieval_curiosity_threshold: 0.1,
-            allow_schema_downgrade: false,
+            allow_incompatible_snapshot_reset: false,
         }
     }
 }
@@ -119,7 +123,7 @@ impl Default for Config {
 fn default_retrieval_query_weight()        -> f32  { 0.7 }
 fn default_retrieval_context_weight()      -> f32  { 0.3 }
 fn default_retrieval_curiosity_threshold() -> f32  { 0.1 }
-fn default_allow_schema_downgrade()        -> bool { false }
+fn default_allow_incompatible_snapshot_reset() -> bool { false }
 
 impl Config {
     /// Load from a TOML file. Missing fields fall back to defaults.

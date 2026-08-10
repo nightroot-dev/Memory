@@ -501,8 +501,25 @@ impl ContextRuntime {
                 Ok(h) => h,
                 Err(e) => {
                     if needs_recovery {
-                        tracing::error!("WAL replay failed for context {}: {e}", id);
-                        let _ = self.registry.transition(id, ContextState::Deleted);
+                        if e.downcast_ref::<crate::engine::SchemaMismatchError>().is_some() {
+                            // Schema mismatch (fail-closed): engine::start() left both the
+                            // snapshot and WAL byte-for-byte untouched — no data was written.
+                            // Roll the context back to Sleeping so its UUID stays registered.
+                            // The operator can then inspect, restore from backup, provide a
+                            // migration, or set allow_incompatible_snapshot_reset=true.
+                            tracing::error!(
+                                "Context {id}: snapshot schema mismatch -- context preserved \
+                                 in Sleeping state (UUID intact). Snapshot and WAL are \
+                                 untouched. Set allow_incompatible_snapshot_reset=true \
+                                 to quarantine and reset, or provide a migration path."
+                            );
+                            let _ = self.registry.transition(id, ContextState::Sleeping);
+                        } else {
+                            // Genuine WAL replay failure or other startup error.
+                            // Context data may be irrecoverably corrupt; mark Deleted.
+                            tracing::error!("WAL replay failed for context {}: {e}", id);
+                            let _ = self.registry.transition(id, ContextState::Deleted);
+                        }
                     }
                     return Err(e);
                 }

@@ -1,4 +1,4 @@
-﻿//! Context Lifecycle Finite State Machine.
+//! Context Lifecycle Finite State Machine.
 //!
 //! This module contains exactly one logical thing: the transition table.
 //! It is pure — no I/O, no registry access, no side effects.
@@ -18,7 +18,8 @@
 //!   Sleeping  -> Active      (clean load, no WAL replay needed)
 //!   Sleeping  -> Recovering  (WAL replay needed on load)
 //!   Sleeping  -> Deleted     (user delete command)
-//!   Recovering-> Active      (WAL replay complete)
+//!   Recovering-> Active      (WAL replay or migration complete)
+//!   Recovering-> Sleeping    (schema mismatch fail-closed: data intact, UUID preserved)
 //!   Recovering-> Deleted     (replay failed, unrecoverable)
 //!   Archived  -> Sleeping    (re-activate from cold storage)
 //!   Deleted   -> (nothing)   TERMINAL STATE
@@ -76,6 +77,7 @@ pub fn is_valid(from: ContextState, to: ContextState) -> bool {
         | (Sleeping,   Recovering)
         | (Sleeping,   Deleted)
         | (Recovering, Active)
+        | (Recovering, Sleeping)  // schema mismatch fail-closed: data intact, UUID preserved
         | (Recovering, Deleted)
         | (Archived,   Sleeping)
         // Deleted is terminal: no outgoing transitions
@@ -144,7 +146,7 @@ mod tests {
     #[test] fn sleeping_to_archived()    { assert!(!is_valid(Sleeping,   Archived));  }
 
     #[test] fn recovering_to_idle()      { assert!(!is_valid(Recovering, Idle));       }
-    #[test] fn recovering_to_sleeping()  { assert!(!is_valid(Recovering, Sleeping));  }
+    #[test] fn recovering_to_sleeping()  { assert!( is_valid(Recovering, Sleeping));  } // schema mismatch rollback
     #[test] fn recovering_to_archived()  { assert!(!is_valid(Recovering, Archived));  }
 
     #[test] fn archived_to_active()      { assert!(!is_valid(Archived,   Active));    }

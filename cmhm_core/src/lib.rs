@@ -52,7 +52,7 @@ pub mod embed;
 
 // Re-export the most commonly used types at crate root
 pub use config::Config;
-pub use engine::{start, EngineHandle, LearnResult};
+pub use engine::{start, EngineHandle, LearnResult, SchemaMismatchError};
 pub use retrieval::{RetrievalResult, ChainStep};
 pub use node::NodeType;
 pub use edge::{EdgeType, EvidenceType};
