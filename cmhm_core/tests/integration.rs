@@ -1195,3 +1195,138 @@ fn test_feedback_survives_crash_exactly_once() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// =============================================================================
+// Test: feedback_ledger_crash_boundary
+//
+// Verifies that engine-level feedback_seen is the authoritative deduplication
+// layer, not the MCP-level feedback_ledger.jsonl.
+//
+// The crash window in production:
+//   feedback_nodes() -> [engine WAL commits feedback_seen] -> [crash here]
+//                    -> record_feedback_applied() -> ledger write
+//
+// On restart:
+//   - feedback_ledger.jsonl is missing the retrieve_id
+//   - is_feedback_applied() returns false (ledger miss)
+//   - feedback_nodes() retry reaches the engine
+//   - Engine feedback_seen (restored from snapshot) blocks double-apply
+//   - updated == 0; Beta posteriors unchanged
+//
+// This proves the docstring claim in record_feedback_applied: Option A (mutate
+// then record) is safe because engine-level dedup catches the double-apply.
+// =============================================================================
+
+#[test]
+fn test_feedback_ledger_crash_boundary() {
+    let dir = std::env::temp_dir().join("cmhm_integ_ledger_crash");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let make = || {
+        let mut c = Config::default();
+        c.data_dir            = dir.clone();
+        c.projections_dir     = dir.join("projections");
+        c.max_active_contexts = 4;
+        c
+    };
+
+    let retrieve_id = "retrieve-crash-boundary-test-001";
+
+    // ── Session 1: learn, apply feedback, record to ledger, checkpoint ────────
+    let (state_id, alpha_after, beta_after) = {
+        let mut rt = ContextRuntime::new(make(), "s1".to_string()).unwrap();
+
+        // Learn one experience
+        let (result, ctx) = rt.learn(
+            None, emb(60), emb(61), emb(62), 0.9, 0.0, "test",
+        ).unwrap();
+        let state_id    = result.state_node_id;
+        let ctx_id_str  = ctx.id.as_str().to_string();
+
+        // Precondition: Beta(1,1)
+        let (a0, _b0) = rt.get_node_beta(None, state_id)
+            .expect("state node must exist after learn");
+        assert!((a0 - 1.0).abs() < 1e-5, "Initial alpha must be 1.0, got {a0}");
+
+        // Apply feedback via engine — WALs feedback_seen hash, mutates Beta
+        let (updated, _) = rt.feedback_nodes(
+            None, vec![state_id], true, Some(retrieve_id.to_string()),
+        ).unwrap();
+        assert_eq!(updated, 1, "First apply must update 1 node");
+
+        let (a1, b1) = rt.get_node_beta(None, state_id).unwrap();
+        assert!((a1 - (a0 + 1.0)).abs() < 1e-5,
+            "Alpha must increase by 1 on success: before={a0:.4} after={a1:.4}");
+
+        // MCP handler would call record_feedback_applied after feedback_nodes returns.
+        // Simulate that here.
+        rt.record_feedback_applied(retrieve_id, &ctx_id_str, "success", &[state_id]);
+        assert!(
+            rt.is_feedback_applied(retrieve_id),
+            "Ledger must contain retrieve_id after record_feedback_applied"
+        );
+
+        // Checkpoint: engine CoreState (including feedback_seen) flushed to snapshot.bin
+        rt.checkpoint(None).unwrap();
+        rt.shutdown();
+
+        // ── Simulate the crash window ──────────────────────────────────────────
+        // In production the crash happens AFTER feedback_nodes (engine WAL committed)
+        // but BEFORE record_feedback_applied (ledger write).
+        // Reproduce by deleting the ledger AFTER a clean checkpoint.
+        // Engine snapshot remains intact; ledger is gone.
+        let ledger_path = dir.join("feedback_ledger.jsonl");
+        std::fs::remove_file(&ledger_path)
+            .expect("feedback_ledger.jsonl must exist after record_feedback_applied");
+
+        println!("[crash_boundary] S1: applied feedback, checkpointed engine, deleted ledger");
+        println!("[crash_boundary]   state_id={state_id}  alpha={a1:.4}  beta={b1:.4}");
+
+        (state_id, a1, b1)
+    };
+
+    // ── Session 2: restart — ledger gone, engine snapshot intact ──────────────
+    {
+        let mut rt = ContextRuntime::new(make(), "s2".to_string()).unwrap();
+
+        // MCP-level dedup is blind: ledger was deleted
+        assert!(
+            !rt.is_feedback_applied(retrieve_id),
+            "[crash_boundary] After ledger deletion, is_feedback_applied must return false"
+        );
+
+        // Retry with same retrieve_id.
+        // Engine feedback_seen (from snapshot) must block re-apply → updated == 0.
+        let (updated_retry, _) = rt.feedback_nodes(
+            None, vec![state_id], true, Some(retrieve_id.to_string()),
+        ).unwrap();
+        assert_eq!(
+            updated_retry, 0,
+            "[crash_boundary] Engine feedback_seen must block re-apply: \
+             expected 0 nodes updated, got {updated_retry}. \
+             If 1: feedback_seen was lost from snapshot or not restored on restart."
+        );
+
+        // Beta posteriors must be unchanged from post-S1 values
+        let (a_retry, b_retry) = rt.get_node_beta(None, state_id).unwrap();
+        assert!(
+            (a_retry - alpha_after).abs() < 1e-5,
+            "[crash_boundary] Alpha must be unchanged after blocked retry: \
+             expected={alpha_after:.4}  actual={a_retry:.4}"
+        );
+        assert!(
+            (b_retry - beta_after).abs() < 1e-5,
+            "[crash_boundary] Beta must be unchanged after blocked retry: \
+             expected={beta_after:.4}  actual={b_retry:.4}"
+        );
+
+        println!("[crash_boundary] S2: retry blocked by engine feedback_seen — PASS");
+        println!("[crash_boundary]   alpha={a_retry:.4} (expected {alpha_after:.4})");
+        println!("[crash_boundary]   beta={b_retry:.4}  (expected {beta_after:.4})");
+
+        rt.shutdown();
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
