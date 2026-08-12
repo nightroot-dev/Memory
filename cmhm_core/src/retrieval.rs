@@ -1,6 +1,7 @@
 use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
 use rand::Rng;
+use crate::node::{NodeType};
 use crate::node_store::{NodeStore, cosine};
 use crate::edge_store::EdgeStore;
 use crate::dense_core::DenseCore;
@@ -31,6 +32,13 @@ pub struct RetrievalResult {
     pub dense_context: [f32; EMBED_DIM],
     /// Text summary of the chain (human-readable).
     pub explanation: String,
+    /// Node ID selected as the causal-chain seed (None if store was empty).
+    /// Observability field for integration tests and diagnostics.
+    pub seed_id: Option<u64>,
+    /// NodeType of the seed node (None if store was empty).
+    /// Allows tests to verify role-scoping invariants without inspecting the engine's
+    /// internal node store through a separate round-trip.
+    pub seed_node_type: Option<NodeType>,
 }
 
 /// Internal Dijkstra state.
@@ -86,6 +94,8 @@ pub fn retrieve(
             causal_chain: vec![],
             dense_context: dense_ctx,
             explanation: "No memories yet.".to_string(),
+            seed_id: None,
+            seed_node_type: None,
         };
     }
 
@@ -114,8 +124,12 @@ pub fn retrieve(
             causal_chain: vec![],
             dense_context: dense_ctx,
             explanation: "No valid seed node found.".to_string(),
+            seed_id: None,
+            seed_node_type: None,
         },
     };
+    // Capture the seed's NodeType for observability. Lookup is O(1) via HashMap.
+    let seed_node_type = node_store.get(seed_id).map(|n| n.node_type);
 
     // Step 3: Thompson-sampled Dijkstra (bounded depth)
     let mut heap = BinaryHeap::new();
@@ -196,6 +210,8 @@ pub fn retrieve(
         causal_chain: chain_steps,
         dense_context: dense_ctx,
         explanation,
+        seed_id: Some(seed_id),
+        seed_node_type,
     }
 }
 
