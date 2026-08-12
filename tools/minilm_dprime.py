@@ -1,23 +1,37 @@
-"""
-MiniLM d-prime benchmark — corpus v2 (mirrors dprime_bench.rs exactly).
+﻿"""
+MiniLM d-prime benchmark v3 — operational mixed-corpus retrieval.
 
-Runs all-MiniLM-L6-v2 through the same 90-pair corpus + 15 hard negatives used by
-the Rust bench_minilm_dprime test, and computes all acceptance gate metrics.
+Corpus v2 (30 pairs x 3 categories + 15 hard negatives) is retained for d'
+and pairwise-cosine metrics. NEW in v3:
+
+  OPERATIONAL_QUERY_CORPUS: 15 queries each paired with
+    D+: a paraphrase of the query (true positive, different surface form)
+    D-: the contradiction of the query (from HARD_NEGATIVE_PAIRS B-sides)
+  Full retrieval corpus (45 docs): all 15 D+, all 15 D-, 10 topical
+    distractors, 5 unrelated distractors.
+
+Pre-declared gates (locked before any results observed -- commit db2eb8a):
+  Relevant Recall@1     >= 0.40
+  Relevant Recall@5     >= 0.67
+  MRR                   >= 0.40
+  Contradiction-at-1    <  0.40
+  Hard-neg occupancy@5  <  0.40
+  Mean margin           >  0.0   (cosine(q,D+) - cosine(q,D-))
 
 Usage:
     python tools/minilm_dprime.py
 
 Requirements:
-    pip install sentence-transformers   (PyTorch pulled in automatically)
+    pip install sentence-transformers
 """
 
 import math
 import time
 import os
-from sentence_transformers import SentenceTransformer
+import random
 
 # ---------------------------------------------------------------------------
-# Corpus v2 — must stay identical to dprime_bench.rs
+# Corpus v2 (unchanged -- used for d' and distribution metrics)
 # ---------------------------------------------------------------------------
 
 PARAPHRASE_PAIRS = [
@@ -138,6 +152,71 @@ HARD_NEGATIVE_PAIRS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Operational mixed-corpus: (query, D+, D-)
+#
+# query = HARD_NEGATIVE_PAIRS A-side (operational domain)
+# D+    = paraphrase of query with different surface form
+# D-    = HARD_NEGATIVE_PAIRS B-side (the contradiction)
+#
+# PRE-DECLARED GATES (must not be changed after observing results):
+#   Recall@1             >= 0.40
+#   Recall@5             >= 0.67
+#   MRR                  >= 0.40
+#   Contradiction-at-1   <  0.40
+#   Hard-neg occupancy@5 <  0.40
+#   Mean margin          >  0.0
+# ---------------------------------------------------------------------------
+
+OPERATIONAL_QUERY_CORPUS = [
+    # (query, D+, D-)
+    ("the deployment succeeded",
+     "the release was applied without errors",
+     "the deployment did not succeed"),
+    ("the server is accepting connections",
+     "the service is responding to incoming requests",
+     "the server is not accepting connections"),
+    ("restart fixed the issue",
+     "the system resumed normal operation after reboot",
+     "restart did not fix the issue"),
+    ("the patch was applied correctly",
+     "the update was installed successfully",
+     "the patch was not applied correctly"),
+    ("all requests completed successfully",
+     "every operation finished without error",
+     "no requests completed successfully"),
+    ("the cache hit rate increased significantly",
+     "the proportion of cached responses grew noticeably",
+     "the cache hit rate decreased significantly"),
+    ("memory consumption is critically low",
+     "the process uses very little RAM",
+     "memory consumption is critically high"),
+    ("the process is running normally",
+     "the application is operating as expected",
+     "the process has stopped unexpectedly"),
+    ("the connection was accepted",
+     "the handshake completed and a session was established",
+     "the connection was refused"),
+    ("every node responded within the time limit",
+     "all cluster members replied before the deadline",
+     "no nodes responded within the time limit"),
+    ("the server timed out the client",
+     "the upstream service dropped the stalled client request",
+     "the client timed out the server"),
+    ("the database locked the table",
+     "the table acquired an exclusive lock in the database",
+     "the table was locked by an external process"),
+    ("log in before making requests",
+     "authenticate your session prior to sending API calls",
+     "make requests before logging in"),
+    ("out of memory error in the heap",
+     "the heap allocator exhausted available memory",
+     "stack overflow unrelated to heap allocation"),
+    ("the test passed then was marked stable",
+     "the test suite completed and the build was approved",
+     "the test passed then immediately failed"),
+]
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -184,64 +263,155 @@ def assert_embedding_valid(emb, expected_dim, label):
     assert abs(norm - 1.0) < 0.02, \
         f"Embedding '{label}': L2 norm={norm:.6f} expected ~1.0"
 
-def retrieval_metrics(model, paraphrase_pairs, n_queries=15):
-    """Recall@1/@5/@10 and MRR. 30-doc corpus (A-sides), 15 queries (B-sides 0..15)."""
-    n_docs = len(paraphrase_pairs)
-    doc_embs = [model.encode(a, normalize_embeddings=True).tolist()
-                for a, _ in paraphrase_pairs]
-    r1 = r5 = r10 = 0
-    mrr_sum = 0.0
-    for q in range(n_queries):
-        q_emb = model.encode(paraphrase_pairs[q][1], normalize_embeddings=True).tolist()
-        scores = [(d, cosine(q_emb, doc_embs[d])) for d in range(n_docs)]
-        scores.sort(key=lambda x: -x[1])
-        rank = next((i+1 for i, (di, _) in enumerate(scores) if di == q), n_docs+1)
-        if rank <= 1:  r1  += 1
-        if rank <= 5:  r5  += 1
-        if rank <= 10: r10 += 1
-        mrr_sum += 1.0 / rank
-    n = float(n_queries)
-    return r1/n, r5/n, r10/n, mrr_sum/n
+def bootstrap_ci(values, n_boot=1000, alpha=0.05, seed=42):
+    """95% percentile bootstrap CI on the mean. Fixed seed for reproducibility."""
+    rng = random.Random(seed)
+    n = len(values)
+    boot_means = sorted(
+        sum(rng.choices(values, k=n)) / n for _ in range(n_boot)
+    )
+    lo = boot_means[int(alpha / 2.0 * n_boot)]
+    hi = boot_means[int((1.0 - alpha / 2.0) * n_boot) - 1]
+    return lo, hi
 
-def hard_neg_fpr(model, hard_neg_pairs, threshold=0.6):
+def hard_neg_fpr(model, threshold=0.6):
     fp = 0
-    for a, b in hard_neg_pairs:
+    for a, b in HARD_NEGATIVE_PAIRS:
         va = model.encode(a, normalize_embeddings=True).tolist()
         vb = model.encode(b, normalize_embeddings=True).tolist()
         if cosine(va, vb) >= threshold:
             fp += 1
-    return fp / len(hard_neg_pairs)
+    return fp / len(HARD_NEGATIVE_PAIRS)
 
 def latency_ms(model, n_reps=100):
     text = "the service returned an unexpected error code during initialization"
     t0 = time.perf_counter()
     for _ in range(n_reps):
         model.encode(text, normalize_embeddings=True)
-    elapsed = time.perf_counter() - t0
-    return (elapsed * 1000.0) / n_reps
+    return (time.perf_counter() - t0) * 1000.0 / n_reps
 
 def model_disk_size_mb(model_name):
-    import os
     cache = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
-    slug = "models--" + model_name.replace("/", "--")
+    slug  = "models--" + model_name.replace("/", "--")
     model_dir = os.path.join(cache, slug)
     if not os.path.isdir(model_dir):
         return None
     total = 0
-    for dirpath, _, filenames in os.walk(model_dir):
-        for fn in filenames:
-            try:
-                total += os.path.getsize(os.path.join(dirpath, fn))
-            except OSError:
-                pass
+    for dp, _, fns in os.walk(model_dir):
+        for fn in fns:
+            try: total += os.path.getsize(os.path.join(dp, fn))
+            except OSError: pass
     return total / (1024 * 1024)
 
 def print_dist(label, sims):
-    m   = mean(sims)
-    s   = std_dev(sims)
-    mn  = min(sims)
-    mx  = max(sims)
-    print(f"      {label:<16}  n={len(sims):2d}  mu={m:+.4f}  sigma={s:.4f}  min={mn:+.4f}  max={mx:+.4f}")
+    m = mean(sims); s = std_dev(sims)
+    print(f"      {label:<16}  n={len(sims):2d}  mu={m:+.4f}  sigma={s:.4f}"
+          f"  min={min(sims):+.4f}  max={max(sims):+.4f}")
+
+# ---------------------------------------------------------------------------
+# Mixed-corpus retrieval benchmark (v3 gate test)
+# ---------------------------------------------------------------------------
+
+def mixed_corpus_retrieval(model):
+    """
+    Corpus (45 docs):
+      D+[0..15]  -- correct paraphrases
+      D-[0..15]  -- contradictions
+      Topical[0..10]  -- lexical distractors (TOPICAL_PAIRS A-sides)
+      Unrelated[0..5] -- unrelated distractors
+
+    For each of 15 queries:
+      - Rank all 45 docs by cosine(query, doc)
+      - D+[i] is the ground-truth correct doc for query i
+      - D-[i] is the contradiction for query i
+
+    Returns dict with per-query arrays and aggregate metrics.
+    """
+    n_q = len(OPERATIONAL_QUERY_CORPUS)
+
+    # Build corpus
+    dplus_texts  = [d for _, d, _ in OPERATIONAL_QUERY_CORPUS]
+    dminus_texts = [d for _, _, d in OPERATIONAL_QUERY_CORPUS]
+    topical_dist = [a for a, _ in TOPICAL_PAIRS[:10]]
+    unrel_dist   = [a for a, _ in UNRELATED_PAIRS[:5]]
+    corpus       = dplus_texts + dminus_texts + topical_dist + unrel_dist
+    n_corpus     = len(corpus)
+
+    # Indices
+    dplus_range  = range(0, n_q)          # D+[i] = corpus[i]
+    dminus_range = range(n_q, 2*n_q)     # D-[i] = corpus[n_q + i]
+
+    print(f"  Embedding {n_corpus} corpus docs ...", flush=True)
+    corpus_embs = [model.encode(d, normalize_embeddings=True).tolist() for d in corpus]
+
+    recall1_per = []
+    recall5_per = []
+    recall10_per = []
+    mrr_per     = []
+    contra1_per = []
+    hn5_per     = []
+    margins     = []
+
+    print()
+    print(f"  {'Query':<44}  {'D+ rank':>7}  {'D- rank':>7}  {'margin':>7}  {'C@1':>4}")
+    print(f"  {'-'*44}  {'-'*7}  {'-'*7}  {'-'*7}  {'-'*4}")
+
+    for i, (q, _, _) in enumerate(OPERATIONAL_QUERY_CORPUS):
+        q_emb = model.encode(q, normalize_embeddings=True).tolist()
+
+        scores = [(j, cosine(q_emb, corpus_embs[j])) for j in range(n_corpus)]
+        scores.sort(key=lambda x: -x[1])
+
+        dplus_idx  = i
+        dminus_idx = n_q + i
+
+        ranked_idxs = [j for j, _ in scores]
+        dplus_rank  = ranked_idxs.index(dplus_idx)  + 1
+        dminus_rank = ranked_idxs.index(dminus_idx) + 1
+
+        score_dplus  = cosine(q_emb, corpus_embs[dplus_idx])
+        score_dminus = cosine(q_emb, corpus_embs[dminus_idx])
+        margin_i     = score_dplus - score_dminus
+
+        top5_idxs   = ranked_idxs[:5]
+        hn_in_top5  = sum(1 for j in top5_idxs if j in dminus_range)
+
+        r1  = 1.0 if dplus_rank <= 1  else 0.0
+        r5  = 1.0 if dplus_rank <= 5  else 0.0
+        r10 = 1.0 if dplus_rank <= 10 else 0.0
+        c1  = 1.0 if dminus_rank == 1 else 0.0
+
+        recall1_per.append(r1)
+        recall5_per.append(r5)
+        recall10_per.append(r10)
+        mrr_per.append(1.0 / dplus_rank)
+        contra1_per.append(c1)
+        hn5_per.append(hn_in_top5 / 5.0)
+        margins.append(margin_i)
+
+        q_short = q[:44]
+        contra_flag = " *" if c1 else ""
+        print(f"  {q_short:<44}  {dplus_rank:>7}  {dminus_rank:>7}  {margin_i:>+7.4f}  {int(c1):>4}{contra_flag}")
+
+    print()
+
+    return {
+        "recall_at_1":         mean(recall1_per),
+        "recall_at_5":         mean(recall5_per),
+        "recall_at_10":        mean(recall10_per),
+        "mrr":                 mean(mrr_per),
+        "contradiction_at_1":  mean(contra1_per),
+        "hard_neg_occ_at5":    mean(hn5_per),
+        "mean_margin":         mean(margins),
+        "min_margin":          min(margins),
+        # per-query arrays for bootstrap
+        "_recall1":   recall1_per,
+        "_recall5":   recall5_per,
+        "_mrr":       mrr_per,
+        "_contra1":   contra1_per,
+        "_hn5":       hn5_per,
+        "_margins":   margins,
+    }
 
 # ---------------------------------------------------------------------------
 # Main
@@ -249,9 +419,10 @@ def print_dist(label, sims):
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-print(f"Loading {MODEL_NAME} (downloads ~90 MB on first run) ...")
+print(f"Loading {MODEL_NAME} ...")
+from sentence_transformers import SentenceTransformer
 model = SentenceTransformer(MODEL_NAME)
-dim = model.get_embedding_dimension() if hasattr(model, "get_embedding_dimension") else 384
+dim = 384
 print(f"Loaded. dim={dim}")
 
 print()
@@ -275,7 +446,7 @@ for label, text in [
     assert_embedding_valid(emb, dim, label)
 print(f"  PASS  dim={dim}, L2-norm in [0.99,1.01], no NaN/inf")
 
-# Pairwise cosines
+# d' distributions
 sims_para     = embed_pairs(model, PARAPHRASE_PAIRS)
 sims_topo     = embed_pairs(model, TOPICAL_PAIRS)
 sims_unrel    = embed_pairs(model, UNRELATED_PAIRS)
@@ -302,67 +473,117 @@ print(f"      topical    : {dp_topo:+.4f}")
 print(f"      combined   : {dp_comb:+.4f}")
 print(f"      hard-neg   : {dp_hard_neg:+.4f}  (informational)")
 
-# Retrieval
-print()
-print("  Retrieval (15 queries / 30-doc corpus):")
-r1, r5, r10, mrr = retrieval_metrics(model, PARAPHRASE_PAIRS, n_queries=15)
-print(f"      Recall@1  = {r1:.4f}")
-print(f"      Recall@5  = {r5:.4f}")
-print(f"      Recall@10 = {r10:.4f}")
-print(f"      MRR       = {mrr:.4f}")
-
-# FPR
-fpr = hard_neg_fpr(model, HARD_NEGATIVE_PAIRS, threshold=0.6)
+# FPR informational
+fpr = hard_neg_fpr(model, threshold=0.6)
 n_fp = round(fpr * len(HARD_NEGATIVE_PAIRS))
 print()
-print(f"  Hard-negative FPR @cos>=0.6 : {fpr:.4f}  ({n_fp} of {len(HARD_NEGATIVE_PAIRS)})")
+print(f"  Hard-negative FPR @cos>=0.6 : {fpr:.4f}  ({n_fp} of {len(HARD_NEGATIVE_PAIRS)}"
+      f" -- informational, not gated)")
 
-# Latency + model size
-ms = latency_ms(model, n_reps=100)
+# Latency / model size
+ms      = latency_ms(model, n_reps=100)
 disk_mb = model_disk_size_mb(MODEL_NAME)
 print()
-print(f"  Latency: {ms:.3f} ms/embed (100 reps, warm)")
+print(f"  Latency   : {ms:.3f} ms/embed (100 reps, warm)")
 if disk_mb is not None:
-    print(f"  Model on-disk: {disk_mb:.1f} MB")
+    print(f"  Model disk: {disk_mb:.1f} MB")
 
-# Hash-128d non-inferiority threshold
-HASH_DP_TOPO_BASELINE = 4.107   # measured 2026-08-12 on 30-pair corpus
-ni_thresh = 0.8 * HASH_DP_TOPO_BASELINE
-
+# ---------------------------------------------------------------------------
+# d' gate (informational here; gated in Rust ONNX test)
+# ---------------------------------------------------------------------------
 print()
-print("=================================================================")
-print("  -- MiniLM acceptance gate --")
-gates = [
+print("  d' gate results:")
+HASH_DP_TOPO_BASELINE = 4.107
+ni_thresh = 0.8 * HASH_DP_TOPO_BASELINE
+dprime_gates = [
     ("d'_para  >= 1.5",  dp_para  >= 1.5,  f"d'_para  = {dp_para:+.4f}"),
     ("d'_topo  >= 1.5",  dp_topo  >= 1.5,  f"d'_topo  = {dp_topo:+.4f}"),
     ("d'_comb  >= 1.3",  dp_comb  >= 1.3,  f"d'_comb  = {dp_comb:+.4f}"),
-    (f"d'_topo >= 80% of hash ({ni_thresh:.3f})",
-                         dp_topo  >= ni_thresh, f"non-inferiority = {dp_topo:+.4f}"),
-    ("Recall@1 >= 0.50", r1       >= 0.50, f"Recall@1 = {r1:.4f}"),
-    ("Recall@5 >= 0.80", r5       >= 0.80, f"Recall@5 = {r5:.4f}"),
-    ("MRR      >= 0.60", mrr      >= 0.60, f"MRR      = {mrr:.4f}"),
+    (f"non-inf >= {ni_thresh:.3f}", dp_topo >= ni_thresh,
+     f"non-inf  = {dp_topo:+.4f}"),
 ]
-all_pass = True
-for gate_desc, passed, measured in gates:
-    mark = "PASS" if passed else "FAIL"
-    print(f"  {mark}  {measured}  ({gate_desc})")
-    if not passed:
-        all_pass = False
+for desc, ok, measured in dprime_gates:
+    print(f"  {'PASS' if ok else 'FAIL'}  {measured}  ({desc})")
 
-# Hard-negative FPR is informational — NOT a gate.
-# Sentence encoders capture topic/domain similarity, not negation-aware reasoning.
-# "The deployment succeeded" and "the deployment did not succeed" share domain,
-# entities, and structure — high cosine is expected and correct for a similarity
-# encoder. CMHM disambiguates outcomes via Beta bandit feedback (separate outcome
-# nodes), not embedding distance. FPR@0.6=1.0 is expected behavior, not a bug.
-n_fp = round(fpr * len(HARD_NEGATIVE_PAIRS))
-print(f"  INFO  FPR@0.6 = {fpr:.4f}  ({n_fp} of {len(HARD_NEGATIVE_PAIRS)}"
-      f" — informational, not gated)")
+# ---------------------------------------------------------------------------
+# Mixed-corpus retrieval (v3 gate)
+# ---------------------------------------------------------------------------
+print()
+print("=" * 65)
+print("  OPERATIONAL MIXED-CORPUS RETRIEVAL (v3 -- pre-declared gates)")
+print("=" * 65)
+print(f"  Corpus: {len(OPERATIONAL_QUERY_CORPUS)} D+ + {len(OPERATIONAL_QUERY_CORPUS)} D-"
+      f" + 10 topical + 5 unrelated = 45 docs")
+print()
+print("  Pre-declared gates (locked before results observed):")
+print("    Recall@1             >= 0.40")
+print("    Recall@5             >= 0.67")
+print("    MRR                  >= 0.40")
+print("    Contradiction-at-1   <  0.40")
+print("    Hard-neg occupancy@5 <  0.40")
+print("    Mean margin          >  0.00")
+print()
+
+mc = mixed_corpus_retrieval(model)
+
+# Bootstrap CIs (fixed seed 42, 1000 resamples)
+r1_lo,  r1_hi  = bootstrap_ci(mc["_recall1"])
+r5_lo,  r5_hi  = bootstrap_ci(mc["_recall5"])
+mrr_lo, mrr_hi = bootstrap_ci(mc["_mrr"])
+c1_lo,  c1_hi  = bootstrap_ci(mc["_contra1"])
+hn_lo,  hn_hi  = bootstrap_ci(mc["_hn5"])
+mg_lo,  mg_hi  = bootstrap_ci(mc["_margins"])
+
+print("  Aggregate results (95% CI, seed=42, n_boot=1000):")
+print(f"    Recall@1             = {mc['recall_at_1']:.4f}  [{r1_lo:.3f}, {r1_hi:.3f}]")
+print(f"    Recall@5             = {mc['recall_at_5']:.4f}  [{r5_lo:.3f}, {r5_hi:.3f}]")
+print(f"    MRR                  = {mc['mrr']:.4f}  [{mrr_lo:.3f}, {mrr_hi:.3f}]")
+print(f"    Contradiction-at-1   = {mc['contradiction_at_1']:.4f}  [{c1_lo:.3f}, {c1_hi:.3f}]")
+print(f"    Hard-neg occupancy@5 = {mc['hard_neg_occ_at5']:.4f}  [{hn_lo:.3f}, {hn_hi:.3f}]")
+print(f"    Mean margin          = {mc['mean_margin']:+.4f}  [{mg_lo:+.3f}, {mg_hi:+.3f}]")
+print(f"    Min margin           = {mc['min_margin']:+.4f}")
 
 print()
-if all_pass:
-    print("  MiniLM PASSES all acceptance gates.")
-    print("  Pending: native Rust ONNX backend validation before TEXT_MODEL_ID flip.")
+print("  -- Mixed-corpus gate evaluation (pre-declared) --")
+mc_gates = [
+    ("Recall@1   >= 0.40", mc["recall_at_1"]        >= 0.40),
+    ("Recall@5   >= 0.67", mc["recall_at_5"]        >= 0.67),
+    ("MRR        >= 0.40", mc["mrr"]                >= 0.40),
+    ("Contra@1   <  0.40", mc["contradiction_at_1"] <  0.40),
+    ("HN-occ@5   <  0.40", mc["hard_neg_occ_at5"]  <  0.40),
+    ("Margin avg >  0.00", mc["mean_margin"]         >  0.00),
+]
+mc_all_pass = True
+for desc, ok in mc_gates:
+    print(f"  {'PASS' if ok else 'FAIL'}  {desc}")
+    if not ok:
+        mc_all_pass = False
+
+print()
+if mc_all_pass:
+    print("  Mixed-corpus retrieval: ALL GATES PASS")
+    print("  MiniLM embedding approval: GATED PENDING native Rust ONNX backend.")
 else:
-    print("  MiniLM FAILS one or more acceptance gates.")
+    n_fail = sum(1 for _, ok in mc_gates if not ok)
+    print(f"  Mixed-corpus retrieval: {n_fail} GATE(S) FAIL")
+    print("  MiniLM embedding approval: BLOCKED.")
+    print("  Do NOT flip TEXT_MODEL_ID.")
+    print()
+    print("  Diagnosis notes:")
+    if mc["contradiction_at_1"] >= 0.40:
+        print(f"  - Contradiction-at-1={mc['contradiction_at_1']:.4f}: contradictions occupy rank 1")
+        print(f"    for {round(mc['contradiction_at_1']*15)} of 15 queries. D- scores higher")
+        print(f"    than D+ because they share surface tokens with the query.")
+    if mc["mean_margin"] <= 0.0:
+        print(f"  - Mean margin={mc['mean_margin']:+.4f}: D- outscores D+ on average.")
+        print(f"    MiniLM similarity between a statement and its negation exceeds")
+        print(f"    similarity to a true paraphrase with different surface form.")
+    if mc["hard_neg_occ_at5"] >= 0.40:
+        print(f"  - HN-occ@5={mc['hard_neg_occ_at5']:.4f}: contradictions regularly occupy")
+        print(f"    top-5 retrieval slots.")
+    print()
+    print("  Required to close Stage 1:")
+    print("  An end-to-end test must verify that the CMHM outcome-node separation")
+    print("  or a retrieval reranking mechanism prevents contradictions from being")
+    print("  the primary retrieved memory when a correct paraphrase exists.")
 print("=================================================================")

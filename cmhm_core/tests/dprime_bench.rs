@@ -17,31 +17,35 @@
 //! | 1.5 | strong               | 0.86        |
 //! | 2.0 | excellent            | 0.92        |
 //!
-//! ## Corpus (v2)
+//! ## Corpus (v3)
 //!
-//! 30 pairs x 3 categories = 90 pairs, plus 15 hard-negative pairs.
+//! 30 pairs x 3 categories = 90 pairs, 15 hard-negative pairs,
+//! 15 operational query triples (query / D+ / D-).
 //!
 //!   PARAPHRASE:    same meaning, NO shared content words (hash-128d blind).
 //!   TOPICAL:       same domain, 2-5 shared keywords.
 //!   UNRELATED:     completely different domains (negative class).
 //!   HARD_NEGATIVE: token overlap but inverted/negated meaning.
+//!   OPERATIONAL:   15 queries, each with a true positive D+ and contradiction D-,
+//!                  embedded in a 45-doc mixed corpus for retrieval measurement.
 //!
 //! ## Acceptance Criteria (MiniLM Upgrade Gate)
 //!
 //!   hash-128d  d_para  <  0.5   (semantically blind by design)
 //!   hash-128d  d_topo  >= 0.8   (keyword hashing must register)
-//!   MiniLM     d_para  >= 1.5
-//!   MiniLM     d_topo  >= 1.5
-//!   MiniLM     d_comb  >= 1.3
-//!   MiniLM     Recall@1       >= 0.5   (retrieval quality gate)
-//!   MiniLM     Recall@5       >= 0.8
-//!   MiniLM     MRR            >= 0.6
 //!
-//! NOTE: Hard-negative FPR is printed but NOT gated.
-//! Sentence encoders capture topic/domain similarity, not negation-aware reasoning.
-//! "The deployment succeeded" and "the deployment did not succeed" are topically
-//! identical — high cosine is expected and correct. CMHM disambiguates outcomes
-//! via Beta bandit feedback (separate outcome nodes), not embedding distance.
+//!   MiniLM d' gates:
+//!     d_para  >= 1.5,  d_topo  >= 1.5,  d_comb  >= 1.3
+//!
+//!   MiniLM mixed-corpus retrieval gates (pre-declared, LOCKED):
+//!     Recall@1             >= 0.40
+//!     Recall@5             >= 0.67
+//!     MRR                  >= 0.40
+//!     Contradiction-at-1   <  0.40   (D- must not occupy rank 1 for >= 40% of queries)
+//!     Hard-neg occupancy@5 <  0.40   (D- must occupy < 40% of top-5 slots on average)
+//!     Mean margin          >  0.00   (cosine(q,D+) must exceed cosine(q,D-) on average)
+//!
+//! NOTE: Hard-negative pairwise FPR is printed but NOT gated. See OPERATIONAL gates above.
 //!
 //! ## Run
 //!
@@ -173,6 +177,62 @@ const HARD_NEGATIVE_PAIRS: &[(&str, &str)] = &[
     ("the test passed then was marked stable",     "the test passed then immediately failed"),
 ];
 
+/// Operational query corpus for mixed-corpus retrieval test.
+///
+/// Each entry is (query, D+, D-) where:
+///   query = HARD_NEGATIVE_PAIRS A-side (operational domain statement)
+///   D+    = paraphrase of query with different surface form (true positive)
+///   D-    = HARD_NEGATIVE_PAIRS B-side (the contradiction)
+///
+/// Retrieval corpus: all 15 D+ + all 15 D- + TOPICAL[0..10] + UNRELATED[0..5] = 45 docs.
+const OPERATIONAL_QUERY_CORPUS: &[(&str, &str, &str)] = &[
+    ("the deployment succeeded",
+     "the release was applied without errors",
+     "the deployment did not succeed"),
+    ("the server is accepting connections",
+     "the service is responding to incoming requests",
+     "the server is not accepting connections"),
+    ("restart fixed the issue",
+     "the system resumed normal operation after reboot",
+     "restart did not fix the issue"),
+    ("the patch was applied correctly",
+     "the update was installed successfully",
+     "the patch was not applied correctly"),
+    ("all requests completed successfully",
+     "every operation finished without error",
+     "no requests completed successfully"),
+    ("the cache hit rate increased significantly",
+     "the proportion of cached responses grew noticeably",
+     "the cache hit rate decreased significantly"),
+    ("memory consumption is critically low",
+     "the process uses very little RAM",
+     "memory consumption is critically high"),
+    ("the process is running normally",
+     "the application is operating as expected",
+     "the process has stopped unexpectedly"),
+    ("the connection was accepted",
+     "the handshake completed and a session was established",
+     "the connection was refused"),
+    ("every node responded within the time limit",
+     "all cluster members replied before the deadline",
+     "no nodes responded within the time limit"),
+    ("the server timed out the client",
+     "the upstream service dropped the stalled client request",
+     "the client timed out the server"),
+    ("the database locked the table",
+     "the table acquired an exclusive lock in the database",
+     "the table was locked by an external process"),
+    ("log in before making requests",
+     "authenticate your session prior to sending API calls",
+     "make requests before logging in"),
+    ("out of memory error in the heap",
+     "the heap allocator exhausted available memory",
+     "stack overflow unrelated to heap allocation"),
+    ("the test passed then was marked stable",
+     "the test suite completed and the build was approved",
+     "the test passed then immediately failed"),
+];
+
 // ---------------------------------------------------------------------------
 // Result struct
 // ---------------------------------------------------------------------------
@@ -283,6 +343,151 @@ fn latency_ms(embedder: &dyn Embedder, n_reps: usize) -> f32 {
     let start = Instant::now();
     for _ in 0..n_reps { let _ = embedder.embed(text).expect("latency embed"); }
     (start.elapsed().as_secs_f64() * 1000.0 / n_reps as f64) as f32
+}
+
+// ---------------------------------------------------------------------------
+// Mixed-corpus retrieval (v3)
+// ---------------------------------------------------------------------------
+
+/// Per-query results from the operational mixed-corpus retrieval test.
+#[allow(dead_code)]
+struct MixedCorpusResult {
+    recall_at_1:        f32,
+    recall_at_5:        f32,
+    recall_at_10:       f32,
+    mrr:                f32,
+    contradiction_at_1: f32,
+    hard_neg_occ_at5:   f32,
+    mean_margin:        f32,
+    min_margin:         f32,
+    // per-query values (n=15) for bootstrap CI
+    recall1_per:  [f32; 15],
+    contra1_per:  [f32; 15],
+    hn5_occ_per:  [f32; 15],
+    margins_per:  [f32; 15],
+    mrr_per:      [f32; 15],
+}
+
+/// Percentile bootstrap 95% CI on the mean using a fixed-seed LCG.
+/// seed=42, n_boot=1000, alpha=0.05.
+fn bootstrap_ci_mean(values: &[f32]) -> (f32, f32) {
+    const N_BOOT: usize = 1000;
+    const ALPHA: f32    = 0.05;
+    let n = values.len();
+    let mut state: u64 = 42; // fixed seed
+    let mut boot_means: Vec<f32> = Vec::with_capacity(N_BOOT);
+    for _ in 0..N_BOOT {
+        let mut s = 0.0f32;
+        for _ in 0..n {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let idx = ((state >> 33) as usize) % n;
+            s += values[idx];
+        }
+        boot_means.push(s / n as f32);
+    }
+    boot_means.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let lo = boot_means[(ALPHA / 2.0 * N_BOOT as f32) as usize];
+    let hi = boot_means[((1.0 - ALPHA / 2.0) * N_BOOT as f32) as usize];
+    (lo, hi)
+}
+
+/// Run the operational mixed-corpus retrieval test.
+///
+/// Corpus (45 docs):
+///   D+[0..15]       correct paraphrases
+///   D-[0..15]       contradictions
+///   TOPICAL[0..10]  lexical distractors
+///   UNRELATED[0..5] unrelated distractors
+fn mixed_corpus_retrieval(embedder: &dyn Embedder) -> MixedCorpusResult {
+    let n_q = OPERATIONAL_QUERY_CORPUS.len(); // 15
+
+    // Build corpus in fixed order
+    let dplus:  Vec<&str> = OPERATIONAL_QUERY_CORPUS.iter().map(|(_, d, _)| *d).collect();
+    let dminus: Vec<&str> = OPERATIONAL_QUERY_CORPUS.iter().map(|(_, _, d)| *d).collect();
+    let topical_dist:  Vec<&str> = TOPICAL_PAIRS[..10].iter().map(|(a, _)| *a).collect();
+    let unrel_dist:    Vec<&str> = UNRELATED_PAIRS[..5].iter().map(|(a, _)| *a).collect();
+
+    let corpus: Vec<&str> = dplus.iter().chain(dminus.iter())
+        .chain(topical_dist.iter()).chain(unrel_dist.iter())
+        .cloned().collect();
+    let n_corpus = corpus.len(); // 45
+
+    // Embed all corpus docs
+    let corpus_embs: Vec<Vec<f32>> = corpus.iter()
+        .map(|t| embedder.embed(t).expect("embed corpus doc"))
+        .collect();
+
+    let mut recall1_per  = [0.0f32; 15];
+    let mut recall5_per  = [0.0f32; 15];
+    let mut recall10_per = [0.0f32; 15];
+    let mut mrr_per      = [0.0f32; 15];
+    let mut contra1_per  = [0.0f32; 15];
+    let mut hn5_occ_per  = [0.0f32; 15];
+    let mut margins_per  = [0.0f32; 15];
+
+    println!();
+    println!("  {:44}  {:>7}  {:>7}  {:>7}  {:>4}",
+        "Query", "D+ rank", "D- rank", "margin", "C@1");
+    println!("  {}  {}  {}  {}  {}",
+        "-".repeat(44), "-".repeat(7), "-".repeat(7), "-".repeat(7), "-".repeat(4));
+
+    for i in 0..n_q {
+        let (q, _, _) = OPERATIONAL_QUERY_CORPUS[i];
+        let q_emb = embedder.embed(q).expect("embed query");
+
+        // Score against all 45 corpus docs
+        let mut scores: Vec<(usize, f32)> = (0..n_corpus)
+            .map(|j| (j, cosine(&q_emb, &corpus_embs[j])))
+            .collect();
+        scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        let dplus_idx  = i;          // D+[i] = corpus[i]
+        let dminus_idx = n_q + i;   // D-[i] = corpus[n_q + i]
+
+        let dplus_rank  = scores.iter().position(|(j, _)| *j == dplus_idx)
+            .map(|r| r + 1).unwrap_or(n_corpus + 1);
+        let dminus_rank = scores.iter().position(|(j, _)| *j == dminus_idx)
+            .map(|r| r + 1).unwrap_or(n_corpus + 1);
+
+        let score_dplus  = cosine(&q_emb, &corpus_embs[dplus_idx]);
+        let score_dminus = cosine(&q_emb, &corpus_embs[dminus_idx]);
+        let margin       = score_dplus - score_dminus;
+
+        // Hard-neg in top-5: any D- doc in first 5 slots
+        let hn_in_top5 = scores[..5].iter()
+            .filter(|(j, _)| *j >= n_q && *j < 2 * n_q)
+            .count();
+
+        recall1_per[i]  = if dplus_rank <= 1  { 1.0 } else { 0.0 };
+        recall5_per[i]  = if dplus_rank <= 5  { 1.0 } else { 0.0 };
+        recall10_per[i] = if dplus_rank <= 10 { 1.0 } else { 0.0 };
+        mrr_per[i]      = 1.0 / dplus_rank as f32;
+        contra1_per[i]  = if dminus_rank == 1 { 1.0 } else { 0.0 };
+        hn5_occ_per[i]  = hn_in_top5 as f32 / 5.0;
+        margins_per[i]  = margin;
+
+        let contra_flag = if dminus_rank == 1 { " *" } else { "" };
+        let q_short = if q.len() > 44 { &q[..44] } else { q };
+        println!("  {:44}  {:>7}  {:>7}  {:>+7.4}  {:>4}{}",
+            q_short, dplus_rank, dminus_rank, margin,
+            if dminus_rank == 1 { 1 } else { 0 }, contra_flag);
+    }
+
+    let avg = |xs: &[f32; 15]| xs.iter().sum::<f32>() / 15.0;
+
+    MixedCorpusResult {
+        recall_at_1:        avg(&recall1_per),
+        recall_at_5:        avg(&recall5_per),
+        recall_at_10:       avg(&recall10_per),
+        mrr:                avg(&mrr_per),
+        contradiction_at_1: avg(&contra1_per),
+        hard_neg_occ_at5:   avg(&hn5_occ_per),
+        mean_margin:        avg(&margins_per),
+        min_margin:         margins_per.iter().cloned().fold(f32::INFINITY, f32::min),
+        recall1_per, contra1_per, hn5_occ_per, margins_per, mrr_per,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -411,15 +616,25 @@ fn bench_hash128d_dprime() {
     println!("  PASS  d'_topo={:+.4} >= 0.8  (keyword hashing works)", r.dp_topo);
 
     println!();
-    println!("  (Retrieval/FPR/latency: informational for hash-128d)");
+    println!("  (Clean-corpus retrieval and FPR: informational for hash-128d)");
     println!("  R@1={:.4} R@5={:.4} MRR={:.4} FPR@.6={:.4} lat={:.2}ms",
         r.recall_at_1, r.recall_at_5, r.mrr, r.fpr_at_06, r.ms_per_embed);
 
+    // Mixed-corpus retrieval (informational for hash-128d)
     println!();
-    println!("  -- MiniLM gate thresholds --");
-    println!("  d'_para>=1.5  d'_topo>=1.5  d'_comb>=1.3");
-    println!("  R@1>=0.50     R@5>=0.80     MRR>=0.60");
-    println!("  [hash baselines: para={:+.4} topo={:+.4} comb={:+.4}]",
+    println!("  Mixed-corpus retrieval (informational for hash-128d):");
+    let mc = mixed_corpus_retrieval(&embedder);
+    println!();
+    println!("  R@1={:.4} R@5={:.4} MRR={:.4} C@1={:.4} HN@5={:.4} margin={:+.4}",
+        mc.recall_at_1, mc.recall_at_5, mc.mrr,
+        mc.contradiction_at_1, mc.hard_neg_occ_at5, mc.mean_margin);
+
+    println!();
+    println!("  -- MiniLM pre-declared gate thresholds --");
+    println!("  d' : para>=1.5  topo>=1.5  comb>=1.3");
+    println!("  Mixed-corpus: R@1>=0.40  R@5>=0.67  MRR>=0.40");
+    println!("                C@1<0.40   HN@5<0.40  margin>0.0");
+    println!("  [hash d' baselines: para={:+.4} topo={:+.4} comb={:+.4}]",
         r.dp_para, r.dp_topo, r.dp_comb);
 }
 
@@ -449,6 +664,7 @@ fn bench_minilm_dprime() {
 
     println!("  -- MiniLM acceptance gate --");
 
+    // d' gates
     assert!(r.dp_para >= 1.5,
         "d'_para={:.4} must be >= 1.5", r.dp_para);
     println!("  PASS  d'_para={:+.4} >= 1.5", r.dp_para);
@@ -467,30 +683,67 @@ fn bench_minilm_dprime() {
         r.dp_topo, hash_dp_topo, ni_thresh);
     println!("  PASS  topical non-inferiority: {:.4} >= 80% of hash {:.4}", r.dp_topo, hash_dp_topo);
 
-    assert!(r.recall_at_1 >= 0.5,
-        "Recall@1={:.4} must be >= 0.50", r.recall_at_1);
-    println!("  PASS  Recall@1={:.4} >= 0.50", r.recall_at_1);
-
-    assert!(r.recall_at_5 >= 0.8,
-        "Recall@5={:.4} must be >= 0.80", r.recall_at_5);
-    println!("  PASS  Recall@5={:.4} >= 0.80", r.recall_at_5);
-
-    assert!(r.mrr >= 0.6,
-        "MRR={:.4} must be >= 0.60", r.mrr);
-    println!("  PASS  MRR={:.4} >= 0.60", r.mrr);
-
-    // Hard-negative FPR is informational — not gated.
-    // Sentence encoders capture topic similarity, not negation-aware reasoning.
-    // "deployment succeeded" vs "deployment did not succeed" score high because they
-    // share domain, entities, and structure — correct behavior for a similarity encoder.
-    // Outcome disambiguation is handled by Beta bandit feedback in CMHM, not embedding.
-    println!("  INFO  FPR@0.6={:.4} ({} of {} — informational, not gated)",
+    println!("  INFO  FPR@0.6={:.4} ({} of {} — informational)",
         r.fpr_at_06,
         (r.fpr_at_06 * HARD_NEGATIVE_PAIRS.len() as f32).round() as usize,
         HARD_NEGATIVE_PAIRS.len());
 
+    // ── Mixed-corpus retrieval gate (pre-declared, locked) ────────────────
+    //
+    // Gates were declared in implementation_plan.md before any results were
+    // observed.  These thresholds MUST NOT be changed post-hoc.
     println!();
-    println!("  MiniLM PASSES all gated acceptance criteria.");
+    println!("  -- Mixed-corpus retrieval (pre-declared gates) --");
+    println!("  Corpus: 15 D+ + 15 D- + 10 topical + 5 unrelated = 45 docs");
+    let mc = mixed_corpus_retrieval(&embedder);
+    println!();
+
+    // Bootstrap CIs
+    let (r1_lo,  r1_hi)  = bootstrap_ci_mean(&mc.recall1_per);
+    let (c1_lo,  c1_hi)  = bootstrap_ci_mean(&mc.contra1_per);
+    let (hn_lo,  hn_hi)  = bootstrap_ci_mean(&mc.hn5_occ_per);
+    let (mg_lo,  mg_hi)  = bootstrap_ci_mean(&mc.margins_per);
+    let (mrr_lo, mrr_hi) = bootstrap_ci_mean(&mc.mrr_per);
+    println!("  Recall@1   = {:.4}  [{:.3}, {:.3}]", mc.recall_at_1, r1_lo, r1_hi);
+    println!("  Recall@5   = {:.4}", mc.recall_at_5);
+    println!("  MRR        = {:.4}  [{:.3}, {:.3}]", mc.mrr, mrr_lo, mrr_hi);
+    println!("  C@1        = {:.4}  [{:.3}, {:.3}]", mc.contradiction_at_1, c1_lo, c1_hi);
+    println!("  HN-occ@5   = {:.4}  [{:.3}, {:.3}]", mc.hard_neg_occ_at5, hn_lo, hn_hi);
+    println!("  Margin avg = {:+.4}  [{:+.3}, {:+.3}]", mc.mean_margin, mg_lo, mg_hi);
+    println!("  Margin min = {:+.4}", mc.min_margin);
+    println!();
+
+    assert!(mc.recall_at_1 >= 0.40,
+        "Mixed-corpus Recall@1={:.4} must be >= 0.40 (pre-declared gate)", mc.recall_at_1);
+    println!("  PASS  Recall@1={:.4} >= 0.40", mc.recall_at_1);
+
+    assert!(mc.recall_at_5 >= 0.67,
+        "Mixed-corpus Recall@5={:.4} must be >= 0.67 (pre-declared gate)", mc.recall_at_5);
+    println!("  PASS  Recall@5={:.4} >= 0.67", mc.recall_at_5);
+
+    assert!(mc.mrr >= 0.40,
+        "Mixed-corpus MRR={:.4} must be >= 0.40 (pre-declared gate)", mc.mrr);
+    println!("  PASS  MRR={:.4} >= 0.40", mc.mrr);
+
+    assert!(mc.contradiction_at_1 < 0.40,
+        "Contradiction-at-1={:.4} must be < 0.40 (pre-declared gate). \
+         Contradictions occupy rank 1 for {:.0}% of queries.",
+        mc.contradiction_at_1, mc.contradiction_at_1 * 100.0);
+    println!("  PASS  Contradiction-at-1={:.4} < 0.40", mc.contradiction_at_1);
+
+    assert!(mc.hard_neg_occ_at5 < 0.40,
+        "Hard-neg occupancy@5={:.4} must be < 0.40 (pre-declared gate)",
+        mc.hard_neg_occ_at5);
+    println!("  PASS  Hard-neg occupancy@5={:.4} < 0.40", mc.hard_neg_occ_at5);
+
+    assert!(mc.mean_margin > 0.0,
+        "Mean margin={:+.4} must be > 0.0 (pre-declared gate). \
+         D- outscores D+ on average — contradictions rank above paraphrases.",
+        mc.mean_margin);
+    println!("  PASS  Mean margin={:+.4} > 0.0", mc.mean_margin);
+
+    println!();
+    println!("  MiniLM PASSES all acceptance gates.");
     println!("  Latency: {:.3} ms/embed (warm path, informational)", r.ms_per_embed);
     println!("  TEXT_MODEL_ID may be changed to \"minilm-l6-v2-int8\" once");
     println!("  this test passes on the native Rust ONNX backend.");
