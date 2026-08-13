@@ -24,7 +24,8 @@
 //!
 //! // Retrieve from a named context
 //! let query = vec![0.0f32; EMBED_DIM];
-//! let (result, _ctx) = rt.retrieve(None, query, "default").unwrap();
+//! let (result, _ctx) = rt.retrieve(None, query, "default", None).unwrap();
+
 //! println!("{}", result.explanation);
 //! ```
 
