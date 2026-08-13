@@ -85,16 +85,16 @@ pub fn retrieve(
     query_weight: f32,
     context_weight: f32,
     curiosity_threshold: f32,
-    /// Role-scoped seed selection. Some(State) restricts candidates to State nodes.
-    /// None falls back to the unscoped nearest() scan (backward-compat path).
+    // Role-scoped seed selection. Some(State) restricts candidates to State nodes.
+    // None falls back to the unscoped nearest() scan (backward-compat path).
     seed_type: Option<NodeType>,
-    /// Weight of node.emotional_tag in seed scoring. 0.0 = no authority signal (default).
+    // Weight of node.emotional_tag in seed scoring. 0.0 = no authority signal (default).
     authority_weight: f32,
-    /// Weight of the exponential recency term in seed scoring. 0.0 = no recency (default).
+    // Weight of the exponential recency term in seed scoring. 0.0 = no recency (default).
     recency_weight: f32,
-    /// Decay rate for the recency term, s⁻¹. Ignored when recency_weight == 0.
+    // Decay rate for the recency term, s⁻¹. Ignored when recency_weight == 0.
     recency_lambda: f32,
-    /// Current Unix timestamp in seconds. Used for recency scoring.
+    // Current Unix timestamp in seconds. Used for recency scoring.
     now_secs: i64,
 ) -> RetrievalResult {
     // Step 1: Dense context
