@@ -451,7 +451,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
 
-    match rt.retrieve(ctx_id, emb, &params.model_id) {
+    match rt.retrieve(ctx_id, emb, &params.model_id, None) {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
@@ -739,7 +739,8 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     let session_id = rt.session_id().to_string();
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
-    match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID) {
+    // seed_type = Some(State): text queries retrieve state context by design.
+    match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, Some(cmhm_core::node::NodeType::State)) {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()

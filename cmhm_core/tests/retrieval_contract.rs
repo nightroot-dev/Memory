@@ -80,6 +80,10 @@ fn test_config(data_dir: PathBuf) -> Config {
         novelty_threshold: 1.0,
         // Keep salience_threshold high so salience override doesn't confound results.
         salience_threshold: 1.0,
+        // Set authority weight to 1.0 so emotional_tag is strong enough to override
+        // cosine-based ranking in test_contradictory_same_role_resolution.
+        // Production default is 0.0 (backward compat, no authority signal).
+        retrieval_authority_weight: 1.0,
         ..Config::default()
     }
 }
@@ -131,7 +135,7 @@ fn test_cross_role_seed_isolation() {
     let outcome_id = lr.outcome_node_id;
 
     let result = handle
-        .retrieve(unit_vec(0), "hash-128d")
+        .retrieve(unit_vec(0), "hash-128d", Some(NodeType::State))
         .expect("retrieve failed");
 
     // ── Assertion: seed must be a State node ───────────────────────────────
@@ -219,7 +223,7 @@ fn test_contradictory_same_role_resolution() {
 
     let q = unit_vec(3); // [0, 0, 0, 1, 0, ...] — maximally aligned with contradiction
     let result = handle
-        .retrieve(q, "hash-128d")
+        .retrieve(q, "hash-128d", None) // seed_type=None: not testing scoping here
         .expect("retrieve failed");
 
     // ── Assertion: system must NOT return the contradiction as the seed ─────
@@ -331,10 +335,18 @@ fn test_stale_state_does_not_override_authoritative() {
         &edge_store,
         &dense_core,
         &mut rng,
-        3,    // max_depth
-        0.7,  // query_weight
-        0.3,  // context_weight
-        0.1,  // curiosity_threshold
+        3,     // max_depth
+        0.7,   // query_weight
+        0.3,   // context_weight
+        0.1,   // curiosity_threshold
+        None,  // seed_type — not testing scoping here
+        0.0,   // authority_weight — not testing authority here
+        0.3,   // recency_weight — must be > 0 to make auth (ts=200) beat stale (ts=100)
+        0.01,  // recency_lambda (s⁻¹) — half-life ≈69 units
+               // stale: exp(-0.01*200)=0.135  auth: exp(-0.01*100)=0.368
+               // score(stale)=0.7*0.958+0.3*0.135=0.671+0.041=0.712
+               // score(auth) =0.7*0.894+0.3*0.368=0.626+0.110=0.736 → auth wins
+        300,   // now_secs: stale is 200 time-units old; auth is 100 time-units old
     );
 
     // ── Assertion: auth node (newer, timestamp=200) must win ───────────────

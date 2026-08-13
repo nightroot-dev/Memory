@@ -68,8 +68,10 @@ impl Ord for DijkstraState {
 ///
 /// Algorithm:
 /// 1. Project query + compute dense context.
-/// 2. Seed selection: top-3 NN, mixed score
-///    `query_weight * cos(q,node) + context_weight * cos(c,node)`.
+/// 2. Seed selection: top-3 NN (role-scoped when seed_type is Some), mixed score
+///    `query_weight * cos(q,node) + context_weight * cos(c,node)
+///     + authority_weight * node.emotional_tag
+///     + recency_weight * exp(-recency_lambda * (now_secs - node.timestamp))`.
 /// 3. Dijkstra with Thompson-sampled edge costs, bounded to `max_depth` hops.
 /// 4. Assemble path with mean weights, evidence, variance.
 pub fn retrieve(
@@ -83,12 +85,27 @@ pub fn retrieve(
     query_weight: f32,
     context_weight: f32,
     curiosity_threshold: f32,
+    /// Role-scoped seed selection. Some(State) restricts candidates to State nodes.
+    /// None falls back to the unscoped nearest() scan (backward-compat path).
+    seed_type: Option<NodeType>,
+    /// Weight of node.emotional_tag in seed scoring. 0.0 = no authority signal (default).
+    authority_weight: f32,
+    /// Weight of the exponential recency term in seed scoring. 0.0 = no recency (default).
+    recency_weight: f32,
+    /// Decay rate for the recency term, s⁻¹. Ignored when recency_weight == 0.
+    recency_lambda: f32,
+    /// Current Unix timestamp in seconds. Used for recency scoring.
+    now_secs: i64,
 ) -> RetrievalResult {
     // Step 1: Dense context
     let dense_ctx = dense_core.query(query);
 
     // Step 2: Seed selection — top-3 NN by cosine (same model_id only — N3)
-    let candidates = node_store.nearest(query, model_id, 3);
+    // When seed_type is Some(t), restrict candidates to nodes of that role.
+    let candidates = match seed_type {
+        Some(t) => node_store.nearest_by_type(query, model_id, 3, t),
+        None    => node_store.nearest(query, model_id, 3),
+    };
     if candidates.is_empty() {
         return RetrievalResult {
             causal_chain: vec![],
@@ -100,6 +117,8 @@ pub fn retrieve(
     }
 
     // Mixed score: query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)
+    //            + authority_weight * node.emotional_tag
+    //            + recency_weight * exp(-recency_lambda * (now_secs - node.timestamp))
     let seed_id = candidates.iter().max_by(|(id_a, cos_a), (id_b, cos_b)| {
         let score = |id: u64, cos: f32| {
             match node_store.get(id) {
@@ -107,7 +126,15 @@ pub fn retrieve(
                     // min-len cosine for mixed-dim safety during embedder transition
                     let min_len = dense_ctx.len().min(node.embedding.len());
                     let dense_cos = cosine(&dense_ctx[..min_len], &node.embedding[..min_len]);
-                    query_weight * cos + context_weight * dense_cos
+                    let recency = if recency_weight > 0.0 {
+                        recency_weight * (-recency_lambda * (now_secs - node.timestamp) as f32).exp()
+                    } else {
+                        0.0
+                    };
+                    query_weight * cos
+                        + context_weight * dense_cos
+                        + authority_weight * node.emotional_tag
+                        + recency
                 }
                 None => query_weight * cos,
             }

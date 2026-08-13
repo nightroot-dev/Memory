@@ -22,7 +22,11 @@ use crate::{
 pub enum Command {
     Retrieve {
         query_emb: Vec<f32>,
-        model_id: String,
+        model_id:  String,
+        /// Role-scoped seed selection passed through to retrieval::retrieve.
+        /// Some(State) restricts seed candidates to State nodes.
+        /// None = backward-compat unscoped scan.
+        seed_type: Option<NodeType>,
         tx: mpsc::SyncSender<Result<RetrievalResult>>,
     },
     Learn {
@@ -143,11 +147,15 @@ pub struct EngineHandle {
 
 impl EngineHandle {
     /// Retrieve the causal chain most relevant to `query_emb`.
-    pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>) -> Result<RetrievalResult> {
+    ///
+    /// `seed_type`: when `Some(NodeType::State)`, seed selection is restricted to State nodes.
+    /// Pass `None` for the backward-compat unscoped scan (all roles compete).
+    pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: Option<NodeType>) -> Result<RetrievalResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         self.tx.send(Command::Retrieve {
             query_emb,
             model_id: model_id.into(),
+            seed_type,
             tx: resp_tx,
         })?;
         resp_rx.recv()?
@@ -594,8 +602,8 @@ fn worker_loop(
         };
 
         match cmd {
-            Command::Retrieve { query_emb, model_id, tx } => {
-                let result = process_retrieve(&state, &query_emb, &model_id, &mut rng, &cfg);
+            Command::Retrieve { query_emb, model_id, seed_type, tx } => {
+                let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &mut rng, &cfg);
                 let _ = tx.send(result);
             }
 
@@ -736,6 +744,7 @@ fn process_retrieve(
     state: &CoreState,
     raw_emb: &[f32],
     model_id: &str,
+    seed_type: Option<NodeType>,
     rng: &mut impl rand::Rng,
     cfg: &Config,
 ) -> Result<RetrievalResult> {
@@ -753,6 +762,11 @@ fn process_retrieve(
         cfg.retrieval_query_weight,
         cfg.retrieval_context_weight,
         cfg.retrieval_curiosity_threshold,
+        seed_type,
+        cfg.retrieval_authority_weight,
+        cfg.retrieval_recency_weight,
+        cfg.retrieval_recency_lambda,
+        now_secs() as i64,
     ))
 }
 

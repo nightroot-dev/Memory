@@ -278,10 +278,11 @@ impl ContextRuntime {
         context_id: Option<&str>,
         query_emb: Vec<f32>,
         model_id:  &str,
+        seed_type: Option<NodeType>,
     ) -> Result<(RetrievalResult, ContextDescriptor)> {
         let id = self.resolve_context(context_id)?;
         let handle = self.ensure_loaded(&id)?;
-        let result = handle.retrieve(query_emb, model_id)?;
+        let result = handle.retrieve(query_emb, model_id, seed_type)?;
         // ensure_loaded already called transition -> Active
         let desc = self.registry.get(&id)
             .map(ContextDescriptor::from)

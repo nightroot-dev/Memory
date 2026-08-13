@@ -68,6 +68,34 @@ pub struct Config {
     /// Lower → more edges flagged; higher → only highly uncertain edges flagged.
     #[serde(default = "default_retrieval_curiosity_threshold")]
     pub retrieval_curiosity_threshold: f32,
+
+    /// Weight of `node.emotional_tag` (authority / task-criticality signal) in seed scoring.
+    ///
+    /// `seed_score += retrieval_authority_weight × node.emotional_tag`
+    ///
+    /// emotional_tag ∈ [0, 1]. Values closer to 1.0 indicate higher authority/importance.
+    /// Default: **0.0** (backward compat — no authority term). Set > 0 to prefer high-importance
+    /// nodes over the cosine-only result when two contradictory nodes are both candidates.
+    #[serde(default = "default_retrieval_authority_weight")]
+    pub retrieval_authority_weight: f32,
+
+    /// Weight of the recency signal in seed scoring.
+    ///
+    /// `seed_score += retrieval_recency_weight × exp(−recency_lambda × (now − node.timestamp))`
+    ///
+    /// Default: **0.0** (backward compat — no recency term). Set > 0 to downweight stale memories
+    /// relative to more recent ones of equal cosine similarity.
+    #[serde(default = "default_retrieval_recency_weight")]
+    pub retrieval_recency_weight: f32,
+
+    /// Exponential decay rate for the recency signal, in s⁻¹ (inverse seconds).
+    ///
+    /// half‑life = ln(2) / recency_lambda ≈ 69 s at the default of 0.01.
+    /// Only consulted when `retrieval_recency_weight > 0`.
+    /// Default: **0.01** (half-life ~69 s — fast for typical interactive sessions).
+    #[serde(default = "default_retrieval_recency_lambda")]
+    pub retrieval_recency_lambda: f32,
+
     /// If true, `engine::start()` will quarantine the incompatible snapshot and
     /// proceed with an empty `CoreState` when a snapshot schema version mismatch
     /// is detected AND migration fails.
@@ -115,6 +143,9 @@ impl Default for Config {
             retrieval_query_weight: 0.7,
             retrieval_context_weight: 0.3,
             retrieval_curiosity_threshold: 0.1,
+            retrieval_authority_weight:    0.0,
+            retrieval_recency_weight:      0.0,
+            retrieval_recency_lambda:      0.01,
             allow_incompatible_snapshot_reset: false,
         }
     }
@@ -123,6 +154,9 @@ impl Default for Config {
 fn default_retrieval_query_weight()        -> f32  { 0.7 }
 fn default_retrieval_context_weight()      -> f32  { 0.3 }
 fn default_retrieval_curiosity_threshold() -> f32  { 0.1 }
+fn default_retrieval_authority_weight()    -> f32  { 0.0 }
+fn default_retrieval_recency_weight()      -> f32  { 0.0 }
+fn default_retrieval_recency_lambda()      -> f32  { 0.01 }
 fn default_allow_incompatible_snapshot_reset() -> bool { false }
 
 impl Config {
