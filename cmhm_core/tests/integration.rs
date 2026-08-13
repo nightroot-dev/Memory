@@ -66,7 +66,7 @@ fn test_learn_and_retrieve() {
         println!("[T1] Learn {i}: nodes {},{},{}", r.state_node_id, r.action_node_id, r.outcome_node_id);
     }
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "test").unwrap();
+    let (result, _) = rt.retrieve(ctx, emb(0), "test", None).unwrap();
     println!("[T1] Retrieve: {} chain steps | {}", result.causal_chain.len(), result.explanation);
     assert!(!result.causal_chain.is_empty() || !result.explanation.contains("No memories"),
         "Must return something after 5 learns");
@@ -189,7 +189,7 @@ fn test_persistence_across_restart() {
         println!("[T4] Session 2: version={} loaded={}", stats.descriptor.version, stats.is_loaded);
         assert_eq!(stats.descriptor.version, 2, "Version must be 2 after restart");
 
-        let (result, _) = rt.retrieve(Some(&ctx_id), emb(1), "test").unwrap();
+        let (result, _) = rt.retrieve(Some(&ctx_id), emb(1), "test", None).unwrap();
         println!("[T4] Retrieved {} chain steps", result.causal_chain.len());
         rt.shutdown();
     }
@@ -283,7 +283,7 @@ fn test_wal_crash_recovery() {
         assert!(stats.descriptor.version >= 10,
             "[T6] Must restore ≥10 versions, got {}", stats.descriptor.version);
 
-        let (result, _) = rt.retrieve(Some(&ctx_id), emb(0), "test").unwrap();
+        let (result, _) = rt.retrieve(Some(&ctx_id), emb(0), "test", None).unwrap();
         println!("[T6] Retrieved {} chain steps from recovered context", result.causal_chain.len());
 
         rt.shutdown();
@@ -1171,7 +1171,7 @@ fn test_feedback_survives_crash_exactly_once() {
     // Sequence: replay Learn (alpha=1.0), replay Feedback (alpha=2.0, adds to feedback_seen).
     {
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-        let _ = rt.retrieve(None, emb(10), "hash-128d"); // triggers context load
+        let _ = rt.retrieve(None, emb(10), "hash-128d", None); // triggers context load
 
         // Alpha must be 2.0 — feedback survived via WAL.
         let (a2, _) = rt.get_node_beta(None, node_id).unwrap();
