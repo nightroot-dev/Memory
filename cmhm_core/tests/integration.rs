@@ -62,11 +62,11 @@ fn test_learn_and_retrieve() {
     let ctx = Some(desc.id.as_str());
 
     for i in 0u32..5 {
-        let (r, _) = rt.learn(ctx, emb(i*3), emb(i*3+1), emb(i*3+2), 0.6, 0.5, "test").unwrap();
+        let (r, _) = rt.learn(ctx, emb(i*3), emb(i*3+1), emb(i*3+2), 0.6, 0.5, "test", 0.5, String::new(), None).unwrap();
         println!("[T1] Learn {i}: nodes {},{},{}", r.state_node_id, r.action_node_id, r.outcome_node_id);
     }
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "test", None).unwrap();
+    let (result, _) = rt.retrieve(ctx, emb(0), "test", NodeType::State).unwrap();
     println!("[T1] Retrieve: {} chain steps | {}", result.causal_chain.len(), result.explanation);
     assert!(!result.causal_chain.is_empty() || !result.explanation.contains("No memories"),
         "Must return something after 5 learns");
@@ -92,8 +92,8 @@ fn test_context_isolation() {
     let cmhm  = ctx!(rt, "CMHM",    "causal memory", vec!["rust".into()]);
     let video = ctx!(rt, "VideoAI", "video processing", vec!["video".into()]);
 
-    rt.learn(Some(cmhm.id.as_str()),  emb(1),   emb(2),   emb(3),   0.8, 0.5, "test").unwrap();
-    rt.learn(Some(video.id.as_str()), emb(100), emb(101), emb(102), 0.8, 0.5, "test").unwrap();
+    rt.learn(Some(cmhm.id.as_str()),  emb(1),   emb(2),   emb(3),   0.8, 0.5, "test", 0.5, String::new(), None).unwrap();
+    rt.learn(Some(video.id.as_str()), emb(100), emb(101), emb(102), 0.8, 0.5, "test", 0.5, String::new(), None).unwrap();
 
     let s1 = rt.stats(Some(cmhm.id.as_str())).unwrap();
     let s2 = rt.stats(Some(video.id.as_str())).unwrap();
@@ -129,7 +129,7 @@ fn test_context_routing() {
 
     // Activate all 3 with one learn each (Sa bonus applies to all equally)
     for c in [&cmhm, &video, &linux] {
-        rt.learn(Some(c.id.as_str()), emb(1), emb(2), emb(3), 0.7, 0.5, "test").unwrap();
+        rt.learn(Some(c.id.as_str()), emb(1), emb(2), emb(3), 0.7, 0.5, "test", 0.5, String::new(), None).unwrap();
     }
 
     let ranked = rt.route_top_k("memory causal rust", 3);
@@ -175,8 +175,8 @@ fn test_persistence_across_restart() {
             "Persist", ContextType::Project, None, "survives restart", vec![],
         ).unwrap();
         let id = desc.id.as_str().to_string();
-        rt.learn(Some(&id), emb(1), emb(2), emb(3), 0.8, 0.5, "test").unwrap();
-        rt.learn(Some(&id), emb(4), emb(5), emb(6), 0.8, 0.5, "test").unwrap();
+        rt.learn(Some(&id), emb(1), emb(2), emb(3), 0.8, 0.5, "hash-128d", 0.5, String::new(), None).unwrap();
+        rt.learn(Some(&id), emb(4), emb(5), emb(6), 0.8, 0.5, "hash-128d", 0.5, String::new(), None).unwrap();
         rt.checkpoint(Some(&id)).unwrap();
         println!("[T4] Session 1: 2 learns, id={id}");
         rt.shutdown();
@@ -189,7 +189,7 @@ fn test_persistence_across_restart() {
         println!("[T4] Session 2: version={} loaded={}", stats.descriptor.version, stats.is_loaded);
         assert_eq!(stats.descriptor.version, 2, "Version must be 2 after restart");
 
-        let (result, _) = rt.retrieve(Some(&ctx_id), emb(1), "test", None).unwrap();
+        let (result, _) = rt.retrieve(Some(&ctx_id), emb(1), "test", NodeType::State).unwrap();
         println!("[T4] Retrieved {} chain steps", result.causal_chain.len());
         rt.shutdown();
     }
@@ -211,14 +211,14 @@ fn test_delete_is_irrevocable() {
     ).unwrap();
     let raw_id = desc.id.as_str().to_string();
 
-    rt.learn(Some(&raw_id), emb(1), emb(2), emb(3), 0.5, 0.5, "test").unwrap();
+    rt.learn(Some(&raw_id), emb(1), emb(2), emb(3), 0.5, 0.5, "hash-128d", 0.5, String::new(), None).unwrap();
 
     let ctx_id = ContextId::from_str(&raw_id);
     rt.delete_context(&ctx_id).expect("[T5] delete_context failed");
     println!("[T5] Context {} deleted", raw_id);
 
     // Learn must fail
-    let err = rt.learn(Some(&raw_id), emb(10), emb(11), emb(12), 0.5, 0.5, "test")
+    let err = rt.learn(Some(&raw_id), emb(10), emb(11), emb(12), 0.5, 0.5, "hash-128d", 0.5, String::new(), None)
         .unwrap_err().to_string();
     println!("[T5] Expected error: {err}");
     assert!(
@@ -261,13 +261,13 @@ fn test_wal_crash_recovery() {
 
         // 10 learns → checkpoint
         for i in 0u32..10 {
-            rt.learn(Some(&id), emb(i*3), emb(i*3+1), emb(i*3+2), 0.6, 0.5, "test").unwrap();
+            rt.learn(Some(&id), emb(i*3), emb(i*3+1), emb(i*3+2), 0.6, 0.5, "hash-128d", 0.5, String::new(), None).unwrap();
         }
         rt.checkpoint(Some(&id)).unwrap();
 
         // 5 post-checkpoint learns → WAL only
         for i in 10u32..15 {
-            rt.learn(Some(&id), emb(i*3), emb(i*3+1), emb(i*3+2), 0.6, 0.5, "test").unwrap();
+            rt.learn(Some(&id), emb(i*3), emb(i*3+1), emb(i*3+2), 0.6, 0.5, "hash-128d", 0.5, String::new(), None).unwrap();
         }
 
         println!("[T6] Session 1: 15 total learns, dropping without shutdown (simulated crash)");
@@ -283,7 +283,7 @@ fn test_wal_crash_recovery() {
         assert!(stats.descriptor.version >= 10,
             "[T6] Must restore ≥10 versions, got {}", stats.descriptor.version);
 
-        let (result, _) = rt.retrieve(Some(&ctx_id), emb(0), "test", None).unwrap();
+        let (result, _) = rt.retrieve(Some(&ctx_id), emb(0), "test", NodeType::State).unwrap();
         println!("[T6] Retrieved {} chain steps from recovered context", result.causal_chain.len());
 
         rt.shutdown();
@@ -319,7 +319,9 @@ fn test_feedback_duplicate_preserves_valid_beta_posterior() {
         emb(10), emb(11), emb(12),
         0.8, 0.0,
         "test",
+        0.5, String::new(), None,
     ).unwrap();
+
 
     let state_id = result.state_node_id;
 
@@ -408,7 +410,7 @@ fn test_shadow_gate_insertion_proven_by_node_count() {
 
     // First learn with high prediction_error (epsilon > 0.5 → birth threshold always passes).
     // This guarantees at least one node is inserted regardless of cosine similarity.
-    rt.learn(None, emb(20), emb(21), emb(22), 0.9, 0.0, "hash-128d").unwrap();
+    rt.learn(None, emb(20), emb(21), emb(22), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
     let n1 = rt.node_count(None);
     assert!(n1 >= 1,
         "First learn (high pe, forces birth) must insert ≥1 node, got {n1}");
@@ -416,7 +418,7 @@ fn test_shadow_gate_insertion_proven_by_node_count() {
     // Second learn with IDENTICAL embeddings + same high pe.
     // Shadow gate computes novelty ≈ 0 → gate_score ≈ 0 → would_index = false.
     // The shadow gate MUST NOT suppress insertion. Engine birth threshold (epsilon>0.5) still fires.
-    rt.learn(None, emb(20), emb(21), emb(22), 0.9, 0.0, "hash-128d").unwrap();
+    rt.learn(None, emb(20), emb(21), emb(22), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
     let n2 = rt.node_count(None);
     // n2 may equal n1 (engine deduplication) or exceed it — either is correct.
     // n2 < n1 would mean insertion was blocked or nodes deleted: FORBIDDEN.
@@ -426,13 +428,13 @@ fn test_shadow_gate_insertion_proven_by_node_count() {
 
     // Third learn: completely orthogonal embeddings at high pe → fresh birth guaranteed.
     // Use seed values far from the first group to ensure low cosine similarity.
-    rt.learn(None, emb(200), emb(201), emb(202), 0.9, 0.0, "hash-128d").unwrap();
+    rt.learn(None, emb(200), emb(201), emb(202), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
     let n3 = rt.node_count(None);
     assert!(n3 > n2,
         "Third learn with distinct embeddings must increase node count: before={n2}, after={n3}");
     // Sanity: a low-pe near-duplicate learn (may or may not birth a new node,
     // depending on birth threshold). What matters is no panic and no count decrease.
-    rt.learn(None, emb(20), emb(21), emb(22), 0.1, 0.0, "hash-128d").unwrap();
+    rt.learn(None, emb(20), emb(21), emb(22), 0.1, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
     let n4 = rt.node_count(None);
     assert!(n4 >= n3,
         "Low-pe near-duplicate learn must not decrease node count: before={n3}, after={n4}");
@@ -505,12 +507,12 @@ fn test_birth_threshold_boundary_cases() {
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
         // Seed store with anchor at eps=0.9 (forces birth via epsilon escape).
         // State, action, outcome all use anchor → all stored nodes ≈ emb(0).
-        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         let n0 = rt.node_count(None);
 
         // Present the exact same anchor with low eps: cos_max ≈ 1.0 vs. stored state node.
         // birth_q30 is clamped to max 0.99, so cos=1.0 is always ≥ birth_q30 → gate closed.
-        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.2, 0.0, "hash-128d").unwrap();
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.2, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         let n1 = rt.node_count(None);
         assert_eq!(n1, n0,
             "[Case1] perfect duplicate (cos≈1.0) + eps=0.2: NO new state node. before={n0}, after={n1}");
@@ -523,11 +525,11 @@ fn test_birth_threshold_boundary_cases() {
     {
         let (cfg, dir) = make_cfg("birth_case2");
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         let n0 = rt.node_count(None);
 
         // Same anchor embedding; high eps → epsilon escape → must birth new state node.
-        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         let n1 = rt.node_count(None);
         assert!(n1 > n0,
             "[Case2] eps=0.9 > 0.5: epsilon escape MUST fire → new state node. before={n0}, after={n1}");
@@ -542,11 +544,11 @@ fn test_birth_threshold_boundary_cases() {
     {
         let (cfg, dir) = make_cfg("birth_case3");
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d").unwrap();
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         let n0 = rt.node_count(None);
 
         // eps=0.8, eta=0.9 → salience = 0.5*0.8 + 0.5*0.9 = 0.85 > 0.70 → salience escape fires.
-        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.8, 0.9, "hash-128d").unwrap();
+        rt.learn(None, anchor.clone(), anchor.clone(), anchor.clone(), 0.8, 0.9, "hash-128d", 0.5, String::new(), None).unwrap();
         let n1 = rt.node_count(None);
         assert!(n1 > n0,
             "[Case3] eps=0.8 + eta=0.9 → salience=0.85 > 0.70: salience escape MUST fire. before={n0}, after={n1}");
@@ -578,7 +580,7 @@ fn test_birth_gate_cosine_calibration_curve() {
     // Seed ONE state node so the store is non-empty.
     // Use anchor as state; action/outcome use different seeds so they don’t
     // pollute the State namespace (role-scoping keeps them separate).
-    rt.learn(None, anchor.clone(), emb(100), emb(200), 0.9, 0.0, "hash-128d").unwrap();
+    rt.learn(None, anchor.clone(), emb(100), emb(200), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
 
     // Sweep target cosines from 0.0 to 1.0 in steps of 0.1.
     let targets: &[f32] = &[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
@@ -635,7 +637,7 @@ fn test_birth_gate_max_cosine_grows_with_n() {
 
         // Seed N state nodes with varied embeddings.
         for i in 0..n {
-            let _ = rt.learn(None, emb(i as u32 * 7 + 1), emb(i as u32 * 7 + 2), emb(i as u32 * 7 + 3), 0.4, 0.0, "hash-128d");
+            let _ = rt.learn(None, emb(i as u32 * 7 + 1), emb(i as u32 * 7 + 2), emb(i as u32 * 7 + 3), 0.4, 0.0, "hash-128d", 0.5, String::new(), None);
         }
 
         let mu = (0..queries)
@@ -678,7 +680,7 @@ fn test_birth_q30_converges_to_target_quantile() {
 
     // 400 learn calls with varied inputs drives the estimator.
     for i in 0u32..400 {
-        let _ = rt.learn(None, emb(i * 3 + 1), emb(i * 3 + 2), emb(i * 3 + 3), 0.3, 0.0, "hash-128d");
+        let _ = rt.learn(None, emb(i * 3 + 1), emb(i * 3 + 2), emb(i * 3 + 3), 0.3, 0.0, "hash-128d", 0.5, String::new(), None);
     }
 
     let q30 = rt.get_birth_q30(None);
@@ -738,14 +740,14 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
     // Use "s" as the named context for all operations.
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let _ = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d").unwrap();
+        let _ = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         rt.shutdown(); // writes S_A at contexts/<uuid>/snapshot.bin
     }
 
     // ── Session B ─────────────────────────────────────────────────────────
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d").unwrap();
+        let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         rt.shutdown(); // writes S_B (A+B). WAL gone (compacted at startup).
     }
 
@@ -789,7 +791,7 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
     // learn(Some("s")) triggers ensure_loaded → engine::start() → VersionMismatch → Err.
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let learn_result = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
+        let learn_result = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d", 0.5, String::new(), None);
         assert!(
             learn_result.is_err(),
             "Default config: learn(None) must return Err on schema version mismatch. \
@@ -864,7 +866,7 @@ fn test_version_mismatch_fails_closed_and_quarantines() {
 
 
         // Engine is healthy: learn C.
-        let learn_c = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
+        let learn_c = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d", 0.5, String::new(), None);
         assert!(
             learn_c.is_ok(),
             "allow_incompatible_snapshot_reset=true: learn() must succeed. Got Err: {:?}",
@@ -932,12 +934,12 @@ fn test_version_mismatch_wal_present_preserves_uuid() {
     // ── Sessions A + B ────────────────────────────────────────────────────
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let _ = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d").unwrap();
+        let _ = rt.learn(None, emb(1), emb(2), emb(3), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         rt.shutdown();
     }
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d").unwrap();
+        let _ = rt.learn(None, emb(11), emb(12), emb(13), 0.9, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         rt.shutdown();
     }
 
@@ -975,7 +977,7 @@ fn test_version_mismatch_wal_present_preserves_uuid() {
         assert!(!uuid_before.is_empty(),
             "Phase 1: default context must be registered before the failed load.");
 
-        let learn_result = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d");
+        let learn_result = rt.learn(None, emb(99), emb(100), emb(101), 0.9, 0.0, "hash-128d", 0.5, String::new(), None);
         assert!(
             learn_result.is_err(),
             "Phase 1: learn() must return Err on schema mismatch. Got Ok."
@@ -1051,7 +1053,7 @@ fn test_version_mismatch_wal_present_preserves_uuid() {
              Incompatible snapshot was not quarantined."
         );
 
-        let learn_d = rt.learn(None, emb(50), emb(51), emb(52), 0.9, 0.0, "hash-128d");
+        let learn_d = rt.learn(None, emb(50), emb(51), emb(52), 0.9, 0.0, "hash-128d", 0.5, String::new(), None);
         assert!(
             learn_d.is_ok(),
             "Phase 2: learn() must succeed after reset. Got Err: {:?}", learn_d.err()
@@ -1066,7 +1068,7 @@ fn test_version_mismatch_wal_present_preserves_uuid() {
     // without hitting VersionMismatch (no more incompatible snapshot in place).
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let learn_e = rt.learn(None, emb(60), emb(61), emb(62), 0.9, 0.0, "hash-128d");
+        let learn_e = rt.learn(None, emb(60), emb(61), emb(62), 0.9, 0.0, "hash-128d", 0.5, String::new(), None);
         assert!(
             learn_e.is_ok(),
             "Phase 3: learn() must succeed after clean restart. Got Err: {:?}", learn_e.err()
@@ -1097,7 +1099,7 @@ fn test_feedback_key_survives_snapshot_reload() {
     let alpha_after_first;
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let result = rt.learn(None, emb(1), emb(2), emb(3), 0.3, 0.0, "hash-128d").unwrap();
+        let result = rt.learn(None, emb(1), emb(2), emb(3), 0.3, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         node_id = result.0.state_node_id;
 
         rt.feedback_nodes(None, vec![node_id], true, Some("rid-snap-001".to_string())).unwrap();
@@ -1148,7 +1150,7 @@ fn test_feedback_survives_crash_exactly_once() {
     // Phase 1: learn + feedback, then crash (drop without snapshot).
     {
         let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
-        let result = rt.learn(None, emb(10), emb(20), emb(30), 0.3, 0.0, "hash-128d").unwrap();
+        let result = rt.learn(None, emb(10), emb(20), emb(30), 0.3, 0.0, "hash-128d", 0.5, String::new(), None).unwrap();
         node_id = result.0.state_node_id;
 
         let (a0, _) = rt.get_node_beta(None, node_id).unwrap();
@@ -1171,7 +1173,7 @@ fn test_feedback_survives_crash_exactly_once() {
     // Sequence: replay Learn (alpha=1.0), replay Feedback (alpha=2.0, adds to feedback_seen).
     {
         let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
-        let _ = rt.retrieve(None, emb(10), "hash-128d", None); // triggers context load
+        let _ = rt.retrieve(None, emb(10), "hash-128d", NodeType::State); // triggers context load
 
         // Alpha must be 2.0 — feedback survived via WAL.
         let (a2, _) = rt.get_node_beta(None, node_id).unwrap();
@@ -1240,7 +1242,9 @@ fn test_feedback_ledger_crash_boundary() {
         // Learn one experience
         let (result, ctx) = rt.learn(
             None, emb(60), emb(61), emb(62), 0.9, 0.0, "test",
+            0.5, String::new(), None,
         ).unwrap();
+
         let state_id    = result.state_node_id;
         let ctx_id_str  = ctx.id.as_str().to_string();
 
@@ -1330,3 +1334,9 @@ fn test_feedback_ledger_crash_boundary() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+
+
+
+
+

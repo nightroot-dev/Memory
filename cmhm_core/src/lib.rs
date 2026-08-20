@@ -11,7 +11,7 @@
 //!
 //! ## Quick Start (with Context Runtime)
 //! ```rust,no_run
-//! use cmhm_core::{Config, EMBED_DIM, context::runtime::ContextRuntime};
+//! use cmhm_core::{Config, EMBED_DIM, context::runtime::ContextRuntime, node::NodeType};
 //!
 //! let cfg = Config::default();
 //! let mut rt = ContextRuntime::new(cfg, "doc-session".to_string()).unwrap();
@@ -20,14 +20,15 @@
 //! let state_emb   = vec![0.0f32; EMBED_DIM];
 //! let action_emb  = vec![0.0f32; EMBED_DIM];
 //! let outcome_emb = vec![0.0f32; EMBED_DIM];
-//! rt.learn(None, state_emb, action_emb, outcome_emb, 0.3, 0.5, "default").unwrap();
+//! rt.learn(None, state_emb, action_emb, outcome_emb, 0.3, 0.5, "default",
+//!          0.5, String::new(), None).unwrap();
 //!
 //! // Retrieve from a named context
 //! let query = vec![0.0f32; EMBED_DIM];
-//! let (result, _ctx) = rt.retrieve(None, query, "default", None).unwrap();
-
+//! let (result, _ctx) = rt.retrieve(None, query, "default", NodeType::State).unwrap();
 //! println!("{}", result.explanation);
 //! ```
+
 
 pub mod node;
 pub mod edge;
@@ -50,17 +51,23 @@ pub mod text_embed;
 pub mod bm25;
 pub mod scrub;
 pub mod embed;
+pub mod authority;
+pub mod migration;
 
 // Re-export the most commonly used types at crate root
 pub use config::Config;
-pub use engine::{start, EngineHandle, LearnResult, SchemaMismatchError};
-pub use retrieval::{RetrievalResult, ChainStep};
+pub use engine::{start, EngineHandle, LearnResult, SchemaMismatchError, SupersessionError};
+pub use retrieval::{RetrievalResult, ChainStep, ConflictCandidate, ConflictType};
+
 pub use node::NodeType;
 pub use edge::{EdgeType, EvidenceType};
 pub use context::runtime::ContextRuntime;
 pub use context::{ContextDescriptor, ContextId, ContextType, ContextState};
 pub use text_embed::{text_to_embedding, extract_tags};
 pub use embed::{Embedder, HashEmbedder, default_embedder};
+pub use authority::{clamp_authority, authenticate_and_clamp, CallerRole};
+
+
 
 /// The embedding dimensionality used throughout CMHM.
 ///

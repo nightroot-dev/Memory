@@ -419,7 +419,8 @@ fn compile_skills(node_store: &mut NodeStore, edge_store: &mut EdgeStore, now_ts
 
     // Insert skill nodes and connect them
     for (state_id, skill_emb, model_id) in new_skills {
-        let skill_node = crate::node::Node::new(skill_emb, model_id, 0.9, now_ts, 0.0, NodeType::Skill);
+        let skill_node = crate::node::Node::new(skill_emb, model_id, 0.9, now_ts, 0.0, NodeType::Skill, 0.9, String::new());
+
         let skill_id = node_store.insert(skill_node);
         // High-confidence edge from state to skill
         let skill_edge = Edge::new(50.0, 1.0, now_ts as f32, EdgeType::Sequence, EvidenceType::Exact, false);

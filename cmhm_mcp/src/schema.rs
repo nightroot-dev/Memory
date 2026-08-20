@@ -115,7 +115,18 @@ impl ContentItem {
     pub fn text(s: impl Into<String>) -> Self {
         Self { content_type: "text".to_string(), text: s.into() }
     }
+    /// Emit a machine-readable JSON block as a second content item.
+    /// Callers (tests, agents) can parse `content[1].text` as JSON.
+    /// The `type` field is "text" for MCP wire-format compatibility.
+    pub fn json(v: &serde_json::Value) -> Self {
+        Self {
+            content_type: "text".to_string(),
+            text: format!("```json\n{}\n```", serde_json::to_string_pretty(v)
+                .unwrap_or_else(|_| "{}".to_string())),
+        }
+    }
 }
+
 
 // --- Tool Input Schemas (auto-derived via schemars) --------------------------
 //
@@ -142,7 +153,18 @@ pub struct RetrieveParams {
     /// UUID or display name of the context to retrieve from.
     /// Omit to use the default context.
     pub context_id: Option<String>,
+
+    /// The kind of memory node to use as the retrieval seed.
+    ///
+    /// **Required.** Controls which node roles are considered as seed candidates:
+    /// - `"state"` — retrieve the causal chain most relevant to the current situation (default use case).
+    /// - `"action"` — seed from action nodes.
+    /// - `"outcome"` — seed from outcome nodes.
+    ///
+    /// Unknown values return an `invalid_params` error.
+    pub retrieval_intent: String,
 }
+
 
 /// Record a (state → action → outcome) learning signal into causal memory.
 /// Call this AFTER an action's result is known.
@@ -174,7 +196,34 @@ pub struct LearnParams {
     /// UUID or display name of the context to learn into.
     /// Omit to use the default context.
     pub context_id: Option<String>,
+
+    /// Explicit source-trust level ∈ [0, 1] for the state node.
+    /// 0.0 = explicitly contradicted. 1.0 = explicitly authoritative. Default 0.5 = neutral.
+    #[serde(default = "default_authority")]
+    #[schemars(default = "default_authority")]
+    pub authority: f32,
+
+    /// Machine-readable source class (e.g. `"user_explicit"`, `"corrected"`, `""` = unknown).
+    /// Non-empty differing provenance between top-2 candidates triggers conflict detection.
+    #[serde(default)]
+    pub provenance: String,
+
+    /// Optional node ID this experience supersedes.
+    /// The engine sets `old_node.superseded_by = Some(new_state_id)`, excluding the stale
+    /// node from future seed selection.
+    pub supersedes: Option<u64>,
+
+    /// Optional semantic assertion / entity key (e.g. `"db_pool_size"`, `"compiler_target"`).
+    #[serde(default)]
+    pub assertion_key: Option<String>,
+
+    /// Optional epistemic polarity: `+1` (assert/true), `-1` (refute/false), or `None` (neutral).
+    #[serde(default)]
+    pub polarity: Option<i8>,
 }
+
+
+
 
 /// Create a new isolated memory context for a project, topic, or session.
 /// Each context has its own completely separate causal graph.
@@ -257,6 +306,7 @@ pub struct ProjectDetectParams {}
 
 pub fn default_model()        -> String { "default".to_string() }
 pub fn default_eta()          -> f32    { 0.5 }
+pub fn default_authority()    -> f32    { 0.5 }
 pub fn default_context_type() -> ContextTypeParam { ContextTypeParam::Project }
 pub fn default_top_k()        -> usize  { 3 }
 pub fn default_true()         -> bool   { true }
@@ -307,7 +357,31 @@ pub struct LearnTextParams {
     #[serde(default = "default_true")]
     #[schemars(default = "default_true")]
     pub auto_tag: bool,
+
+    /// Explicit source-trust level ∈ [0, 1] for the state node.
+    /// 0.0 = explicitly contradicted. 1.0 = explicitly authoritative. Default 0.5 = neutral.
+    #[serde(default = "default_authority")]
+    #[schemars(default = "default_authority")]
+    pub authority: f32,
+
+    /// Machine-readable source class (e.g. `"user_explicit"`, `"corrected"`, `""` = unknown).
+    #[serde(default)]
+    pub provenance: String,
+
+    /// Optional node ID this experience supersedes.
+    /// See `memory_learn` documentation for full semantics.
+    pub supersedes: Option<u64>,
+
+    /// Optional semantic assertion / entity key (e.g. `"db_pool_size"`, `"compiler_target"`).
+    #[serde(default)]
+    pub assertion_key: Option<String>,
+
+    /// Optional epistemic polarity: `+1` (assert/true), `-1` (refute/false), or `None` (neutral).
+    #[serde(default)]
+    pub polarity: Option<i8>,
 }
+
+
 
 /// Retrieve causal memory using plain text — no embeddings needed.
 ///
@@ -323,7 +397,18 @@ pub struct RetrieveTextParams {
     /// UUID or display name of the context to retrieve from.
     /// Omit to use the default context, or use the ID returned by `context_route`.
     pub context_id: Option<String>,
+
+    /// The kind of memory node to use as the retrieval seed.
+    ///
+    /// **Required.** Controls which node roles are considered as seed candidates:
+    /// - `"state"` — retrieve the causal chain most relevant to the current situation (default use case).
+    /// - `"action"` — seed from action nodes.
+    /// - `"outcome"` — seed from outcome nodes.
+    ///
+    /// Unknown values return an `invalid_params` error.
+    pub retrieval_intent: String,
 }
+
 
 /// Provide outcome feedback after a retrieve → act → observe cycle.
 ///

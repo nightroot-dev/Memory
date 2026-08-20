@@ -28,7 +28,22 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 /// The engine discards the snapshot and rebuilds from WAL — it does NOT treat this as
 /// corruption (no quarantine, no fsck). A genuine bit-flip produces a bincode error,
 /// which becomes `SnapshotLoadError::Corrupt`.
-pub const SNAPSHOT_VERSION: u32 = 2;
+/// Version history:
+///   1 = pre-versioned (no envelope; `feedback_seen: HashSet<String>`)
+///   2 = `SnapshotEnvelope`; `feedback_seen: HashSet<u64>` (FNV-1a); WAL type tags
+///   3 = `Node` gains `authority: f32`, `provenance: String`, `superseded_by: Option<u64>`.
+///       `WalLearnEntryV2` (type `0x02`) replaces `WalLearnEntry` (type `0x00`) for new writes.
+///
+/// Migration from v2 → v3
+/// ───────────────────────
+/// Snapshot: `VersionMismatch` returned on load. With `allow_incompatible_snapshot_reset = true`
+/// the engine quarantines the snapshot and replays the WAL. Old WAL type-`0x00` entries are
+/// replayed through `process_learn` with `authority=0.5, provenance="", supersedes=None`
+/// (safe defaults). Data is recovered from the WAL. A new v3 snapshot is written at the
+/// next periodic checkpoint or clean shutdown.
+/// Context identity (UUID in the context registry) is preserved across migration.
+pub const SNAPSHOT_VERSION: u32 = 3;
+
 
 /// Thin envelope that tags snapshot bytes with a schema version.
 /// Bincode-serialized as the outer container in every snapshot file.
@@ -46,13 +61,13 @@ struct SnapshotEnvelope {
 
 /// Error returned by `read_snapshot` with a cause classification.
 /// Callers MUST distinguish `VersionMismatch` from `Corrupt`:
-/// - `VersionMismatch` → discard snapshot, rebuild from WAL (expected after schema bump)
+/// - `VersionMismatch` → attempt snapshot migration or discard snapshot, rebuild from WAL
 /// - `Corrupt`         → potential data loss; log at ERROR, consider quarantine
 #[derive(Debug)]
 pub enum SnapshotLoadError {
     /// Snapshot exists but was written by a different schema version.
-    /// Safe to discard; rebuild state from WAL.
-    VersionMismatch { found: u32, expected: u32 },
+    /// Carries the inner payload so migration engines can upgrade without re-reading disk.
+    VersionMismatch { found: u32, expected: u32, payload: Vec<u8> },
     /// Snapshot is present but bytes are unreadable (I/O, corrupt envelope, etc.).
     Corrupt(anyhow::Error),
     /// No snapshot file exists at any generation.
@@ -62,13 +77,14 @@ pub enum SnapshotLoadError {
 impl std::fmt::Display for SnapshotLoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::VersionMismatch { found, expected } =>
+            Self::VersionMismatch { found, expected, .. } =>
                 write!(f, "snapshot version mismatch (found={found}, expected={expected})"),
             Self::Corrupt(e) => write!(f, "snapshot corrupt: {e}"),
             Self::NotFound   => write!(f, "no snapshot found"),
         }
     }
 }
+
 
 // ─── Write-Ahead Log ─────────────────────────────────────────────────────────
 
@@ -333,20 +349,23 @@ pub fn read_snapshot<T: for<'de> serde::Deserialize<'de>>(path: &PathBuf)
                 return Err(SnapshotLoadError::VersionMismatch {
                     found: 1,
                     expected: SNAPSHOT_VERSION,
+                    payload: bytes,
                 });
             }
         };
 
         if envelope.version != SNAPSHOT_VERSION {
             tracing::warn!(
-                "Snapshot {:?}: version {} ≠ expected {} — discarding, will rebuild from WAL",
+                "Snapshot {:?}: version {} ≠ expected {} — attempting migration or fallback",
                 candidate, envelope.version, SNAPSHOT_VERSION
             );
             return Err(SnapshotLoadError::VersionMismatch {
                 found:    envelope.version,
                 expected: SNAPSHOT_VERSION,
+                payload:  envelope.payload,
             });
         }
+
 
         // Version matches: deserialize inner payload.
         match bincode::deserialize::<T>(&envelope.payload) {
@@ -716,7 +735,7 @@ mod tests {
 
         let result: std::result::Result<u32, SnapshotLoadError> = read_snapshot(&path);
         match result {
-            Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
+            Err(SnapshotLoadError::VersionMismatch { found, expected, .. }) => {
                 assert_eq!(found, SNAPSHOT_VERSION + 1);
                 assert_eq!(expected, SNAPSHOT_VERSION);
             }
@@ -744,10 +763,11 @@ mod tests {
 
         let result: std::result::Result<u32, SnapshotLoadError> = read_snapshot(&path);
         match result {
-            Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
+            Err(SnapshotLoadError::VersionMismatch { found, expected, .. }) => {
                 assert_eq!(found, 1, "pre-versioned implies version=1");
                 assert_eq!(expected, SNAPSHOT_VERSION);
             }
+
             Err(SnapshotLoadError::Corrupt(_)) =>
                 panic!("pre-versioned snapshot must NOT be classified as Corrupt"),
             Ok(_) =>

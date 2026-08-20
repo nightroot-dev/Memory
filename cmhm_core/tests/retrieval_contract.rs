@@ -1,39 +1,38 @@
 // cmhm_core/tests/retrieval_contract.rs
 //
-// Phase 2 — Retrieval Contract Integration Tests
+// Phase 2 — Retrieval Contract Integration Tests (PASSING after Phase 2 implementation)
 //
 // All three tests use deterministic fixed unit vectors. No text/hash/MiniLM embeddings.
-// All three tests are expected to FAIL with the current implementation.
+// All three tests are expected to PASS with the Phase 2 implementation.
 //
 // ════════════════════════════════════════════════════════════════════════
-// PRESERVATION RULE: Do NOT modify assertions to make tests pass.
-// Implement mitigations in production code instead.
+// PRESERVATION RULE: Do NOT weaken assertions.
+// Each test pins a specific retrieval-safety property. If it fails,
+// fix the production code, not the assertion.
 // See retrieval_contract.md for the required implementation path.
 // ════════════════════════════════════════════════════════════════════════
 //
 // Test 1 — test_cross_role_seed_isolation
-//   Fails because: nearest(q, model_id, k) is unscoped — all NodeTypes compete.
-//   Required fix:  seed selection must be constrained to a declared seed_type
-//                  (add seed_type: Option<NodeType> to Command::Retrieve and
-//                   use nearest_by_type when Some).
+//   Property: seed selection must be constrained to the declared seed_type.
+//   Mechanism: nearest_by_type(State) called when Some(State) is declared.
+//   Gate: seed_node_type == Some(NodeType::State)
 //
 // Test 2 — test_contradictory_same_role_resolution
-//   Fails because: flat cosine ranking selects the contradiction (higher cos)
-//                  over the authoritative node (lower cos, higher emotional_tag).
-//   Required fix:  retrieval ranking must incorporate an authority/salience signal,
-//                  or the system must surface a conflict flag so callers can abstain.
+//   Property: when two State nodes share a topic, the authoritative one (authority=1.0)
+//             must beat the contradiction (authority=0.0) even if the contradiction has
+//             a higher cosine similarity to the query.
+//   Mechanism: score = query_w*cos + ctx_w*dense_cos + authority_w*node.authority
+//   Gate: seed_id == auth_state_id
 //
 // Test 3 — test_stale_state_does_not_override_authoritative
-//   Fails because: no recency term in the ranking formula — the stale node (higher
-//                  cosine, lower timestamp) always wins over the authoritative node
-//                  (lower cosine, higher timestamp).
-//   Required fix:  add a recency weight to seed scoring, OR add explicit version/
-//                  supersession semantics (superseded_by field or a Supersedes edge type).
+//   Property: a node explicitly superseded via superseded_by must be excluded from
+//             seed candidate selection entirely (before scoring).
+//   Mechanism: superseded_by filter applied in retrieve() before scoring.
+//   Gate: seed_id == auth_id  (stale node filtered out before ever being scored)
 //
 // ── Observability ──────────────────────────────────────────────────────
 // All tests assert on RetrievalResult::seed_id and ::seed_node_type.
-// These fields were added in Phase 2 as pure observability (no ranking change).
-// Each test also checks that the causal-chain root matches when a chain is present.
+// Test 2 and 3 also check conflict_detected / conflict_candidates.
 
 use cmhm_core::{Config, NodeType, EMBED_DIM};
 use cmhm_core::engine::start;
@@ -69,21 +68,16 @@ fn sparse_unit_vec(components: &[(usize, f32)]) -> Vec<f32> {
     v
 }
 
-/// Build a minimal Config pointing at a temp directory, with high novelty_threshold
-/// so all distinct vectors pass the birth gate in tests.
+/// Build a minimal Config pointing at a temp directory.
+/// Uses production authority_weight=0.8 (Phase 2 default).
 fn test_config(data_dir: PathBuf) -> Config {
     Config {
         data_dir: data_dir.clone(),
         projections_dir: data_dir.join("projections"),
-        // Set to 1.0 so any two distinct vectors (cosine < 1.0) pass the birth gate.
-        // This is intentional test scaffolding — production value is 0.55.
-        novelty_threshold: 1.0,
-        // Keep salience_threshold high so salience override doesn't confound results.
-        salience_threshold: 1.0,
-        // Set authority weight to 1.0 so emotional_tag is strong enough to override
-        // cosine-based ranking in test_contradictory_same_role_resolution.
-        // Production default is 0.0 (backward compat, no authority signal).
-        retrieval_authority_weight: 1.0,
+        // novelty_threshold: unused by adaptive birth gate; left at default.
+        // retrieval_authority_weight: 0.8 (Phase 2 production default).
+        retrieval_authority_weight: 0.8,
+        conflict_detection_threshold: 0.02,
         ..Config::default()
     }
 }
@@ -95,9 +89,7 @@ fn test_config(data_dir: PathBuf) -> Config {
 //   and the retrieval intent is a state query. The seed selection must be constrained
 //   to NodeType::State when a declared seed_type is provided.
 //
-// Authority signal required: an explicit seed_type parameter on Command::Retrieve /
-//   EngineHandle::retrieve. Currently the API carries no query-role declaration.
-//   "This embedding is a state query" is an unverifiable inference — it must be declared.
+// Mechanism: nearest_by_type(State, k=8) called when Some(NodeType::State) is declared.
 //
 // Vectors (deterministic unit vectors, no embedder involved):
 //   q           = e[0] = [1, 0, 0, ..., 0]
@@ -109,8 +101,7 @@ fn test_config(data_dir: PathBuf) -> Config {
 // Under state-scoped nearest_by_type(State): only State nodes are candidates;
 //   State wins with cos=0.0 as the sole candidate.
 //
-// Expected post-mitigation: seed_node_type == Some(NodeType::State)
-// Current behavior:         seed_node_type == Some(NodeType::Outcome)   ← FAILS
+// Expected: seed_node_type == Some(NodeType::State)
 
 #[test]
 fn test_cross_role_seed_isolation() {
@@ -128,28 +119,26 @@ fn test_cross_role_seed_isolation() {
     //  This is the first and only triple — no birth gate interference.
 
     let lr = handle
-        .learn(unit_vec(1), unit_vec(2), unit_vec(0), 0.5, 0.5, "hash-128d")
+        .learn(unit_vec(1), unit_vec(2), unit_vec(0), 0.5, 0.5, "hash-128d",
+               0.5, String::new(), None)
         .expect("learn failed");
 
     let state_id   = lr.state_node_id;
     let outcome_id = lr.outcome_node_id;
 
     let result = handle
-        .retrieve(unit_vec(0), "hash-128d", Some(NodeType::State))
+        .retrieve(unit_vec(0), "hash-128d", NodeType::State)
         .expect("retrieve failed");
 
     // ── Assertion: seed must be a State node ───────────────────────────────
-    // CURRENTLY FAILS: seed_node_type is Some(NodeType::Outcome)
-    // Outcome node {} was selected because nearest() is unscoped.
     assert_eq!(
         result.seed_node_type,
         Some(NodeType::State),
         "FAIL [test_cross_role_seed_isolation]: \
          seed must be State node {}; got seed_id={:?} seed_type={:?}. \
-         Outcome node {} (cos≈1.0) displaced State node {} (cos=0.0) \
-         because nearest() applies no role filter. \
-         Fix: add seed_type: Option<NodeType> to Command::Retrieve and \
-         call nearest_by_type(State) when Some(State) is declared.",
+         Outcome node {} (cos≈1.0) must NOT displace State node {} (cos=0.0) \
+         when seed_type=Some(State) is declared. \
+         Fix: ensure nearest_by_type(State) is called when seed_type is Some(State).",
         state_id,
         result.seed_id,
         result.seed_node_type,
@@ -162,28 +151,24 @@ fn test_cross_role_seed_isolation() {
 //
 // Requirement (from retrieval_contract.md §Property 2):
 //   When two State nodes share the same topic but opposite polarity, the system
-//   must not silently return the higher-cosine contradiction. It must either:
-//     (a) select the node with higher declared authority (emotional_tag used here),
-//   or
-//     (b) surface a conflict signal (has_conflict: bool) so callers can abstain.
-//
-// Authority signal: emotional_tag (f32, passed at learn time, stored on Node).
-//   authoritative node:  emotional_tag = 1.0  (high authority)
-//   contradiction node:  emotional_tag = 0.0  (low authority)
-//   emotional_tag is NOT currently used in retrieval ranking.
+//   must select the node with higher declared authority (node.authority), NOT
+//   the higher-cosine node. The authority field is distinct from emotional_tag
+//   (affective salience) — it is a machine-readable source-trust level.
 //
 // Vectors (deterministic, designed so contradiction dominates flat cosine):
 //   q       = e[3]    = [0, 0, 0, 1, 0, ...]
 //   e_auth  ≈ normalized([0.9, 0, 0, 0.1, 0, ...])   cos(q, e_auth)  ≈ 0.110
 //   e_contra≈ normalized([0.1, 0, 0, 0.95, 0, ...])  cos(q, e_contra)≈ 0.994
 //
-//   cos(e_auth, e_contra) ≈ 0.21 → both nodes pass the birth gate (< 0.55 threshold).
+//   cos(e_auth, e_contra) ≈ 0.21 → both nodes pass the birth gate.
 //
-// Under flat cosine ranking: contra wins (cos 0.994 > 0.110).
-// Under authority-weighted ranking: auth wins (higher emotional_tag).
+// Score formula:
+//   score = 0.7 * cos + 0.8 * node.authority
+//   auth:   0.7*0.110 + 0.8*1.0 = 0.877
+//   contra: 0.7*0.994 + 0.8*0.0 = 0.696
+//   → auth wins (0.877 > 0.696) by authority_weight=0.8.
 //
-// Expected post-mitigation: seed_id == auth_state_id
-// Current behavior:         seed_id == contra_state_id    ← FAILS
+// Expected: seed_id == auth_state_id
 
 #[test]
 fn test_contradictory_same_role_resolution() {
@@ -191,7 +176,7 @@ fn test_contradictory_same_role_resolution() {
     let cfg = test_config(dir.path().to_path_buf());
     let handle = start(cfg).expect("engine start");
 
-    // Authoritative State: slightly less aligned with q, high emotional_tag (authority).
+    // Authoritative State: slightly less aligned with q, authority=1.0.
     // [0.9, 0, 0, 0.1, ...] normalized → cos(q=e[3], auth) ≈ 0.110
     let e_auth = sparse_unit_vec(&[(0, 0.9), (3, 0.1)]);
     let lr_auth = handle
@@ -200,13 +185,16 @@ fn test_contradictory_same_role_resolution() {
             unit_vec(4), // action (distinct, won't interfere)
             unit_vec(5), // outcome (distinct)
             0.5,
-            1.0, // emotional_tag = 1.0 (authority signal — NOT used in current ranking)
+            0.5, // emotional_tag = neutral (NOT used in ranking)
             "hash-128d",
+            1.0,                   // authority = 1.0 (explicitly authoritative)
+            "user_explicit".to_string(), // provenance
+            None,
         )
         .expect("learn auth failed");
     let auth_state_id = lr_auth.state_node_id;
 
-    // Contradicting State: more aligned with q, low emotional_tag (non-authoritative).
+    // Contradicting State: more aligned with q, authority=0.0 (explicitly contradicted).
     // [0.1, 0, 0, 0.95, ...] normalized → cos(q=e[3], contra) ≈ 0.994
     let e_contra = sparse_unit_vec(&[(0, 0.1), (3, 0.95)]);
     let lr_contra = handle
@@ -215,31 +203,41 @@ fn test_contradictory_same_role_resolution() {
             unit_vec(6), // action (distinct)
             unit_vec(7), // outcome (distinct)
             0.5,
-            0.0, // emotional_tag = 0.0 (contradiction signal — NOT used in current ranking)
+            0.5, // emotional_tag = neutral (NOT used in ranking)
             "hash-128d",
+            0.0,                      // authority = 0.0 (explicitly contradicted)
+            "contradicted".to_string(), // provenance
+            None,
         )
         .expect("learn contra failed");
     let contra_state_id = lr_contra.state_node_id;
 
     let q = unit_vec(3); // [0, 0, 0, 1, 0, ...] — maximally aligned with contradiction
     let result = handle
-        .retrieve(q, "hash-128d", None) // seed_type=None: not testing scoping here
+        .retrieve(q, "hash-128d", NodeType::State) // declared intent: state query
         .expect("retrieve failed");
 
-    // ── Assertion: system must NOT return the contradiction as the seed ─────
-    // CURRENTLY FAILS: seed_id == Some(contra_state_id)
-    // Flat cosine ranking cannot distinguish polarity.
+    // ── Assertion: authoritative node must win despite lower cosine ─────────
     assert_eq!(
         result.seed_id,
         Some(auth_state_id),
         "FAIL [test_contradictory_same_role_resolution]: \
-         expected authoritative State {} (emotional_tag=1.0, cos≈0.110) as seed; \
+         expected authoritative State {} (authority=1.0, cos≈0.110) as seed; \
          got seed_id={:?}. \
-         Contradicting State {} (emotional_tag=0.0, cos≈0.994) won flat cosine ranking. \
-         Fix: incorporate emotional_tag (or a dedicated authority field) into seed scoring, \
-         OR add has_conflict: bool to RetrievalResult and require callers to handle it.",
+         Contradicting State {} (authority=0.0, cos≈0.994) must NOT win. \
+         Score formula: 0.7*cos + 0.8*authority. \
+         auth:   0.7*0.110 + 0.8*1.0 = 0.877 \
+         contra: 0.7*0.994 + 0.8*0.0 = 0.696 → auth must win.",
         auth_state_id,
         result.seed_id,
+        contra_state_id,
+    );
+
+    // Secondary assertion: verify the non-selected node is the contradiction.
+    assert_ne!(
+        result.seed_id,
+        Some(contra_state_id),
+        "seed must not be the contradiction node {}",
         contra_state_id,
     );
 }
@@ -247,35 +245,17 @@ fn test_contradictory_same_role_resolution() {
 // ── Test 3: Stale state does not override authoritative state ─────────────────
 //
 // Requirement (from retrieval_contract.md §Property 3):
-//   A stale record with higher cosine similarity to the query must not displace
-//   a newer authoritative record when temporal evidence (node.timestamp) is available.
-//   The ranking formula must include a recency term, or the implementation must
-//   provide explicit version/supersession semantics.
+//   A node explicitly superseded by a newer node via superseded_by must be
+//   excluded from seed candidate selection entirely — before scoring.
+//   This is the Phase 2 replacement for the recency-based approach.
+//   Recency was rejected because it cannot establish entity identity,
+//   version order, or supersession without explicit semantic linkage.
 //
-// Authority signal: node.timestamp (Unix seconds, set at Node::new time).
-//   stale node: timestamp = 100  (older)
-//   auth node:  timestamp = 200  (newer, authoritative current state)
+// Setup (direct NodeStore manipulation — bypasses birth gate intentionally):
+//   stale_node: cos(q) ≈ 0.958  but superseded_by = Some(auth_id)  → filtered out
+//   auth_node:  cos(q) ≈ 0.894  superseded_by = None               → selected
 //
-// This test bypasses the engine entirely and calls retrieval::retrieve directly
-// with a manually constructed NodeStore. This is necessary because:
-//   (a) the birth gate would reject the auth node (high cosine to stale),
-//   (b) the engine assigns timestamps from Utc::now() with no override mechanism,
-//   (c) we need controlled, distinct timestamps as the authority signal.
-//
-// Vectors:
-//   q     = e[0]   = [1, 0, 0, ...]
-//   stale = normalized([1, 0.3, 0, ...])  → cos(q, stale) ≈ 0.958  (more similar, stale)
-//   auth  = normalized([1, 0.5, 0, ...])  → cos(q, auth)  ≈ 0.894  (less similar, authoritative)
-//
-// Under current ranking (no recency): stale wins (cos 0.958 > 0.894).
-// Under recency-weighted ranking:     auth wins (timestamp 200 > 100).
-//
-// Note: once the implementation adds timestamp_override to Command::Learn or
-// provides explicit supersession edges, this test should be rewritten to use
-// the engine API and remove the direct NodeStore manipulation.
-//
-// Expected post-mitigation: seed_id == auth_id
-// Current behavior:         seed_id == stale_id    ← FAILS
+// Expected: seed_id == auth_id  (stale is filtered before scoring)
 
 #[test]
 fn test_stale_state_does_not_override_authoritative() {
@@ -284,8 +264,8 @@ fn test_stale_state_does_not_override_authoritative() {
     // Controlled auth vector: cos(q=e[0], auth) = 1/√(1+0.25) ≈ 0.894
     let auth_emb = sparse_unit_vec(&[(0, 1.0), (1, 0.5)]);
 
-    // Verify cosine ordering (stale must score HIGHER to make this a real test).
-    let cos_stale: f32 = stale_emb[0]; // = stale_emb · e[0] = stale_emb[0] (already normalized)
+    // Verify cosine ordering (stale must score HIGHER to make this a real adversarial test).
+    let cos_stale: f32 = stale_emb[0]; // = stale_emb · e[0] = stale_emb[0] (normalized)
     let cos_auth:  f32 = auth_emb[0];
     assert!(
         cos_stale > cos_auth,
@@ -294,29 +274,36 @@ fn test_stale_state_does_not_override_authoritative() {
     );
 
     // Build NodeStore directly — no birth gate, no EMA blending, no engine channels.
+    // Insert auth first to get its ID, then reference it in stale's superseded_by.
     let mut node_store = NodeStore::new();
 
-    // stale: timestamp=100 (older session)
-    let stale_node = Node::new(
+    // auth: active node (the correction). authority=1.0, provenance="corrected".
+    let auth_node = Node::new(
+        auth_emb,
+        "test-direct".to_string(),
+        0.5,   // salience
+        200,   // timestamp: newer session
+        0.5,   // emotional_tag
+        NodeType::State,
+        1.0,                    // authority: authoritative
+        "corrected".to_string(), // provenance
+    );
+    let auth_id = node_store.insert(auth_node);
+
+    // stale: superseded by auth. Has higher cosine but must be excluded from scoring.
+    let mut stale_node = Node::new(
         stale_emb,
         "test-direct".to_string(),
         0.5,   // salience
         100,   // timestamp: older session
         0.5,   // emotional_tag
         NodeType::State,
+        0.5,          // authority: neutral
+        String::new(), // provenance: unknown
     );
+    // Explicitly mark as superseded — this is the Phase 2 staleness mechanism.
+    stale_node.superseded_by = Some(auth_id);
     let stale_id = node_store.insert(stale_node);
-
-    // auth: timestamp=200 (newer, authoritative session)
-    let auth_node = Node::new(
-        auth_emb,
-        "test-direct".to_string(),
-        0.5,   // salience
-        200,   // timestamp: newer session — the authority signal
-        0.5,   // emotional_tag
-        NodeType::State,
-    );
-    let auth_id = node_store.insert(auth_node);
 
     let edge_store = EdgeStore::new();
     let dense_core = DenseCore::new();
@@ -339,31 +326,34 @@ fn test_stale_state_does_not_override_authoritative() {
         0.7,   // query_weight
         0.3,   // context_weight
         0.1,   // curiosity_threshold
-        None,  // seed_type — not testing scoping here
-        0.0,   // authority_weight — not testing authority here
-        0.3,   // recency_weight — must be > 0 to make auth (ts=200) beat stale (ts=100)
-        0.01,  // recency_lambda (s⁻¹) — half-life ≈69 units
-               // stale: exp(-0.01*200)=0.135  auth: exp(-0.01*100)=0.368
-               // score(stale)=0.7*0.958+0.3*0.135=0.671+0.041=0.712
-               // score(auth) =0.7*0.894+0.3*0.368=0.626+0.110=0.736 → auth wins
-        300,   // now_secs: stale is 200 time-units old; auth is 100 time-units old
+        None,  // seed_type — not testing role-scoping here
+        0.8,   // authority_weight (production default)
+        0.02,  // conflict_detection_threshold (production default)
+        false, // abstain_on_conflict — deterministic test must not abstain
     );
 
-    // ── Assertion: auth node (newer, timestamp=200) must win ───────────────
-    // CURRENTLY FAILS: seed_id == Some(stale_id)
-    // stale has higher cosine (0.958 > 0.894) and no recency penalty exists.
+
+    // ── Assertion: auth node must be selected; stale node filtered out ─────
     assert_eq!(
         result.seed_id,
         Some(auth_id),
         "FAIL [test_stale_state_does_not_override_authoritative]: \
-         expected auth node {} (timestamp=200, cos≈0.894) as seed; \
+         expected auth node {} (superseded_by=None, cos≈{:.3}) as seed; \
          got seed_id={:?}. \
-         Stale node {} (timestamp=100, cos≈0.958) won because the ranking formula \
-         contains no recency term and timestamp is not consulted. \
-         Fix: add recency_weight * f(node.timestamp, now_secs) to the mixed score, \
-         OR add superseded_by: Option<u64> to Node and reject superseded candidates.",
-        auth_id,
+         Stale node {} (superseded_by=Some({}), cos≈{:.3}) must be filtered out \
+         before scoring because its superseded_by field is set. \
+         Fix: apply superseded_by filter in retrieve() before scoring candidates.",
+        auth_id, cos_auth,
         result.seed_id,
+        stale_id, auth_id, cos_stale,
+    );
+
+    // Stale node must never appear as seed.
+    assert_ne!(
+        result.seed_id,
+        Some(stale_id),
+        "stale superseded node {} must not be returned as seed",
         stale_id,
     );
 }
+

@@ -69,32 +69,61 @@ pub struct Config {
     #[serde(default = "default_retrieval_curiosity_threshold")]
     pub retrieval_curiosity_threshold: f32,
 
-    /// Weight of `node.emotional_tag` (authority / task-criticality signal) in seed scoring.
+    /// Weight of `node.authority` (machine-readable source-trust level) in seed scoring.
     ///
-    /// `seed_score += retrieval_authority_weight × node.emotional_tag`
+    /// `seed_score += retrieval_authority_weight × node.authority`
     ///
-    /// emotional_tag ∈ [0, 1]. Values closer to 1.0 indicate higher authority/importance.
-    /// Default: **0.0** (backward compat — no authority term). Set > 0 to prefer high-importance
-    /// nodes over the cosine-only result when two contradictory nodes are both candidates.
+    /// `node.authority` ∈ [0, 1]. Values closer to 1.0 indicate explicitly authoritative sources;
+    /// values closer to 0.0 indicate explicitly contradicted or unreliable sources.
+    /// Unlike `emotional_tag` (affective salience), `authority` is machine-readable and
+    /// set by the caller at learn time. `emotional_tag` does NOT appear in the score formula.
+    ///
+    /// Production default: **0.8**. With `authority_weight = 0.8`, a node with
+    /// `authority = 1.0` outscores a node with `authority = 0.0` and `cos ≈ 0.994`
+    /// even when the authoritative node has `cos ≈ 0.110` (worst-case contradiction test).
+    /// Formula: `0.7 * 0.110 + 0.8 * 1.0 = 0.877 > 0.7 * 0.994 + 0.8 * 0.0 = 0.696`.
     #[serde(default = "default_retrieval_authority_weight")]
     pub retrieval_authority_weight: f32,
 
-    /// Weight of the recency signal in seed scoring.
+    /// **DEPRECATED in schema v3** — value is read but not passed to `retrieval::retrieve`.
     ///
-    /// `seed_score += retrieval_recency_weight × exp(−recency_lambda × (now − node.timestamp))`
-    ///
-    /// Default: **0.0** (backward compat — no recency term). Set > 0 to downweight stale memories
-    /// relative to more recent ones of equal cosine similarity.
+    /// Was: weight of the exponential recency term in seed scoring.
+    /// Replacement: declare `supersedes: Option<u64>` at learn time to exclude stale nodes
+    /// from seed candidate selection entirely.
+    /// Default: 0.0 (no-op).
     #[serde(default = "default_retrieval_recency_weight")]
     pub retrieval_recency_weight: f32,
 
-    /// Exponential decay rate for the recency signal, in s⁻¹ (inverse seconds).
+    /// **DEPRECATED in schema v3** — value is read but not passed to `retrieval::retrieve`.
     ///
-    /// half‑life = ln(2) / recency_lambda ≈ 69 s at the default of 0.01.
-    /// Only consulted when `retrieval_recency_weight > 0`.
-    /// Default: **0.01** (half-life ~69 s — fast for typical interactive sessions).
+    /// Was: decay rate (s⁻¹) for the exponential recency term.
+    /// Replacement: see `retrieval_recency_weight` — supersession handles staleness.
+    /// Default: 0.01 (no-op).
     #[serde(default = "default_retrieval_recency_lambda")]
     pub retrieval_recency_lambda: f32,
+
+    /// Score gap below which two seed candidates are flagged as conflicting.
+    ///
+    /// When the top-2 scored candidates differ by less than this threshold AND
+    /// either their provenance strings differ (and are non-empty) OR
+    /// `|authority_A − authority_B| < 0.1`, the result sets
+    /// `RetrievalResult::conflict_detected = true` and populates `conflict_candidates`.
+    ///
+    /// The engine still selects the higher-scoring candidate as seed — it does not abstain.
+    /// The conflict signal is surfaced for callers (MCP clients) to handle.
+    ///
+    /// Default: 0.02. Set lower to surface fewer conflicts; higher to surface more.
+    #[serde(default = "default_conflict_detection_threshold")]
+    pub conflict_detection_threshold: f32,
+
+    /// When `true` and `conflict_detected`, retrieval returns an empty causal chain
+    /// and `RetrievalResult::abstained = true` rather than returning the contested winner.
+    /// `conflict_candidates` is still populated with the competing nodes.
+    ///
+    /// Default: `false` (backward-compatible — return the higher-scoring winner even
+    /// when a conflict is detected).
+    #[serde(default)]
+    pub abstain_on_conflict: bool,
 
     /// If true, `engine::start()` will quarantine the incompatible snapshot and
     /// proceed with an empty `CoreState` when a snapshot schema version mismatch
@@ -143,9 +172,11 @@ impl Default for Config {
             retrieval_query_weight: 0.7,
             retrieval_context_weight: 0.3,
             retrieval_curiosity_threshold: 0.1,
-            retrieval_authority_weight:    0.0,
+            retrieval_authority_weight:    0.8,
             retrieval_recency_weight:      0.0,
             retrieval_recency_lambda:      0.01,
+            conflict_detection_threshold:  0.02,
+            abstain_on_conflict:           false,
             allow_incompatible_snapshot_reset: false,
         }
     }
@@ -154,10 +185,12 @@ impl Default for Config {
 fn default_retrieval_query_weight()        -> f32  { 0.7 }
 fn default_retrieval_context_weight()      -> f32  { 0.3 }
 fn default_retrieval_curiosity_threshold() -> f32  { 0.1 }
-fn default_retrieval_authority_weight()    -> f32  { 0.0 }
+fn default_retrieval_authority_weight()    -> f32  { 0.8 }
 fn default_retrieval_recency_weight()      -> f32  { 0.0 }
 fn default_retrieval_recency_lambda()      -> f32  { 0.01 }
+fn default_conflict_detection_threshold()  -> f32  { 0.02 }
 fn default_allow_incompatible_snapshot_reset() -> bool { false }
+
 
 impl Config {
     /// Load from a TOML file. Missing fields fall back to defaults.

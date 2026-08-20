@@ -250,7 +250,7 @@ impl ContextRuntime {
 
     // ── Memory Operations API ────────────────────────────────────────────────
 
-    /// Learn into a context. If context_id is None, uses the default context.
+    /// Learn into a context with default trusted user context.
     pub fn learn(
         &mut self,
         context_id: Option<&str>,
@@ -260,11 +260,45 @@ impl ContextRuntime {
         prediction_error: f32,
         emotional_tag:    f32,
         model_id: &str,
+        authority:  f32,
+        provenance: String,
+        supersedes: Option<u64>,
+    ) -> Result<(LearnResult, ContextDescriptor)> {
+        self.learn_with_context(
+            context_id, state_emb, action_emb, outcome_emb,
+            prediction_error, emotional_tag, model_id,
+            authority, provenance, supersedes,
+            crate::authority::CallerRole::User,
+            None,
+            None,
+        )
+    }
+
+    /// Learn into a context with caller ingestion role and optional semantic assertion fields.
+    pub fn learn_with_context(
+        &mut self,
+        context_id: Option<&str>,
+        state_emb:   Vec<f32>,
+        action_emb:  Vec<f32>,
+        outcome_emb: Vec<f32>,
+        prediction_error: f32,
+        emotional_tag:    f32,
+        model_id: &str,
+        authority:  f32,
+        provenance: String,
+        supersedes: Option<u64>,
+        caller_role: crate::authority::CallerRole,
+        assertion_key: Option<String>,
+        polarity: Option<i8>,
     ) -> Result<(LearnResult, ContextDescriptor)> {
         let id = self.resolve_context(context_id)?;
         let handle = self.ensure_loaded(&id)?;
-        let result = handle.learn(state_emb, action_emb, outcome_emb,
-                                   prediction_error, emotional_tag, model_id)?;
+        let result = handle.learn_with_context(
+            state_emb, action_emb, outcome_emb,
+            prediction_error, emotional_tag, model_id,
+            authority, provenance, supersedes,
+            caller_role, assertion_key, polarity,
+        )?;
         self.registry.record_learn(&id);
         let desc = self.registry.get(&id)
             .map(ContextDescriptor::from)
@@ -272,13 +306,17 @@ impl ContextRuntime {
         Ok((result, desc))
     }
 
+
+
     /// Retrieve from a context. If context_id is None, uses the default context.
+    ///
+    /// `seed_type` is mandatory — unscoped retrieval is not permitted from the public API.
     pub fn retrieve(
         &mut self,
         context_id: Option<&str>,
         query_emb: Vec<f32>,
         model_id:  &str,
-        seed_type: Option<NodeType>,
+        seed_type: NodeType,
     ) -> Result<(RetrievalResult, ContextDescriptor)> {
         let id = self.resolve_context(context_id)?;
         let handle = self.ensure_loaded(&id)?;
@@ -289,6 +327,7 @@ impl ContextRuntime {
             .ok_or_else(|| anyhow::anyhow!("context vanished after retrieve"))?;
         Ok((result, desc))
     }
+
 
     /// Maximum cosine similarity between `query_emb` and existing nodes of `node_type` in a context.
     ///

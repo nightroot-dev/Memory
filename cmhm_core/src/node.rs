@@ -21,6 +21,21 @@ impl NodeType {
             _ => Self::State,
         }
     }
+
+    /// Parse a lower-case string retrieval intent into a `NodeType`.
+    ///
+    /// Used by MCP tool handlers to convert the required `retrieval_intent`
+    /// field (`"state"` | `"action"` | `"outcome"`) into a typed enum value.
+    /// Returns `None` for any unrecognised string so callers can return
+    /// MCP error `-32602` (`invalid_params`) without panicking.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "state"   => Some(Self::State),
+            "action"  => Some(Self::Action),
+            "outcome" => Some(Self::Outcome),
+            _         => None,
+        }
+    }
 }
 
 /// A single causal memory node.
@@ -126,12 +141,60 @@ pub struct Node {
     /// - failure after retrieval → `beta += 1`
     #[serde(default = "default_bandit_prior")]
     pub bandit_beta: f32,
+
+    // ── Phase 2: Provenance, authority, supersession ──────────────────────────
+
+    /// Explicit source-trust level ∈ [0, 1]. Distinct from `emotional_tag` (affective salience).
+    ///
+    /// 0.0 = explicitly unreliable / contradicted.
+    /// 0.5 = neutral / unknown (default for all pre-v3 nodes recovered from WAL).
+    /// 1.0 = explicitly authoritative.
+    ///
+    /// Set at learn time by the caller via `Command::Learn { authority, .. }`.
+    /// Used in retrieval seed scoring: `score += authority_weight × node.authority`.
+    #[serde(default = "default_authority")]
+    pub authority: f32,
+
+    /// Caller-supplied machine-readable source class.
+    ///
+    /// Examples: `"user_explicit"`, `"corrected"`, `"external_feed"`, `""` (unknown).
+    /// Used for conflict detection: two candidates with non-empty differing provenance
+    /// and near-equal scores trigger `RetrievalResult::conflict_detected = true`.
+    /// Empty string = unknown (default for all pre-v3 nodes recovered from WAL).
+    #[serde(default)]
+    pub provenance: String,
+
+    /// ID of the node that supersedes this node, if any.
+    ///
+    /// When `Some(id)`, this node has been explicitly superseded by the node with that ID.
+    /// **Superseded nodes are excluded from seed candidate selection entirely** — no score
+    /// comparison is performed. This handles staleness without a recency term in the score.
+    ///
+    /// Set by `process_learn` when `Command::Learn { supersedes: Some(old_id), .. }` is
+    /// received: the engine sets `old_node.superseded_by = Some(new_id)` after creating
+    /// the new node.
+    ///
+    /// `None` = active, not superseded (default for all pre-v3 nodes).
+    #[serde(default)]
+    pub superseded_by: Option<u64>,
+
+    /// Machine-readable assertion / entity key (e.g. `"db_pool_size"`, `"compiler_target"`).
+    /// Used for deterministic logical contradiction detection when two nodes share the same key.
+    #[serde(default)]
+    pub assertion_key: Option<String>,
+
+    /// Epistemic polarity: `+1` (asserted/affirmed), `-1` (refuted/negated), or `None` (neutral).
+    /// Opposite polarities on the same `assertion_key` trigger a `LogicalContradiction` conflict.
+    #[serde(default)]
+    pub polarity: Option<i8>,
 }
 
 // Serde default helpers (functions, not closures — required by serde's default attribute)
 fn default_half_life() -> f32 { 180.0 }
 fn default_bandit_prior() -> f32 { 1.0 }
 fn default_model_id() -> String { "hash-128d".to_string() }
+/// Default authority: 0.5 = neutral / unknown. Applies to all pre-v3 nodes recovered from WAL.
+fn default_authority() -> f32 { 0.5 }
 
 impl Node {
     pub fn new(
@@ -141,6 +204,8 @@ impl Node {
         timestamp: i64,
         emotional_tag: f32,
         node_type: NodeType,
+        authority: f32,
+        provenance: String,
     ) -> Self {
         Self {
             embedding,
@@ -150,14 +215,27 @@ impl Node {
             emotional_tag,
             node_type,
             // Stage 3 defaults
-            n_retrievals:        0,
-            last_retrieved:      0,
-            half_life_days:      180.0,
+            n_retrievals:         0,
+            last_retrieved:       0,
+            half_life_days:       180.0,
             max_prediction_error: 0.0,
-            bandit_alpha:        1.0,
-            bandit_beta:         1.0,
+            bandit_alpha:         1.0,
+            bandit_beta:          1.0,
+            // Phase 2 provenance/supersession
+            authority,
+            provenance,
+            superseded_by:        None,
+            assertion_key:        None,
+            polarity:             None,
         }
     }
+
+    pub fn with_assertion(mut self, assertion_key: Option<String>, polarity: Option<i8>) -> Self {
+        self.assertion_key = assertion_key;
+        self.polarity = polarity;
+        self
+    }
+
 
     /// Effective salience after power-law temporal decay.
     ///
@@ -315,7 +393,7 @@ mod tests {
     use rand::rngs::SmallRng;
 
     fn test_node() -> Node {
-        Node::new(vec![0.0f32; 128], "hash-128d".to_string(), 0.8, 1_000_000, 0.5, NodeType::State)
+        Node::new(vec![0.0f32; 128], "hash-128d".to_string(), 0.8, 1_000_000, 0.5, NodeType::State, 0.5, String::new())
     }
 
     // --- effective_salience ---------------------------------------------------
@@ -454,3 +532,4 @@ mod tests {
         assert!(mean < 0.35, "after 9 failures, mean draw should be < 0.35, got {mean:.3}");
     }
 }
+

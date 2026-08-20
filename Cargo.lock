@@ -269,6 +269,7 @@ dependencies = [
  "libm",
  "rand 0.8.7",
  "serde",
+ "tempfile",
  "thiserror 1.0.69",
  "toml",
  "tracing",

@@ -434,6 +434,22 @@ pub fn tool_definitions() -> Vec<ToolDefinition> {
 
 // --- Tool handlers -----------------------------------------------------------
 
+/// Known provenance classes accepted by the authority clamping policy.
+/// Unrecognized classes are normalized to "" at the MCP ingestion boundary.
+const KNOWN_PROVENANCE_CLASSES: &[&str] = &[
+    "", "inferred", "external_feed", "user_explicit", "corrected", "contradicted",
+];
+
+/// Convert a `ConflictType` to its machine-readable string representation.
+fn conflict_type_label(ct: &cmhm_core::ConflictType) -> &'static str {
+    match ct {
+        cmhm_core::ConflictType::LogicalContradiction  => "logical_contradiction",
+        cmhm_core::ConflictType::ScoreAmbiguity       => "score_ambiguity",
+        cmhm_core::ConflictType::AuthorityPolarity    => "authority_polarity",
+        cmhm_core::ConflictType::SupersessionConflict => "supersession_conflict",
+    }
+}
+
 pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let params: RetrieveParams = match serde_json::from_value(args.clone()) {
         Ok(p) => p,
@@ -444,6 +460,15 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Err(e) => return error_result(format!("Embedding decode error: {e}")),
     };
 
+    // Parse and require retrieval_intent — no unscoped retrieval from MCP.
+    let seed_type = match cmhm_core::node::NodeType::from_str(&params.retrieval_intent) {
+        Some(t) => t,
+        None => return error_result(format!(
+            "Invalid retrieval_intent {:?}. Must be one of: \"state\", \"action\", \"outcome\".",
+            params.retrieval_intent
+        )),
+    };
+
     // Generate retrieve_id before locking — UUID v4, unique per call
     let retrieve_id = Uuid::new_v4().to_string();
 
@@ -451,7 +476,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
 
-    match rt.retrieve(ctx_id, emb, &params.model_id, None) {
+    match rt.retrieve(ctx_id, emb, &params.model_id, seed_type) {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
@@ -465,7 +490,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 &session_id,
                 &ctx.id.to_string(),
                 &params.model_id,
-                &params.query_embedding[..params.query_embedding.len().min(32)], // b64 prefix
+                "[vector-query]",
                 &chain,
             );
 
@@ -473,6 +498,31 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 "## CMHM Causal Memory\n**Context**: {} ({})\n\n{}\n\n",
                 ctx.display_name, ctx.id, result.explanation
             );
+            if result.abstained {
+                text.push_str(
+                    "> ⛔ **Retrieval abstained** — conflicting memories detected and \
+                     `abstain_on_conflict` is enabled. No result returned. \
+                     Review `conflict_candidates` and resolve with `supersedes`.\n\n"
+                );
+            } else if result.conflict_detected {
+                let ctype = result.conflict_candidates.first()
+                    .map(|c| conflict_type_label(&c.conflict_type))
+                    .unwrap_or("unknown");
+                let candidates_summary: Vec<String> = result.conflict_candidates.iter()
+                    .map(|c| format!(
+                        "node {} (score={:.3}, authority={:.2}, provenance={:?}, type={})",
+                        c.node_id, c.score, c.authority, c.provenance,
+                        conflict_type_label(&c.conflict_type)
+                    ))
+                    .collect();
+                text.push_str(&format!(
+                    "> ⚠ **Conflict detected** [{}] — top-2 candidates had near-equal scores. \
+                     Higher-scored candidate selected. \
+                     Candidates: {}. Use `supersedes` on next learn to resolve.\n\n",
+                    ctype, candidates_summary.join("; ")
+                ));
+            }
+
             if result.causal_chain.is_empty() {
                 text.push_str("No relevant causal history found yet.\n");
             } else {
@@ -493,7 +543,29 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             }
             // retrieve_id: copy this into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
-            ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+
+            // Machine-readable JSON block (content[1]) — structured fields for tests and agents.
+            let structured = json!({
+                "retrieve_id":       retrieve_id,
+                "seed_id":           result.seed_id,
+                "seed_authority":    result.seed_authority,
+                "seed_provenance":   result.seed_provenance,
+                "conflict_detected": result.conflict_detected,
+                "abstained":         result.abstained,
+                "conflict_candidates": result.conflict_candidates.iter().map(|c| json!({
+                    "node_id":      c.node_id,
+                    "score":        c.score,
+                    "authority":    c.authority,
+                    "provenance":   c.provenance,
+                    "conflict_type": conflict_type_label(&c.conflict_type),
+                })).collect::<Vec<_>>(),
+                "causal_chain_len":  result.causal_chain.len(),
+            });
+            ToolCallResult {
+                content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+                isError: None,
+            }
+
         }
         Err(e) => error_result(format!("Retrieve failed: {e}")),
     }
@@ -504,6 +576,7 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Ok(p) => p,
         Err(e) => return error_result(format!("Invalid arguments: {e}")),
     };
+
     let state_emb   = match decode_embedding(&params.state_embedding)   { Ok(e) => e, Err(e) => return error_result(format!("state_embedding: {e}")) };
     let action_emb  = match decode_embedding(&params.action_embedding)  { Ok(e) => e, Err(e) => return error_result(format!("action_embedding: {e}")) };
     let outcome_emb = match decode_embedding(&params.outcome_embedding) { Ok(e) => e, Err(e) => return error_result(format!("outcome_embedding: {e}")) };
@@ -515,8 +588,31 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
 
-    match rt.learn(ctx_id, state_emb, action_emb, outcome_emb,
-                   params.prediction_error, params.emotional_tag, &params.model_id) {
+    // Normalize provenance at the MCP ingestion boundary (same policy as handle_learn_text).
+    let provenance = if KNOWN_PROVENANCE_CLASSES.contains(&params.provenance.as_str()) {
+        params.provenance
+    } else {
+        tracing::warn!(
+            "handle_learn: unknown provenance class {:?} normalized to \"\" (neutral)",
+            params.provenance
+        );
+        String::new()
+    };
+
+    // Security boundary: External MCP requests possess no authenticated session identity.
+    // All external MCP invocations are unconditionally classified as CallerRole::Agent.
+    // Privileged roles (CallerRole::User, CallerRole::System) are only reachable via internal
+    // trusted Rust runtime APIs (ContextRuntime::learn_with_context).
+    let caller_role = cmhm_core::CallerRole::Agent;
+
+    match rt.learn_with_context(
+
+        ctx_id, state_emb, action_emb, outcome_emb,
+        params.prediction_error, params.emotional_tag, &params.model_id,
+        params.authority, provenance, params.supersedes,
+        caller_role, params.assertion_key, params.polarity,
+    ) {
+
         Ok((result, ctx)) => {
             let outcome_label = if params.prediction_error <= 0.7 { "SUCCESS" } else { "FAILURE" };
             let text = format!(
@@ -731,6 +827,15 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
 
     let emb = text_to_embedding(&params.query).to_vec();
 
+    // Parse and require retrieval_intent — no unscoped retrieval from MCP.
+    let seed_type = match cmhm_core::node::NodeType::from_str(&params.retrieval_intent) {
+        Some(t) => t,
+        None => return error_result(format!(
+            "Invalid retrieval_intent {:?}. Must be one of: \"state\", \"action\", \"outcome\".",
+            params.retrieval_intent
+        )),
+    };
+
     // Generate retrieve_id before locking — UUID v4, unique per call
     let retrieve_id = Uuid::new_v4().to_string();
 
@@ -739,8 +844,7 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     let session_id = rt.session_id().to_string();
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
-    // seed_type = Some(State): text queries retrieve state context by design.
-    match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, Some(cmhm_core::node::NodeType::State)) {
+    match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, seed_type) {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
@@ -764,6 +868,31 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                 **Query**: \"{}\"\n\n{}\n\n",
                 ctx.display_name, ctx.id, params.query, result.explanation
             );
+            if result.abstained {
+                text.push_str(
+                    "> ⛔ **Retrieval abstained** — conflicting memories detected and \
+                     `abstain_on_conflict` is enabled. No result returned. \
+                     Review `conflict_candidates` and resolve with `supersedes`.\n\n"
+                );
+            } else if result.conflict_detected {
+                let ctype = result.conflict_candidates.first()
+                    .map(|c| conflict_type_label(&c.conflict_type))
+                    .unwrap_or("unknown");
+                let candidates_summary: Vec<String> = result.conflict_candidates.iter()
+                    .map(|c| format!(
+                        "node {} (score={:.3}, authority={:.2}, provenance={:?}, type={})",
+                        c.node_id, c.score, c.authority, c.provenance,
+                        conflict_type_label(&c.conflict_type)
+                    ))
+                    .collect();
+                text.push_str(&format!(
+                    "> ⚠ **Conflict detected** [{}] — top-2 candidates had near-equal scores. \
+                     Higher-scored candidate selected. \
+                     Candidates: {}. Use `supersedes` on next learn to resolve.\n\n",
+                    ctype, candidates_summary.join("; ")
+                ));
+            }
+
             if result.causal_chain.is_empty() {
                 text.push_str("No relevant causal history found yet.\n");
             } else {
@@ -780,7 +909,28 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
             }
             // retrieve_id: copy into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
-            ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+
+            // Machine-readable JSON block (content[1])
+            let structured = json!({
+                "retrieve_id":       retrieve_id,
+                "seed_id":           result.seed_id,
+                "seed_authority":    result.seed_authority,
+                "seed_provenance":   result.seed_provenance,
+                "conflict_detected": result.conflict_detected,
+                "abstained":         result.abstained,
+                "conflict_candidates": result.conflict_candidates.iter().map(|c| json!({
+                    "node_id":      c.node_id,
+                    "score":        c.score,
+                    "authority":    c.authority,
+                    "provenance":   c.provenance,
+                    "conflict_type": conflict_type_label(&c.conflict_type),
+                })).collect::<Vec<_>>(),
+                "causal_chain_len":  result.causal_chain.len(),
+            });
+            ToolCallResult {
+                content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+                isError: None,
+            }
         }
         Err(e) => error_result(format!("Retrieve failed: {e}")),
     }
@@ -854,8 +1004,36 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let gate_score = novelty * (1.0 + GATE_KAPPA * pe.abs());
     append_gate_shadow_log(&data_dir, &event_id, &ctx_id_str, novelty, pe, gate_score);
 
+    // Normalize provenance at the MCP ingestion boundary.
+    // Only recognized classes pass through; unknown strings are demoted to "" (neutral)
+    // with a warning so the authority clamping policy can enforce the correct ceiling.
+    // This does NOT authenticate the caller — it narrows the attack surface at the public API.
+    let provenance = if KNOWN_PROVENANCE_CLASSES.contains(&params.provenance.as_str()) {
+        params.provenance.clone()
+    } else {
+        tracing::warn!(
+            "handle_learn_text: unknown provenance class {:?} normalized to \"\" (neutral)",
+            params.provenance
+        );
+        String::new()
+    };
+
+    // Security boundary: External MCP requests possess no authenticated session identity.
+    // All external MCP invocations are unconditionally classified as CallerRole::Agent.
+    // Privileged roles (CallerRole::User, CallerRole::System) are only reachable via internal
+    // trusted Rust runtime APIs (ContextRuntime::learn_with_context).
+    let caller_role = cmhm_core::CallerRole::Agent;
+
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
-    match rt_lock.learn(ctx_id, state_emb, action_emb, outcome_emb, pe, eta, TEXT_MODEL_ID) {
+
+    match rt_lock.learn_with_context(
+        ctx_id, state_emb, action_emb, outcome_emb, pe, eta, TEXT_MODEL_ID,
+        params.authority, provenance, params.supersedes,
+        caller_role, params.assertion_key, params.polarity,
+    ) {
+
+
+
         Ok((result, ctx)) => {
             // Auto-tag: extract keywords and add to context routing metadata
             if auto_tag {
@@ -1151,3 +1329,4 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
         Err(e) => error_result(format!("Feedback failed: {e}")),
     }
 }
+

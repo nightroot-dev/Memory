@@ -36,6 +36,18 @@ pub enum Command {
         prediction_error: f32,
         emotional_tag: f32,
         model_id: String,
+        /// Machine-readable source-trust level ∈ [0, 1]. Stored in Node::authority.
+        authority: f32,
+        /// Caller-supplied source class (e.g. "user_explicit", "corrected", "").
+        provenance: String,
+        /// Optional ID of an existing node this learn supersedes.
+        supersedes: Option<u64>,
+        /// Authenticated caller role (User, System, Agent).
+        caller_role: crate::authority::CallerRole,
+        /// Optional semantic assertion / entity key.
+        assertion_key: Option<String>,
+        /// Optional epistemic polarity (+1 or -1).
+        polarity: Option<i8>,
         tx: mpsc::SyncSender<Result<LearnResult>>,
     },
     ExplicitEdge {
@@ -87,8 +99,22 @@ pub enum Command {
     Shutdown,
 }
 
+/// Explicit, structured error returned when a supersession invariant is violated.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum SupersessionError {
+    #[error("Supersession target node {0} does not exist in store")]
+    TargetNotFound(u64),
+    #[error("Cannot supersede node {0} of type {1:?}: only State nodes can be superseded by State nodes")]
+    CrossTypeMismatch(u64, NodeType),
+    #[error("Node {0} cannot supersede itself (self-loop)")]
+    SelfLoop(u64),
+    #[error("Node {0} has already been superseded by node {1}")]
+    AlreadySuperseded(u64, u64),
+}
+
 /// Serialisable record written to WAL for every Learn command.
 /// Must contain ALL fields needed to deterministically replay the operation.
+/// This is the legacy v1 record (WAL type byte `0x00`). New writes use `WalLearnEntryV2`.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct WalLearnEntry {
     state_emb:        Vec<f32>,
@@ -98,6 +124,32 @@ struct WalLearnEntry {
     emotional_tag:    f32,
     model_id:         String,
 }
+
+/// Serialisable record written to WAL for every Learn command (schema v3+).
+///
+/// WAL type byte: `0x02`
+///
+/// Adds `authority`, `provenance`, and `supersedes` from `Command::Learn`.
+/// Replays through `process_learn` with the full authority/provenance/supersession semantics.
+/// Old `WalLearnEntry` (type `0x00`) records replay with defaults:
+/// `authority=0.5, provenance="", supersedes=None`.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct WalLearnEntryV2 {
+    state_emb:        Vec<f32>,
+    action_emb:       Vec<f32>,
+    outcome_emb:      Vec<f32>,
+    prediction_error: f32,
+    emotional_tag:    f32,
+    model_id:         String,
+    authority:        f32,
+    provenance:       String,
+    supersedes:       Option<u64>,
+    #[serde(default)]
+    assertion_key:    Option<String>,
+    #[serde(default)]
+    polarity:         Option<i8>,
+}
+
 
 /// Serialisable record written to WAL for every applied feedback node.
 ///
@@ -127,6 +179,8 @@ struct WalFeedbackEntry {
 /// so the `_` (legacy) arm of the replay dispatch fires correctly.
 const WAL_TYPE_LEARN:    u8 = 0x00;
 const WAL_TYPE_FEEDBACK: u8 = 0x01;
+/// v3: Learn with authority + provenance + supersedes fields.
+const WAL_TYPE_LEARN_V2: u8 = 0x02;
 
 /// Result of a Learn command.
 #[derive(Debug, Clone)]
@@ -148,20 +202,22 @@ pub struct EngineHandle {
 impl EngineHandle {
     /// Retrieve the causal chain most relevant to `query_emb`.
     ///
-    /// `seed_type`: when `Some(NodeType::State)`, seed selection is restricted to State nodes.
-    /// Pass `None` for the backward-compat unscoped scan (all roles compete).
-    pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: Option<NodeType>) -> Result<RetrievalResult> {
+    /// `seed_type`: restricts seed candidate selection to nodes of that role.
+    /// This is mandatory — unscoped retrieval is not available from the public API.
+    /// Internal library code may call `retrieval::retrieve()` directly with `None`.
+    pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: NodeType) -> Result<RetrievalResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         self.tx.send(Command::Retrieve {
             query_emb,
             model_id: model_id.into(),
-            seed_type,
+            seed_type: Some(seed_type),
             tx: resp_tx,
         })?;
         resp_rx.recv()?
     }
 
-    /// Feed a (state, action, outcome) learning signal to the engine.
+
+    /// Feed a (state, action, outcome) learning signal to the engine with default trusted user context.
     pub fn learn(
         &self,
         state_emb: Vec<f32>,
@@ -170,16 +226,48 @@ impl EngineHandle {
         prediction_error: f32,
         emotional_tag: f32,
         model_id: impl Into<String>,
+        authority: f32,
+        provenance: String,
+        supersedes: Option<u64>,
+    ) -> Result<LearnResult> {
+        self.learn_with_context(
+            state_emb, action_emb, outcome_emb,
+            prediction_error, emotional_tag, model_id,
+            authority, provenance, supersedes,
+            crate::authority::CallerRole::User,
+            None,
+            None,
+        )
+    }
+
+    /// Feed a learning signal with caller ingestion role and optional semantic assertion fields.
+    pub fn learn_with_context(
+        &self,
+        state_emb: Vec<f32>,
+        action_emb: Vec<f32>,
+        outcome_emb: Vec<f32>,
+        prediction_error: f32,
+        emotional_tag: f32,
+        model_id: impl Into<String>,
+        authority: f32,
+        provenance: String,
+        supersedes: Option<u64>,
+        caller_role: crate::authority::CallerRole,
+        assertion_key: Option<String>,
+        polarity: Option<i8>,
     ) -> Result<LearnResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         self.tx.send(Command::Learn {
             state_emb, action_emb, outcome_emb,
             prediction_error, emotional_tag,
             model_id: model_id.into(),
+            authority, provenance, supersedes,
+            caller_role, assertion_key, polarity,
             tx: resp_tx,
         })?;
         resp_rx.recv()?
     }
+
 
     /// Create explicit edges between known node IDs.
     pub fn explicit_edge(&self, state_id: u64, action_id: u64, outcome_id: u64, success: bool) -> Result<()> {
@@ -357,88 +445,81 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             tracing::info!("Snapshot loaded: {} nodes", s.node_store.len());
             s
         }
-        Err(SnapshotLoadError::VersionMismatch { found, expected }) => {
-            // ── Step A: Best-effort migration from the previous schema version ─────
-            // Attempt to deserialize the raw bytes as v1 CoreState (no envelope).
-            // This only succeeds if the CoreState struct layout is unchanged between
-            // versions (e.g., only the envelope wrapper was added). For v1→v2, the
-            // birth_q30 field was added, shifting the bincode layout — likely fails.
-            match try_migrate_v1_snapshot(&snapshot_path) {
-                Ok(migrated) => {
-                    tracing::warn!(
-                        "Snapshot v{found}→v{expected} migration succeeded: {} nodes recovered. \
-                         Re-encoding as v{expected} envelope on next compaction.",
-                        migrated.node_store.len()
-                    );
-                    migrated // no data loss, no quarantine needed
-                }
-                Err(migration_err) => {
-                    // ── Step B: Migration failed — choose fail-closed or opt-in path ──
-                    tracing::error!(
-                        "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
-                         Migration attempt failed: {migration_err}."
-                    );
-
-                    if cfg.allow_incompatible_snapshot_reset {
-                        // Explicit opt-in: quarantine ALL snapshot generations so that
-                        // generation fallback cannot later load incompatible data, then
-                        // start with empty state. The renames happen BEFORE any write.
-                        let quarantine_path = snapshot_path.with_extension(
-                            format!("v{found}.incompatible")
+        Err(SnapshotLoadError::VersionMismatch { found, expected, payload }) => {
+            // Attempt deterministic v2→v3 migration
+            if found == 2 {
+                match crate::migration::migrate_v2_to_v3(&payload) {
+                    Ok(migrated) => {
+                        tracing::info!(
+                            "Snapshot v2→v3 migration succeeded: {} nodes recovered with neutral defaults.",
+                            migrated.node_store.len()
                         );
-                        match std::fs::rename(&snapshot_path, &quarantine_path) {
-                            Ok(()) => tracing::error!(
-                                "allow_incompatible_snapshot_reset=true: primary snapshot \
-                                 quarantined to {:?}. Starting with empty state; data before \
-                                 last compaction is permanently lost. WAL replay will supply \
-                                 post-compaction entries.",
-                                quarantine_path
-                            ),
-                            Err(e) => tracing::error!(
-                                "allow_incompatible_snapshot_reset=true: could not quarantine \
-                                 primary snapshot ({e}). Manual intervention required."
-                            ),
-                        }
-                        // Quarantine generation fallbacks (snapshot.bin.1, snapshot.bin.2).
-                        // Generation N has extension "bin.N" (same scheme as
-                        // persistence::generation_path). Without this, a later read_snapshot
-                        // could fall through to a valid older generation.
-                        for n in 1u32..=2 {
-                            let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
-                            if gen_path.exists() {
-                                let q = snapshot_path.with_extension(
-                                    format!("v{found}.incompatible.{n}")
-                                );
-                                if let Err(e) = std::fs::rename(&gen_path, &q) {
-                                    tracing::warn!(
-                                        "Could not quarantine snapshot generation {n}: {e}. \
-                                         Manual removal of {:?} recommended.", gen_path
+                        migrated
+                    }
+                    Err(migration_err) => {
+                        tracing::error!(
+                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                             Migration attempt failed: {migration_err}."
+                        );
+
+                        if cfg.allow_incompatible_snapshot_reset {
+                            let quarantine_path = snapshot_path.with_extension(
+                                format!("v{found}.incompatible")
+                            );
+                            let _ = std::fs::rename(&snapshot_path, &quarantine_path);
+                            for n in 1u32..=2 {
+                                let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                                if gen_path.exists() {
+                                    let q = snapshot_path.with_extension(
+                                        format!("v{found}.incompatible.{n}")
                                     );
+                                    let _ = std::fs::rename(&gen_path, &q);
                                 }
                             }
+                            CoreState::new(cfg.working_memory_size)
+                        } else {
+                            return Err(anyhow::Error::new(SchemaMismatchError {
+                                found,
+                                expected,
+                                snapshot_path: snapshot_path.clone(),
+                            }));
                         }
-                        CoreState::new(cfg.working_memory_size)
-                    } else {
-                        // Default: fail closed. The incompatible snapshot and WAL are left
-                        // UNTOUCHED at their original paths. No data is written.
-                        // A typed SchemaMismatchError is returned so callers (e.g.
-                        // ContextRuntime::ensure_loaded) can distinguish this from a
-                        // genuine WAL replay failure and preserve the context identity.
-                        return Err(anyhow::Error::new(SchemaMismatchError {
-                            found,
-                            expected,
-                            snapshot_path: snapshot_path.clone(),
-                        }));
                     }
+                }
+            } else {
+                tracing::error!(
+                    "Snapshot schema mismatch (found=v{found}, expected=v{expected})."
+                );
+
+                if cfg.allow_incompatible_snapshot_reset {
+                    let quarantine_path = snapshot_path.with_extension(
+                        format!("v{found}.incompatible")
+                    );
+                    let _ = std::fs::rename(&snapshot_path, &quarantine_path);
+                    for n in 1u32..=2 {
+                        let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                        if gen_path.exists() {
+                            let q = snapshot_path.with_extension(
+                                format!("v{found}.incompatible.{n}")
+                            );
+                            let _ = std::fs::rename(&gen_path, &q);
+                        }
+                    }
+                    CoreState::new(cfg.working_memory_size)
+                } else {
+                    return Err(anyhow::Error::new(SchemaMismatchError {
+                        found,
+                        expected,
+                        snapshot_path: snapshot_path.clone(),
+                    }));
                 }
             }
         }
         Err(SnapshotLoadError::NotFound) => {
-            tracing::info!("No snapshot — starting fresh");
+            tracing::info!("No snapshot found at {:?} — starting with empty state", snapshot_path);
             CoreState::new(cfg.working_memory_size)
         }
         Err(SnapshotLoadError::Corrupt(e)) => {
-            // Genuine corruption. Log at ERROR for monitoring. Recover via WAL.
             tracing::error!(
                 "Snapshot corrupt ({e}); all generations failed. \
                  Starting fresh and replaying WAL. Some data may be lost."
@@ -449,10 +530,6 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
 
 
     // ── Step 2: WAL replay ────────────────────────────────────────────────
-    // Dispatches on a leading type byte:
-    //   0x00 = typed Learn   (post-44e4b15)
-    //   0x01 = typed Feedback (new, this commit)
-    //   _    = legacy untyped Learn (pre-44e4b15; first byte is low byte of vec len)
     let mut replayed: usize = 0;
     let mut replay_failed = false;
     if wal_path.exists() {
@@ -469,14 +546,36 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         continue;
                     }
                     match payload[0] {
+                        WAL_TYPE_LEARN_V2 => {
+                            // v3 Learn: full authority + provenance + supersedes.
+                            match bincode::deserialize::<WalLearnEntryV2>(&payload[1..]) {
+                                Ok(cmd) => {
+                                    let _ = process_learn(
+                                        &mut state,
+                                        &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
+                                        cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        cmd.authority, cmd.provenance, cmd.supersedes,
+                                        crate::authority::CallerRole::User,
+                                        cmd.assertion_key, cmd.polarity,
+                                        &cfg,
+                                    );
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL LearnV2 decode error: {e}"),
+                            }
+                        }
                         WAL_TYPE_LEARN => {
-                            // Typed Learn record: strip type byte, then deserialize.
+                            // v1/v2 typed Learn (type 0x00): strip type byte, deserialize legacy entry.
+                            // Replay with neutral defaults for the new fields (backward compat).
                             match bincode::deserialize::<WalLearnEntry>(&payload[1..]) {
                                 Ok(cmd) => {
                                     let _ = process_learn(
                                         &mut state,
                                         &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        0.5, String::new(), None,
+                                        crate::authority::CallerRole::User,
+                                        None, None,
                                         &cfg,
                                     );
                                     replayed += 1;
@@ -501,12 +600,16 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         }
                         _ => {
                             // Legacy untyped Learn (pre-44e4b15): whole payload = WalLearnEntry.
+                            // Replay with neutral defaults for the new fields.
                             match bincode::deserialize::<WalLearnEntry>(payload) {
                                 Ok(cmd) => {
                                     let _ = process_learn(
                                         &mut state,
                                         &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        0.5, String::new(), None,
+                                        crate::authority::CallerRole::User,
+                                        None, None,
                                         &cfg,
                                     );
                                     replayed += 1;
@@ -516,70 +619,42 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         }
                     }
                 }
-                tracing::info!("WAL replay complete: {} entries replayed", replayed);
+                tracing::info!("WAL replay complete: {replayed} entries replayed into state");
             }
             Err(e) => {
-                tracing::error!("WAL read failed: {e} — replay aborted");
+                tracing::error!("Failed to read WAL at {:?}: {e}", wal_path);
                 replay_failed = true;
             }
         }
     }
 
-
-    if replay_failed {
-        return Err(anyhow::anyhow!("WAL replay failed — context cannot be recovered"));
+    if replay_failed && !cfg.allow_incompatible_snapshot_reset {
+        anyhow::bail!("WAL replay failed — refusing to start engine in inconsistent state");
     }
 
-    // ── Step 3: Checkpoint + truncate WAL ─────────────────────────────────
-    // Now that we have a consistent state (snapshot + replayed WAL),
-    // write a fresh snapshot and delete the old WAL. The next session
-    // starts with a clean WAL.
-    if replayed > 0 || wal_path.exists() {
-        tracing::info!("Writing post-replay snapshot to {:?}", snapshot_path);
-        write_snapshot(&state, &snapshot_path)?;
-        // Truncate WAL by removing it — a fresh one will be opened below
-        if let Err(e) = std::fs::remove_file(&wal_path) {
-            tracing::warn!("Could not remove old WAL {:?}: {e}", wal_path);
-        } else {
-            tracing::info!("WAL truncated after replay");
-        }
+    // ── Step 3: Compaction point ──────────────────────────────────────────
+    write_snapshot(&state, &snapshot_path)?;
+    if wal_path.exists() {
+        let _ = std::fs::remove_file(&wal_path);
     }
 
-    // ── Step 4: Load projection matrices ─────────────────────────────────
-    if cfg.projections_dir.exists() {
-        for entry in std::fs::read_dir(&cfg.projections_dir).into_iter().flatten().flatten() {
-            let path = entry.path();
-            if path.extension().map(|e| e == "bin").unwrap_or(false) {
-                let model_id = path.file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-                match std::fs::read(&path) {
-                    Ok(data) => match crate::projection::Projection::from_bytes(&data) {
-                        Ok(proj) => {
-                            state.projections.register(model_id.clone(), proj);
-                            tracing::info!("Projection loaded for model '{}'", model_id);
-                        }
-                        Err(e) => tracing::warn!("Bad projection {:?}: {}", path, e),
-                    },
-                    Err(e) => tracing::warn!("Cannot read projection {:?}: {}", path, e),
-                }
-            }
-        }
-    }
+    // ── Step 4: Open fresh WAL ────────────────────────────────────────────
+    let wal = Some(WalWriter::open(&wal_path)?);
 
-    // ── Step 5: Open fresh WAL + start worker ─────────────────────────────
-    let wal_writer = WalWriter::open(&wal_path).ok();
+    // ── Step 5: Start worker thread ───────────────────────────────────────
+    let (cmd_tx, cmd_rx) = mpsc::sync_channel::<Command>(64);
+    let worker_cfg = cfg.clone();
+    let worker_snapshot_path = snapshot_path.clone();
+    let worker_wal_path = wal_path.clone();
 
-    let (tx, rx) = mpsc::sync_channel::<Command>(64);
-    let cfg_clone = cfg.clone();
+
     std::thread::Builder::new()
         .name("cmhm-worker".to_string())
         .spawn(move || {
-            worker_loop(state, rx, wal_writer, cfg_clone, snapshot_path, wal_path);
+            worker_loop(state, cmd_rx, wal, worker_cfg, worker_snapshot_path, worker_wal_path);
         })?;
 
-    Ok(EngineHandle { tx })
+    Ok(EngineHandle { tx: cmd_tx })
 }
 
 // ─── Worker Thread ─────────────────────────────────────────────────────────
@@ -607,32 +682,41 @@ fn worker_loop(
                 let _ = tx.send(result);
             }
 
-            Command::Learn { state_emb, action_emb, outcome_emb, prediction_error, emotional_tag, model_id, tx } => {
+            Command::Learn { state_emb, action_emb, outcome_emb, prediction_error, emotional_tag, model_id, authority, provenance, supersedes, caller_role, assertion_key, polarity, tx } => {
                 let result = process_learn(
                     &mut state, &state_emb, &action_emb, &outcome_emb,
-                    prediction_error, emotional_tag, &model_id, &cfg,
+                    prediction_error, emotional_tag, &model_id,
+                    authority, provenance.clone(), supersedes,
+                    caller_role, assertion_key.clone(), polarity,
+                    &cfg,
                 );
-                // WAL append: type byte 0x00 + serialized WalLearnEntry.
-                // Type byte allows the replay loop to distinguish Learn from Feedback
-                // records. Legacy WAL files (no type byte) are handled by the `_` arm.
-                if let Some(wal) = &mut wal {
-                    let entry = WalLearnEntry {
-                        state_emb:        state_emb.clone(),
-                        action_emb:       action_emb.clone(),
-                        outcome_emb:      outcome_emb.clone(),
-                        prediction_error,
-                        emotional_tag,
-                        model_id:         model_id.clone(),
-                    };
-                    if let Ok(payload) = bincode::serialize(&entry) {
-                        let mut tagged = Vec::with_capacity(1 + payload.len());
-                        tagged.push(WAL_TYPE_LEARN);
-                        tagged.extend_from_slice(&payload);
-                        let _ = wal.append(&tagged);
+                // Atomic WAL append: ONLY write to WAL if process_learn succeeded!
+                if result.is_ok() {
+                    if let Some(wal) = &mut wal {
+                        let entry = WalLearnEntryV2 {
+                            state_emb:        state_emb.clone(),
+                            action_emb:       action_emb.clone(),
+                            outcome_emb:      outcome_emb.clone(),
+                            prediction_error,
+                            emotional_tag,
+                            model_id:         model_id.clone(),
+                            authority,
+                            provenance:       provenance.clone(),
+                            supersedes,
+                            assertion_key:    assertion_key.clone(),
+                            polarity,
+                        };
+                        if let Ok(payload) = bincode::serialize(&entry) {
+                            let mut tagged = Vec::with_capacity(1 + payload.len());
+                            tagged.push(WAL_TYPE_LEARN_V2);
+                            tagged.extend_from_slice(&payload);
+                            let _ = wal.append(&tagged);
+                        }
                     }
                 }
                 let _ = tx.send(result);
             }
+
 
             Command::ExplicitEdge { state_id, action_id, outcome_id, success, tx } => {
                 let result = process_explicit_edge(&mut state, state_id, action_id, outcome_id, success);
@@ -764,11 +848,11 @@ fn process_retrieve(
         cfg.retrieval_curiosity_threshold,
         seed_type,
         cfg.retrieval_authority_weight,
-        cfg.retrieval_recency_weight,
-        cfg.retrieval_recency_lambda,
-        now_secs() as i64,
+        cfg.conflict_detection_threshold,
+        cfg.abstain_on_conflict,
     ))
 }
+
 
 fn process_learn(
     state: &mut CoreState,
@@ -778,15 +862,29 @@ fn process_learn(
     epsilon: f32,
     eta: f32,
     model_id: &str,
+    authority: f32,
+    provenance: String,
+    supersedes: Option<u64>,
+    caller_role: crate::authority::CallerRole,
+    assertion_key: Option<String>,
+    polarity: Option<i8>,
     cfg: &Config,
 ) -> Result<LearnResult> {
     let now = now_secs() as f32;
 
+    // B6: Supersession validation BEFORE node creation and BEFORE any mutation.
+    if let Some(old_id) = supersedes {
+        let old_node = state.node_store.get(old_id)
+            .ok_or_else(|| SupersessionError::TargetNotFound(old_id))?;
+        if old_node.node_type != NodeType::State {
+            return Err(SupersessionError::CrossTypeMismatch(old_id, old_node.node_type).into());
+        }
+        if let Some(existing_successor) = old_node.superseded_by {
+            return Err(SupersessionError::AlreadySuperseded(old_id, existing_successor).into());
+        }
+    }
+
     // Project all three embeddings into node-store space.
-    // For hash embedder: raw_* is 128-dim → project → 128-dim [f32; EMBED_DIM]
-    // For onnx embedder: raw_* is 384-dim → project → still 128-dim (projection compresses)
-    // The Vec<f32> wrappers let node_store hold any dim; we use the projected [f32; EMBED_DIM]
-    // for dense_core (fixed at 128-dim until Stage 4) and full raw for node storage.
     let state_proj  = state.projections.project(model_id, raw_state)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     let action_proj = state.projections.project(model_id, raw_action)
@@ -794,14 +892,25 @@ fn process_learn(
     let outcome_proj = state.projections.project(model_id, raw_outcome)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    // Store the raw (pre-projection) embedding in the node for semantic fidelity.
-    // When onnx is active, this is 384-dim MiniLM. When hash: 128-dim.
-    // Dense core always uses the projected 128-dim vector (compatible with EMBED_DIM).
-    let state_id  = birth_node(&mut *state, raw_state.to_vec(),  &state_proj,  model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64);
-    let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64);
-    let outcome_id= birth_node(&mut *state, raw_outcome.to_vec(),&outcome_proj,model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64);
+    // B4: Authenticate caller role and clamp authority to authorized class bounds.
+    let (authority, provenance) = crate::authority::authenticate_and_clamp(authority, &provenance, caller_role);
 
-    // Edge birth is triggered automatically inside birth_node via working memory.
+    // Birth nodes
+    let state_id  = birth_node(&mut *state, raw_state.to_vec(),  &state_proj,  model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity);
+    let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None);
+    let outcome_id= birth_node(&mut *state, raw_outcome.to_vec(),&outcome_proj,model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None);
+
+    // B6: Apply supersession link to old node
+    if let Some(old_id) = supersedes {
+        if old_id == state_id {
+            // Dedup returned existing node -> self-loop
+            return Err(SupersessionError::SelfLoop(old_id).into());
+        }
+        if let Some(old_node) = state.node_store.get_mut(old_id) {
+            old_node.superseded_by = Some(state_id);
+            tracing::debug!("Node {} superseded by {}", old_id, state_id);
+        }
+    }
 
     // Update the CausalHypothesis edge Action→Outcome
     update_causal_edge(state, action_id, outcome_id, epsilon, now, cfg);
@@ -819,12 +928,8 @@ fn process_learn(
     Ok(LearnResult { state_node_id: state_id, action_node_id: action_id, outcome_node_id: outcome_id })
 }
 
+
 /// Create or find a node for an embedding, following the birth decision logic.
-///
-/// Parameters:
-/// - `full_emb`: the raw embedding (any dim) to store in the node
-/// - `proj_emb`: the projected 128-dim embedding used for similarity + dense core
-/// - `model_id`: stamped on the node (N3)
 fn birth_node(
     state: &mut CoreState,
     full_emb: Vec<f32>,
@@ -834,36 +939,24 @@ fn birth_node(
     eta: f64,
     node_type: NodeType,
     timestamp: i64,
+    authority: f32,
+    provenance: String,
+    assertion_key: Option<String>,
+    polarity: Option<i8>,
 ) -> u64 {
     // Salience calculation
     let salience = state.salience_engine.update_and_calc(epsilon, eta) as f32;
 
     // Novelty check: only compare against nodes of the same role.
-    // Prevents cross-role EMA contamination (e.g. STATE emb vs stored ACTION nodes)
-    // which inflated max_cosine by ~0.34, compressing the usable gate range.
     let nearest = state.node_store.nearest_by_type(proj_emb, model_id, 1, node_type);
     let cos_max = nearest.first().map(|(_, c)| *c).unwrap_or(-1.0);
 
-    // Adaptive birth gate: admit when max_cosine falls in the bottom 30th percentile
-    // of observed values. The Robbins–Monro estimator updates birth_q30 on every call,
-    // so the threshold self-calibrates as the store grows.
-    //
-    // Update rule (p = 0.30, lr = 0.01):
-    //   err = cos_max - birth_q30
-    //   birth_q30 += 0.01 * (0.30 - I[err < 0.0])
-    //
-    // E[max cosine over N random 128-dim unit vectors] ≈ 0.0884 * √(2 ln N).
-    // At N=10k this is ~0.33 — a fixed τ=0.55 would work; with real embeddings
-    // (MiniLM unrelated pairs: 0.1–0.3) the max easily exceeds 0.55, collapsing birth.
-    // The quantile adapts to whichever backend and dimension is actually in use.
     let lr = 0.01_f32;
     let indicator = if cos_max < state.birth_q30 { 1.0_f32 } else { 0.0_f32 };
     state.birth_q30 += lr * (0.30 - indicator);
-    // Clamp to valid cosine range to guard against warm-up drift.
     state.birth_q30 = state.birth_q30.clamp(0.01, 0.99);
 
     let should_birth = cos_max < state.birth_q30 || salience > 0.70 || epsilon > 0.5;
-
 
     if should_birth {
         // Update global EMA with full_emb (tracks semantic centroid)
@@ -877,7 +970,8 @@ fn birth_node(
             arr
         };
 
-        let node = Node::new(blended, model_id.to_string(), salience, timestamp, eta as f32, node_type);
+        let node = Node::new(blended, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
+            .with_assertion(assertion_key, polarity);
         let id = state.node_store.insert(node);
 
         // Edge birth: connect to each node in working memory
@@ -890,14 +984,15 @@ fn birth_node(
     } else {
         // Return the nearest existing node
         nearest.first().map(|(id, _)| *id).unwrap_or_else(|| {
-            // Fallback: insert anyway
-            let node = Node::new(full_emb, model_id.to_string(), salience, timestamp, eta as f32, node_type);
+            let node = Node::new(full_emb, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
+                .with_assertion(assertion_key, polarity);
             state.node_store.insert(node)
         })
     }
 }
 
 /// Edge birth: for each node in working memory (excluding `new_id`), attempt inferred edge.
+
 /// `new_emb` is the projected 128-dim embedding used for dense-core updates.
 fn trigger_edge_birth(state: &mut CoreState, new_id: u64, new_ts: i64, new_emb: &[f32; EMBED_DIM]) {
     let lambda_t = 0.0001_f32;

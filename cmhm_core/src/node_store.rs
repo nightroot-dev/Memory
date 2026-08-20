@@ -18,8 +18,9 @@ pub struct NodeStore {
     /// Primary storage: NodeId → Node
     pub nodes: HashMap<u64, Node>,
     /// Next ID counter (monotonically increasing)
-    next_id: u64,
+    pub next_id: u64,
     /// Global exponential moving average of all embeddings.
+
     /// Stored as Vec<f32> to match the active embedder's dimension.
     /// Reset to zeros when the embedder dimension changes.
     pub global_ema: Vec<f32>,
@@ -260,7 +261,7 @@ mod tests {
         let mut emb = vec![0.0f32; 128];
         emb[0] = v;
         let emb = l2_normalize(&emb);
-        Node::new(emb, model_id.to_string(), 0.5, 0, 0.0, node_type)
+        Node::new(emb, model_id.to_string(), 0.5, 0, 0.0, node_type, 0.5, String::new())
     }
 
     #[test]
@@ -277,8 +278,8 @@ mod tests {
         let mut e1 = vec![0.0f32; 128]; e1[0] = 1.0;
         let mut e2 = vec![0.0f32; 128]; e2[1] = 1.0;
         let mut store = NodeStore::new();
-        store.insert(Node::new(l2_normalize(&e1), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State));
-        store.insert(Node::new(l2_normalize(&e2), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State));
+        store.insert(Node::new(l2_normalize(&e1), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State, 0.5, String::new()));
+        store.insert(Node::new(l2_normalize(&e2), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State, 0.5, String::new()));
 
         let mut query = vec![0.0f32; 128]; query[0] = 1.0;
         let results = store.nearest(&query, "hash-128d", 1);
@@ -291,9 +292,9 @@ mod tests {
         let mut store = NodeStore::new();
         let mut e1 = vec![0.0f32; 128]; e1[0] = 1.0;
         // Insert one hash node and one fake "minilm" node (same dim for test)
-        store.insert(Node::new(l2_normalize(&e1), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State));
+        store.insert(Node::new(l2_normalize(&e1), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State, 0.5, String::new()));
         let mut e2 = vec![0.0f32; 128]; e2[0] = 0.99;
-        store.insert(Node::new(l2_normalize(&e2), "minilm-l6-v2-int8".into(), 0.5, 0, 0.0, NodeType::State));
+        store.insert(Node::new(l2_normalize(&e2), "minilm-l6-v2-int8".into(), 0.5, 0, 0.0, NodeType::State, 0.5, String::new()));
 
         let query = l2_normalize(&e1);
         // hash-128d query should only see the hash-128d node
@@ -352,10 +353,12 @@ mod tests {
     fn test_global_ema_updates() {
         let mut store = NodeStore::new();
         let emb = l2_normalize(&vec![1.0f32; 128]);
-        store.insert(Node::new(emb.clone(), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State));
+        store.insert(Node::new(emb.clone(), "hash-128d".into(), 0.5, 0, 0.0, NodeType::State, 0.5, String::new()));
         store.update_global_ema(&emb);
         // EMA should be nonzero after update
         let sum: f32 = store.global_ema.iter().sum();
         assert!(sum > 0.0, "EMA should be updated");
     }
 }
+
+

@@ -143,7 +143,7 @@ fn project_detect_with_empty_args_succeeds() {
 fn memory_retrieve_text_with_empty_store_returns_empty_chain() {
     let tmp = TempDir::new().unwrap();
     let rt = make_runtime(&tmp);
-    let args = json!({"query": "rust compiler error linker not found"});
+    let args = json!({"query": "rust compiler error linker not found", "retrieval_intent": "state"});
     let result = dispatch("memory_retrieve_text", &rt, &args).unwrap();
     assert_ne!(result.isError, Some(true), "retrieve on empty store must not error");
     let text = result.content.first().map(|c| c.text.as_str());
@@ -167,10 +167,11 @@ fn memory_learn_text_roundtrip() {
     assert_ne!(learn_result.isError, Some(true), "memory_learn_text must succeed: {:?}", learn_result.content);
 
     // Retrieve — must find something (chain won't be empty after learning)
-    let retrieve_args = json!({"query": "cargo build linker error"});
+    let retrieve_args = json!({"query": "cargo build linker error", "retrieval_intent": "state"});
     let retrieve_result = dispatch("memory_retrieve_text", &rt, &retrieve_args).unwrap();
     assert_ne!(retrieve_result.isError, Some(true), "retrieve after learn must not error");
 }
+
 
 // ── Test 4: UNKNOWN tool → dispatch returns None ─────────────────────────────
 
@@ -251,7 +252,8 @@ fn feedback_idempotent_across_restart() {
         dispatch("memory_learn_text", &rt, &learn_args).unwrap();
 
         // Retrieve to get node IDs
-        let ret = dispatch("memory_retrieve_text", &rt, &json!({"query": "borrow checker"})).unwrap();
+        let ret = dispatch("memory_retrieve_text", &rt, &json!({"query": "borrow checker", "retrieval_intent": "state"})).unwrap();
+
         assert_ne!(ret.isError, Some(true));
 
         // Apply feedback with a known retrieve_id (normally from the retrieve response)
@@ -385,7 +387,8 @@ fn feedback_double_apply_beta_stays_bounded() {
     assert_ne!(r2.isError, Some(true), "Second apply (crash replay) must succeed, not panic");
 
     // Retrieve — must still work, causal graph not corrupted
-    let ret = dispatch("memory_retrieve_text", &rt, &json!({"query": "beta boundary"})).unwrap();
+    let ret = dispatch("memory_retrieve_text", &rt, &json!({"query": "beta boundary", "retrieval_intent": "state"})).unwrap();
+
     assert_ne!(ret.isError, Some(true), "Retrieve after double apply must succeed");
 }
 
@@ -523,3 +526,448 @@ fn shadow_gate_never_suppresses_insertion() {
     })).unwrap();
     assert_ne!(r3.isError, Some(true), "Subsequent learn after low-novelty inserts must succeed");
 }
+
+
+// ── Test 13: E1a–E1f — Explicit Retrieval Intent Enforcement ──────────────────
+
+fn dummy_embedding(dim_idx: usize) -> String {
+    let mut v = vec![0.0f32; 128];
+    if dim_idx < 128 {
+        v[dim_idx] = 1.0;
+    }
+    tools::encode_embedding(&v)
+}
+
+fn parse_content_json(result: &cmhm_mcp_lib::schema::ToolCallResult) -> Value {
+    assert!(result.content.len() >= 2, "Expected at least 2 content items, got {}", result.content.len());
+    let raw = &result.content[1].text;
+    let trimmed = raw.trim();
+    let json_str = trimmed
+        .strip_prefix("```json")
+        .and_then(|s| s.strip_suffix("```"))
+        .unwrap_or(trimmed)
+        .trim();
+    serde_json::from_str(json_str).expect("content[1] must be valid JSON")
+}
+
+#[test]
+fn e1a_memory_retrieve_missing_intent_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    let args = json!({
+        "query_embedding": dummy_embedding(0),
+    });
+    let result = dispatch("memory_retrieve", &rt, &args).unwrap();
+    assert_eq!(result.isError, Some(true), "memory_retrieve without retrieval_intent must return error");
+    let text = &result.content[0].text;
+    assert!(text.contains("missing field `retrieval_intent`") || text.contains("retrieval_intent"),
+            "Error text should mention retrieval_intent: {text}");
+}
+
+#[test]
+fn e1b_memory_retrieve_unknown_intent_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    let args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "invalid_role_intent",
+    });
+    let result = dispatch("memory_retrieve", &rt, &args).unwrap();
+    assert_eq!(result.isError, Some(true), "memory_retrieve with invalid retrieval_intent must return error");
+    let text = &result.content[0].text;
+    assert!(text.contains("Invalid retrieval_intent"), "Error should explain invalid intent: {text}");
+}
+
+#[test]
+fn e1c_memory_retrieve_valid_intent_succeeds() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    for intent in ["state", "action", "outcome"] {
+        let args = json!({
+            "query_embedding": dummy_embedding(0),
+            "retrieval_intent": intent,
+        });
+        let result = dispatch("memory_retrieve", &rt, &args).unwrap();
+        assert_ne!(result.isError, Some(true), "memory_retrieve with intent={intent} must succeed");
+        let structured = parse_content_json(&result);
+        assert!(structured.get("retrieve_id").is_some());
+        assert_eq!(structured["abstained"], false);
+    }
+}
+
+#[test]
+fn e1d_memory_retrieve_text_missing_intent_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    let args = json!({
+        "query": "how to configure database connection",
+    });
+    let result = dispatch("memory_retrieve_text", &rt, &args).unwrap();
+    assert_eq!(result.isError, Some(true), "memory_retrieve_text without retrieval_intent must return error");
+}
+
+#[test]
+fn e1e_memory_retrieve_text_unknown_intent_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    let args = json!({
+        "query": "how to configure database connection",
+        "retrieval_intent": "random_intent_123",
+    });
+    let result = dispatch("memory_retrieve_text", &rt, &args).unwrap();
+    assert_eq!(result.isError, Some(true), "memory_retrieve_text with invalid intent must return error");
+    let text = &result.content[0].text;
+    assert!(text.contains("Invalid retrieval_intent"), "Error should explain invalid intent: {text}");
+}
+
+#[test]
+fn e1f_memory_retrieve_text_valid_intents_succeed() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    for intent in ["state", "action", "outcome"] {
+        let args = json!({
+            "query": "cargo build failed",
+            "retrieval_intent": intent,
+        });
+        let result = dispatch("memory_retrieve_text", &rt, &args).unwrap();
+        assert_ne!(result.isError, Some(true), "memory_retrieve_text with intent={intent} must succeed");
+        let structured = parse_content_json(&result);
+        assert!(structured.get("retrieve_id").is_some());
+        assert_eq!(structured["abstained"], false);
+    }
+}
+
+#[test]
+fn e1g_conflict_structured_json_fields() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = Config {
+        data_dir: tmp.path().to_path_buf(),
+        conflict_detection_threshold: 0.5,
+        abstain_on_conflict: false,
+        ..Config::default()
+    };
+    let rt = Arc::new(Mutex::new(ContextRuntime::new(cfg, "test-conflict".to_string()).unwrap()));
+
+    // Learn 1: corrected node
+    let l1 = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.85,
+        "provenance": "corrected",
+    });
+    let r1 = dispatch("memory_learn", &rt, &l1).unwrap();
+    assert_ne!(r1.isError, Some(true));
+
+    // Learn 2: contradicted node
+    let l2 = json!({
+        "state_embedding": dummy_embedding(1),
+        "action_embedding": dummy_embedding(3),
+        "outcome_embedding": dummy_embedding(4),
+        "prediction_error": 0.5,
+        "authority": 0.05,
+        "provenance": "contradicted",
+    });
+    let r2 = dispatch("memory_learn", &rt, &l2).unwrap();
+    assert_ne!(r2.isError, Some(true));
+
+    // Midpoint query vector
+    let mut q = vec![0.0f32; 128];
+    q[0] = 1.0 / 2.0_f32.sqrt();
+    q[1] = 1.0 / 2.0_f32.sqrt();
+    let q_emb = tools::encode_embedding(&q);
+
+    let ret_args = json!({
+        "query_embedding": q_emb,
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    assert_ne!(result.isError, Some(true));
+
+    let structured = parse_content_json(&result);
+    assert!(structured.get("retrieve_id").is_some());
+    assert!(structured.get("seed_authority").is_some());
+    assert!(structured.get("seed_provenance").is_some());
+    assert_eq!(structured["abstained"], false);
+
+    if structured["conflict_detected"] == true {
+        let candidates = structured["conflict_candidates"].as_array().unwrap();
+        assert!(!candidates.is_empty(), "conflict_candidates must not be empty when conflict_detected is true");
+        for c in candidates {
+            assert!(c.get("node_id").is_some());
+            assert!(c.get("score").is_some());
+            assert!(c.get("authority").is_some());
+            assert!(c.get("provenance").is_some());
+            assert!(c.get("conflict_type").is_some());
+        }
+    }
+}
+
+#[test]
+fn e1h_abstain_structured_json_fields() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = Config {
+        data_dir: tmp.path().to_path_buf(),
+        conflict_detection_threshold: 0.5,
+        abstain_on_conflict: true,
+        ..Config::default()
+    };
+    let rt = Arc::new(Mutex::new(ContextRuntime::new(cfg, "test-abstain".to_string()).unwrap()));
+
+    // Learn 1: corrected node
+    let l1 = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.85,
+        "provenance": "corrected",
+    });
+    dispatch("memory_learn", &rt, &l1).unwrap();
+
+    // Learn 2: contradicted node
+    let l2 = json!({
+        "state_embedding": dummy_embedding(1),
+        "action_embedding": dummy_embedding(3),
+        "outcome_embedding": dummy_embedding(4),
+        "prediction_error": 0.5,
+        "authority": 0.05,
+        "provenance": "contradicted",
+    });
+    dispatch("memory_learn", &rt, &l2).unwrap();
+
+    let mut q = vec![0.0f32; 128];
+    q[0] = 1.0 / 2.0_f32.sqrt();
+    q[1] = 1.0 / 2.0_f32.sqrt();
+    let q_emb = tools::encode_embedding(&q);
+
+    let ret_args = json!({
+        "query_embedding": q_emb,
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    assert_ne!(result.isError, Some(true));
+
+    let structured = parse_content_json(&result);
+    if structured["conflict_detected"] == true {
+        assert_eq!(structured["abstained"], true, "Should abstain when conflict_detected and abstain_on_conflict=true");
+        assert_eq!(structured["causal_chain_len"], 0, "Causal chain must be empty on abstain");
+    }
+}
+
+#[test]
+fn e1i_mcp_caller_claims_user_explicit_is_downgraded() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // MCP caller claims user_explicit / 1.0 -> must be unconditionally downgraded to inferred / 0.60
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 1.0,
+        "provenance": "user_explicit",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let ret_args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    let structured = parse_content_json(&result);
+    assert_eq!(structured["seed_provenance"], "inferred", "MCP caller claiming user_explicit must be downgraded to inferred");
+    assert!((structured["seed_authority"].as_f64().unwrap() - 0.60).abs() < 1e-4, "MCP authority must be clamped to 0.60 ceiling");
+}
+
+#[test]
+fn e1j_mcp_payload_claiming_caller_role_user_cannot_forge_privilege() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // An adversarial MCP client attempts to pass caller_role: "user" in payload -> ignored / downgraded
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 1.0,
+        "provenance": "user_explicit",
+        "caller_role": "user",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let ret_args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    let structured = parse_content_json(&result);
+    // Payload caller_role: "user" MUST NOT grant privileged authority!
+    assert_eq!(structured["seed_provenance"], "inferred", "caller_role in MCP payload must not grant user_explicit");
+    assert!((structured["seed_authority"].as_f64().unwrap() - 0.60).abs() < 1e-4, "authority must remain clamped to 0.60");
+}
+
+#[test]
+fn e1l_direct_internal_rust_runtime_preserves_user_explicit() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = Config {
+        data_dir: tmp.path().to_path_buf(),
+        ..Config::default()
+    };
+    let mut rt = ContextRuntime::new(cfg, "internal-trusted".to_string()).unwrap();
+
+    // Internal trusted call directly through Rust API with CallerRole::User
+    let mut s_emb = vec![0.0f32; 128];
+    s_emb[0] = 1.0;
+    let mut a_emb = vec![0.0f32; 128];
+    a_emb[1] = 1.0;
+    let mut o_emb = vec![0.0f32; 128];
+    o_emb[2] = 1.0;
+
+    let (learn_res, _) = rt.learn_with_context(
+        None, s_emb.clone(), a_emb, o_emb, 0.5, 0.5, "hash-128d",
+        1.0, "user_explicit".to_string(), None,
+        cmhm_core::CallerRole::User, None, None,
+    ).unwrap();
+    assert!(learn_res.state_node_id > 0);
+
+    let (ret_res, _) = rt.retrieve(None, s_emb, "hash-128d", cmhm_core::NodeType::State).unwrap();
+    assert_eq!(ret_res.seed_provenance, "user_explicit");
+    assert!((ret_res.seed_authority - 1.00).abs() < 1e-4);
+}
+
+#[test]
+fn e1m_mcp_external_feed_is_capped_to_0_60() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.90,
+        "provenance": "external_feed",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let ret_args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    let structured = parse_content_json(&result);
+    assert_eq!(structured["seed_provenance"], "inferred", "external_feed via MCP must normalize to inferred");
+    assert!((structured["seed_authority"].as_f64().unwrap() - 0.60).abs() < 1e-4, "authority must be capped to 0.60");
+}
+
+#[test]
+fn e1n_mcp_whitespace_casing_variants_are_capped_to_0_60() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 1.0,
+        "provenance": "  USER_EXPLICIT \t\n",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let ret_args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    let structured = parse_content_json(&result);
+    assert_eq!(structured["seed_provenance"], "inferred");
+    assert!((structured["seed_authority"].as_f64().unwrap() - 0.60).abs() < 1e-4);
+}
+
+#[test]
+fn e1o_mcp_unknown_provenance_is_capped_to_0_60() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.99,
+        "provenance": "malicious_unrecognized_provenance_string",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let ret_args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    let structured = parse_content_json(&result);
+    assert_eq!(structured["seed_provenance"], "inferred");
+    assert!((structured["seed_authority"].as_f64().unwrap() - 0.60).abs() < 1e-4);
+}
+
+#[test]
+fn e1p_mcp_contradicted_is_capped_to_0_30() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.80,
+        "provenance": "contradicted",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let ret_args = json!({
+        "query_embedding": dummy_embedding(0),
+        "retrieval_intent": "state",
+    });
+    let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+    let structured = parse_content_json(&result);
+    assert_eq!(structured["seed_provenance"], "contradicted");
+    assert!((structured["seed_authority"].as_f64().unwrap() - 0.30).abs() < 1e-4, "contradicted must be capped at 0.30");
+}
+
+
+#[test]
+fn e1k_invalid_supersession_returns_error_result() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 1.0,
+        "provenance": "user_explicit",
+        "supersedes": 999999999u64,
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "Invalid supersession target must return isError=true");
+    let err_msg = &r.content[0].text;
+    assert!(err_msg.contains("999999999 does not exist in store"), "Error message must reflect TargetNotFound, got: {err_msg}");
+}
+
+
+
+
+
+
