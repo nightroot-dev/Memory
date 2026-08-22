@@ -47,7 +47,7 @@ Run-Step "Git Status" "git status --porcelain"
 
 Log-Section "2. IMMUTABLE FIXTURE CRYPTOGRAPHIC VERIFICATION"
 
-# Expected fixture hashes and sizes — fail closed if any mismatch.
+# Expected fixture hashes and sizes - fail closed if any mismatch.
 $expectedFixtures = @{
     "v2_snapshot.bin"  = @{ Size = 792317; SHA256 = "121DDF7A3ED658DFED4F9FFE4C152D801653CC7DB12A914494EF2860EB4D1C9F" }
     "legacy_v0_wal.dat" = @{ Size = 1598;  SHA256 = "BBAF6EC70F724CE439C33859DD3283255A287C655A2AFD9D79DF6B568ED28C2C" }
@@ -80,11 +80,12 @@ foreach ($f in $fixtures) {
         }
     } else {
         $global:failedSteps++
-        $errMsg = "  FAIL: Unexpected fixture $($f.Name) — no expected hash registered. Register or remove it."
+        $errMsg = "  FAIL: Unexpected fixture $($f.Name) - no expected hash registered. Register or remove it."
         Write-Error $errMsg
         Add-Content -Path $logFile -Value $errMsg
     }
 }
+
 
 
 Log-Section "3. FULL UNFILTERED WORKSPACE TEST BATTERY"
