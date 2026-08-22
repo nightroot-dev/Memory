@@ -967,7 +967,275 @@ fn e1k_invalid_supersession_returns_error_result() {
 }
 
 
+// =============================================================================
+// E1q–E1t: Non-finite input rejection at MCP boundary
+//
+// NaN, +Inf, and -Inf must be rejected with isError=true before reaching engine.
+// =============================================================================
 
+#[test]
+fn e1q_mcp_nan_authority_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
 
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": f32::NAN,
+        "provenance": "inferred",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "E1q: NaN authority must return isError=true");
+}
+
+#[test]
+fn e1r_mcp_inf_authority_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": f32::INFINITY,
+        "provenance": "inferred",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "E1r: +Inf authority must return isError=true");
+}
+
+#[test]
+fn e1s_mcp_nan_prediction_error_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": f32::NAN,
+        "authority": 0.5,
+        "provenance": "inferred",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "E1s: NaN prediction_error must return isError=true");
+}
+
+#[test]
+fn e1t_mcp_text_nan_authority_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let learn_args = json!({
+        "state": "test state",
+        "action": "test action",
+        "outcome": "test outcome",
+        "prediction_error": 0.5,
+        "authority": f32::NAN,
+        "provenance": "inferred",
+    });
+    let r = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "E1t: NaN authority via text endpoint must return isError=true");
+}
+
+// =============================================================================
+// E1u–E1v: WAL recovery through MCP endpoints preserves authority ceiling
+//
+// Tests that an adversarial Agent claim (authority=1.0, provenance="user_explicit")
+// submitted through each MCP learn endpoint (memory_learn and memory_learn_text)
+// survives WAL-only recovery with the clamped values (authority≤0.60,
+// provenance="inferred") still in effect.
+// =============================================================================
+
+#[test]
+fn e1u_mcp_wal_recovery_preserves_agent_ceiling() {
+    let tmp = TempDir::new().unwrap();
+
+    // Session 1: learn adversarial Agent claim through MCP tool
+    let ctx_uuid = {
+        let rt = make_runtime(&tmp);
+
+        let learn_args = json!({
+            "state_embedding": dummy_embedding(0),
+            "action_embedding": dummy_embedding(1),
+            "outcome_embedding": dummy_embedding(2),
+            "prediction_error": 0.5,
+            "authority": 1.0,
+            "provenance": "user_explicit",
+        });
+        let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+        assert_ne!(r.isError, Some(true), "E1u: learn must succeed: {:?}", r.content[0].text);
+
+        // Verify live ceiling via MCP retrieve
+        let ret_args = json!({
+            "query_embedding": dummy_embedding(0),
+            "retrieval_intent": "state",
+        });
+        let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+        let structured = parse_content_json(&result);
+        let live_auth = structured["seed_authority"].as_f64().unwrap();
+        assert!(live_auth <= 0.60 + 1e-4,
+            "E1u live: MCP Agent authority must be ≤0.60, got {live_auth}");
+        assert_eq!(structured["seed_provenance"], "inferred",
+            "E1u live: MCP Agent provenance must be 'inferred'");
+
+        rt.lock().shutdown();
+        "default".to_string()
+    };
+
+    // Session 2: delete snapshot, force WAL-only recovery, verify ceiling holds
+    let ctx_dir = tmp.path().join("contexts").join(&ctx_uuid);
+    if ctx_dir.exists() {
+        let _ = std::fs::remove_file(ctx_dir.join("snapshot.bin"));
+    }
+
+    {
+        let rt = make_runtime(&tmp);
+
+        let ret_args = json!({
+            "query_embedding": dummy_embedding(0),
+            "retrieval_intent": "state",
+        });
+        let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
+        let structured = parse_content_json(&result);
+        let recovered_auth = structured["seed_authority"].as_f64().unwrap();
+        assert!(recovered_auth <= 0.60 + 1e-4,
+            "E1u WAL recovery: authority must still be ≤0.60 after WAL-only restart, got {recovered_auth}");
+        assert_eq!(structured["seed_provenance"], "inferred",
+            "E1u WAL recovery: provenance must still be 'inferred' after WAL-only restart");
+
+        rt.lock().shutdown();
+    }
+}
+
+#[test]
+fn e1v_mcp_text_wal_recovery_preserves_agent_ceiling() {
+    let tmp = TempDir::new().unwrap();
+
+    // Session 1: learn adversarial Agent claim through MCP text tool
+    let ctx_uuid = {
+        let rt = make_runtime(&tmp);
+
+        let learn_args = json!({
+            "state": "agent adversarial state description",
+            "action": "agent adversarial action description",
+            "outcome": "agent adversarial outcome description",
+            "prediction_error": 0.5,
+            "authority": 1.0,
+            "provenance": "user_explicit",
+        });
+        let r = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+        assert_ne!(r.isError, Some(true), "E1v: learn_text must succeed: {:?}", r.content[0].text);
+
+        // Verify live ceiling via MCP text retrieve
+        let ret_args = json!({
+            "query": "agent adversarial state",
+            "retrieval_intent": "state",
+        });
+        let result = dispatch("memory_retrieve_text", &rt, &ret_args).unwrap();
+        let structured = parse_content_json(&result);
+        let live_auth = structured["seed_authority"].as_f64().unwrap();
+        assert!(live_auth <= 0.60 + 1e-4,
+            "E1v live: MCP text Agent authority must be ≤0.60, got {live_auth}");
+        assert_eq!(structured["seed_provenance"], "inferred",
+            "E1v live: MCP text Agent provenance must be 'inferred'");
+
+        rt.lock().shutdown();
+        "default".to_string()
+    };
+
+    // Session 2: delete snapshot, force pure WAL-only recovery, verify ceiling holds
+    let ctx_dir = tmp.path().join("contexts").join(&ctx_uuid);
+    if ctx_dir.exists() {
+        let _ = std::fs::remove_file(ctx_dir.join("snapshot.bin"));
+    }
+
+    {
+        let rt = make_runtime(&tmp);
+
+        let ret_args = json!({
+            "query": "agent adversarial state",
+            "retrieval_intent": "state",
+        });
+        let result = dispatch("memory_retrieve_text", &rt, &ret_args).unwrap();
+        let structured = parse_content_json(&result);
+        let recovered_auth = structured["seed_authority"].as_f64().unwrap();
+        assert!(recovered_auth <= 0.60 + 1e-4,
+            "E1v WAL recovery: authority must still be ≤0.60 after WAL-only restart, got {recovered_auth}");
+        assert_eq!(structured["seed_provenance"], "inferred",
+            "E1v WAL recovery: provenance must still be 'inferred' after WAL-only restart");
+
+        rt.lock().shutdown();
+    }
+}
+
+// =============================================================================
+// E1w–E1x: Non-finite embedding values rejected at MCP boundary
+// =============================================================================
+
+#[test]
+fn e1w_mcp_nan_in_embedding_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let mut bytes = Vec::with_capacity(128 * 4);
+    for i in 0..128 {
+        if i == 0 {
+            bytes.extend_from_slice(&f32::NAN.to_le_bytes());
+        } else {
+            bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        }
+    }
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+    let learn_args = json!({
+        "state_embedding": b64,
+        "action_embedding": dummy_embedding(1),
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.5,
+        "provenance": "inferred",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "E1w: NaN in embedding must return isError=true");
+    let msg = &r.content[0].text;
+    assert!(msg.contains("non-finite") || msg.contains("NaN"),
+        "E1w: error message must mention non-finite, got: {msg}");
+}
+
+#[test]
+fn e1x_mcp_inf_in_embedding_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let mut bytes = Vec::with_capacity(128 * 4);
+    for i in 0..128 {
+        if i == 0 {
+            bytes.extend_from_slice(&f32::INFINITY.to_le_bytes());
+        } else {
+            bytes.extend_from_slice(&0.0f32.to_le_bytes());
+        }
+    }
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+    let learn_args = json!({
+        "state_embedding": dummy_embedding(0),
+        "action_embedding": b64,
+        "outcome_embedding": dummy_embedding(2),
+        "prediction_error": 0.5,
+        "authority": 0.5,
+        "provenance": "inferred",
+    });
+    let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
+    assert_eq!(r.isError, Some(true), "E1x: Inf in embedding must return isError=true");
+    let msg = &r.content[0].text;
+    assert!(msg.contains("non-finite") || msg.contains("Inf"),
+        "E1x: error message must mention non-finite, got: {msg}");
+}
 
 

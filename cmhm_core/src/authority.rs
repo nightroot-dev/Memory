@@ -94,6 +94,13 @@ pub fn authenticate_and_clamp(
 ) -> (f32, String) {
     let norm = provenance.trim().to_ascii_lowercase();
 
+    // Reject non-finite authority (NaN, ±Inf) before any comparison or clamp.
+    // f32::clamp does not sanitize NaN — a NaN input propagates as NaN.
+    let authority = if authority.is_finite() { authority } else {
+        tracing::warn!("Non-finite authority {:?} rejected; treating as 0.0", authority);
+        0.0_f32
+    };
+
     let (effective_prov, clamped_auth) = match caller_role {
         CallerRole::Agent => {
             // Unauthenticated agent: strictly enforce agent ceiling <= 0.60

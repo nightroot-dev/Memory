@@ -1250,4 +1250,110 @@ fn e7b_immutable_legacy_wal_recovery() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+// =============================================================================
+// E8 — WAL-only recovery preserves the authority ceiling established at learn time
+//
+// Verifies that an Agent-sourced learn (authority=1.0, provenance="user_explicit")
+// is correctly stored with the clamped effective values (authority≤0.60,
+// provenance="inferred") and that after a forced WAL-only restart, the recovered
+// state still exhibits ≤0.60 authority — i.e., the WAL does NOT store the raw
+// caller-supplied privilege claim.
+// =============================================================================
 
+#[test]
+fn e8_wal_recovery_preserves_authority_ceiling() {
+    let (cfg, dir) = make_cfg("e8_wal_recovery");
+
+    // Phase 1: learn with an adversarial Agent claim, verify live ceiling
+    let ctx_uuid = {
+        let mut rt = ContextRuntime::new(cfg.clone(), "e8_s1".into()).unwrap();
+        let ctx = rt.create_context("e8", ContextType::Project, None, "e8", vec![]).unwrap();
+        let uuid = ctx.id.clone();
+
+        // Agent caller claiming user_explicit with authority 1.0
+        let (res, _) = rt.learn_with_context(
+            Some(uuid.as_str()), emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
+            1.0_f32, "user_explicit".into(), None,
+            CallerRole::Agent, None, None,
+        ).unwrap();
+        assert!(res.state_node_id > 0);
+
+        // Verify live: effective values returned in LearnResult
+        assert_eq!(res.effective_provenance, "inferred",
+            "E8 live: Agent claiming user_explicit must be normalized to inferred");
+        assert!((res.effective_authority - 0.60).abs() < 1e-4,
+            "E8 live: Agent authority must be clamped to 0.60, got {}", res.effective_authority);
+
+        // Verify live retrieval reflects the ceiling
+        let (ret, _) = rt.retrieve(Some(uuid.as_str()), emb(0), "hash-128d", NodeType::State).unwrap();
+        assert_eq!(ret.seed_provenance, "inferred", "E8 live retrieval: must show inferred");
+        assert!((ret.seed_authority - 0.60).abs() < 1e-4,
+            "E8 live retrieval: authority must be 0.60, got {}", ret.seed_authority);
+
+        // Shutdown to flush WAL and snapshot
+        rt.shutdown();
+        uuid
+    };
+
+    // Phase 2: delete snapshot to force pure WAL replay, restart, verify ceiling still holds
+    let snap_path = dir.join("contexts").join(ctx_uuid.as_str()).join("snapshot.bin");
+    let _ = std::fs::remove_file(&snap_path);
+
+    {
+        let mut rt = ContextRuntime::new(cfg, "e8_s2".into()).unwrap();
+        let (ret, _) = rt.retrieve(
+            Some(ctx_uuid.as_str()), emb(0), "hash-128d", NodeType::State,
+        ).unwrap();
+
+        // The WAL must have stored clamped values — recovery must NOT elevate authority
+        assert_eq!(ret.seed_provenance, "inferred",
+            "E8 WAL recovery: provenance must still be 'inferred' after WAL-only restart");
+        assert!((ret.seed_authority - 0.60).abs() < 1e-4,
+            "E8 WAL recovery: authority must still be ≤0.60 after WAL-only restart, got {}", ret.seed_authority);
+
+        rt.shutdown();
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// =============================================================================
+// E9 — Non-finite input rejection at engine layer
+//
+// Verifies that NaN and ±Inf authority values are sanitized to valid values
+// (treated as 0.0 before normalization) rather than propagating into the store.
+// =============================================================================
+
+#[test]
+fn e9_non_finite_authority_is_sanitized_not_propagated() {
+    let (cfg, dir) = make_cfg("e9_nonfinite");
+    let mut rt = ContextRuntime::new(cfg, "e9".into()).unwrap();
+    let ctx_id = rt.create_context("e9", ContextType::Project, None, "e9", vec![]).unwrap().id;
+    let ctx = Some(ctx_id.as_str());
+
+    // Learn with NaN authority via internal API (authority::authenticate_and_clamp sanitizes it)
+    let (res_nan, _) = rt.learn_with_context(
+        ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
+        f32::NAN, "inferred".into(), None,
+        CallerRole::User, None, None,
+    ).unwrap();
+    assert!(res_nan.state_node_id > 0, "E9: learn with NaN authority must not crash");
+    assert!(res_nan.effective_authority.is_finite(), "E9: effective authority must be finite after NaN input");
+
+    let (ret_nan, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+    assert!(ret_nan.seed_authority.is_finite(), "E9: retrieved authority must be finite, got {}", ret_nan.seed_authority);
+    assert!(ret_nan.seed_authority >= 0.0 && ret_nan.seed_authority <= 1.0,
+        "E9: retrieved authority must be in [0,1], got {}", ret_nan.seed_authority);
+
+    // Learn with +Inf authority — must be sanitized
+    let (res_inf, _) = rt.learn_with_context(
+        ctx, emb(3), emb(4), emb(5), 0.5, 0.5, "hash-128d",
+        f32::INFINITY, "user_explicit".into(), None,
+        CallerRole::User, None, None,
+    ).unwrap();
+    assert!(res_inf.effective_authority.is_finite(), "E9: effective authority must be finite after +Inf input");
+    assert!(res_inf.effective_authority <= 1.0, "E9: authority must be ≤1.0 after +Inf, got {}", res_inf.effective_authority);
+
+    rt.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}

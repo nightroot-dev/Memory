@@ -581,8 +581,24 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let action_emb  = match decode_embedding(&params.action_embedding)  { Ok(e) => e, Err(e) => return error_result(format!("action_embedding: {e}")) };
     let outcome_emb = match decode_embedding(&params.outcome_embedding) { Ok(e) => e, Err(e) => return error_result(format!("outcome_embedding: {e}")) };
 
+    // Reject non-finite values at the MCP boundary.
+    if !params.authority.is_finite() {
+        return error_result("authority must be a finite number (not NaN or Inf)");
+    }
+    if !params.prediction_error.is_finite() {
+        return error_result("prediction_error must be a finite number (not NaN or Inf)");
+    }
     if params.prediction_error < 0.0 || params.prediction_error > 1.0 {
         return error_result("prediction_error must be in [0.0, 1.0]");
+    }
+    if state_emb.iter().any(|v| !v.is_finite()) {
+        return error_result("state_embedding contains non-finite values (NaN or Inf)");
+    }
+    if action_emb.iter().any(|v| !v.is_finite()) {
+        return error_result("action_embedding contains non-finite values (NaN or Inf)");
+    }
+    if outcome_emb.iter().any(|v| !v.is_finite()) {
+        return error_result("outcome_embedding contains non-finite values (NaN or Inf)");
     }
 
     let mut rt = rt.lock();
@@ -943,6 +959,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Err(e) => return error_result(format!("Invalid arguments: {e}")),
     };
 
+    // Reject non-finite values at the MCP boundary.
+    if !params.authority.is_finite() {
+        return error_result("authority must be a finite number (not NaN or Inf)");
+    }
+    if !params.prediction_error.is_finite() {
+        return error_result("prediction_error must be a finite number (not NaN or Inf)");
+    }
     if params.prediction_error < 0.0 || params.prediction_error > 1.0 {
         return error_result("prediction_error must be in [0.0, 1.0]");
     }

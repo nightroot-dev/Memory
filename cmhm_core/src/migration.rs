@@ -303,13 +303,47 @@ mod tests {
             assert_eq!(n3.polarity, None, "Migrated node {} polarity must be None", id);
         }
 
-        // 2. Engine and store metadata comparison
-        assert_eq!(v3.cmd_seq, v2.cmd_seq);
-        assert_eq!(v3.last_consolidation_secs, v2.last_consolidation_secs);
-        assert_eq!(v3.cumulative_reinforce, v2.cumulative_reinforce);
-        assert_eq!(v3.global_ema, v2.global_ema);
-        assert_eq!(v3.feedback_seen, v2.feedback_seen);
-        assert_eq!(v3.birth_q30, v2.birth_q30);
+        // 2. Engine-level scalar metadata comparison (exact equality, integer or f32 bit-for-bit)
+        assert_eq!(v3.cmd_seq, v2.cmd_seq, "cmd_seq must be preserved");
+        assert_eq!(v3.last_consolidation_secs, v2.last_consolidation_secs, "last_consolidation_secs must be preserved");
+        assert_eq!(v3.cumulative_reinforce, v2.cumulative_reinforce, "cumulative_reinforce must be preserved");
+        assert_eq!(v3.global_ema, v2.global_ema, "global_ema must be preserved");
+        assert_eq!(v3.feedback_seen, v2.feedback_seen, "feedback_seen must be preserved");
+        assert_eq!(v3.birth_q30, v2.birth_q30, "birth_q30 must be preserved");
+
+        // 3. Component store replay-equivalent state comparison via serialized bytes.
+        //    These store types do not implement PartialEq; byte-level serialization
+        //    equivalence proves they round-trip identically (replay-equivalent state).
+        //    Note: the v2 fixture has empty/default edge_store, working_memory, episode_log,
+        //    salience_engine, dense_core, cohorts, and projections (the fixture contains
+        //    only one node; these stores were empty at generation time).
+        let v2_edge_bytes = bincode::serialize(&v2.edge_store).expect("v2 edge_store must serialize");
+        let v3_edge_bytes = bincode::serialize(&v3.edge_store).expect("v3 edge_store must serialize");
+        assert_eq!(v2_edge_bytes, v3_edge_bytes, "edge_store bytes must be identical after migration");
+
+        let v2_wm_bytes = bincode::serialize(&v2.working_memory).expect("v2 working_memory must serialize");
+        let v3_wm_bytes = bincode::serialize(&v3.working_memory).expect("v3 working_memory must serialize");
+        assert_eq!(v2_wm_bytes, v3_wm_bytes, "working_memory bytes must be identical after migration");
+
+        let v2_ep_bytes = bincode::serialize(&v2.episode_log).expect("v2 episode_log must serialize");
+        let v3_ep_bytes = bincode::serialize(&v3.episode_log).expect("v3 episode_log must serialize");
+        assert_eq!(v2_ep_bytes, v3_ep_bytes, "episode_log bytes must be identical after migration");
+
+        let v2_sal_bytes = bincode::serialize(&v2.salience_engine).expect("v2 salience_engine must serialize");
+        let v3_sal_bytes = bincode::serialize(&v3.salience_engine).expect("v3 salience_engine must serialize");
+        assert_eq!(v2_sal_bytes, v3_sal_bytes, "salience_engine bytes must be identical after migration");
+
+        let v2_dc_bytes = bincode::serialize(&v2.dense_core).expect("v2 dense_core must serialize");
+        let v3_dc_bytes = bincode::serialize(&v3.dense_core).expect("v3 dense_core must serialize");
+        assert_eq!(v2_dc_bytes, v3_dc_bytes, "dense_core bytes must be identical after migration");
+
+        let v2_coh_bytes = bincode::serialize(&v2.cohorts).expect("v2 cohorts must serialize");
+        let v3_coh_bytes = bincode::serialize(&v3.cohorts).expect("v3 cohorts must serialize");
+        assert_eq!(v2_coh_bytes, v3_coh_bytes, "cohorts bytes must be identical after migration");
+
+        let v2_proj_bytes = bincode::serialize(&v2.projections).expect("v2 projections must serialize");
+        let v3_proj_bytes = bincode::serialize(&v3.projections).expect("v3 projections must serialize");
+        assert_eq!(v2_proj_bytes, v3_proj_bytes, "projections bytes must be identical after migration");
     }
 }
 

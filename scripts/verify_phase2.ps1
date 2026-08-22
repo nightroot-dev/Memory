@@ -46,18 +46,46 @@ Run-Step "Git Revision" "git rev-parse HEAD"
 Run-Step "Git Status" "git status --porcelain"
 
 Log-Section "2. IMMUTABLE FIXTURE CRYPTOGRAPHIC VERIFICATION"
-$fixtures = Get-ChildItem "cmhm_core\tests\fixtures" -File
+
+# Expected fixture hashes and sizes — fail closed if any mismatch.
+$expectedFixtures = @{
+    "v2_snapshot.bin"  = @{ Size = 792317; SHA256 = "121DDF7A3ED658DFED4F9FFE4C152D801653CC7DB12A914494EF2860EB4D1C9F" }
+    "legacy_v0_wal.dat" = @{ Size = 1598;  SHA256 = "BBAF6EC70F724CE439C33859DD3283255A287C655A2AFD9D79DF6B568ED28C2C" }
+}
+
+$fixtures = Get-ChildItem "cmhm_core\tests\fixtures" -File | Where-Object { $_.Extension -ne ".md" }
 foreach ($f in $fixtures) {
-    $hash = (Get-FileHash $f.FullName -Algorithm SHA256).Hash
+    $hash = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToUpper()
     $msg = "Fixture: $($f.Name)`n  Path: $($f.FullName)`n  Size: $($f.Length) bytes`n  SHA256: $hash"
     Write-Host $msg -ForegroundColor Magenta
     Add-Content -Path $logFile -Value $msg
 
-    if ($f.Length -eq 0) {
+    if ($expectedFixtures.ContainsKey($f.Name)) {
+        $exp = $expectedFixtures[$f.Name]
+        if ($f.Length -ne $exp.Size) {
+            $global:failedSteps++
+            $errMsg = "  FAIL: Size mismatch for $($f.Name): got $($f.Length) bytes, expected $($exp.Size)"
+            Write-Error $errMsg
+            Add-Content -Path $logFile -Value $errMsg
+        } else {
+            Add-Content -Path $logFile -Value "  OK: Size matches $($exp.Size) bytes"
+        }
+        if ($hash -ne $exp.SHA256) {
+            $global:failedSteps++
+            $errMsg = "  FAIL: SHA256 mismatch for $($f.Name):`n    got:      $hash`n    expected: $($exp.SHA256)"
+            Write-Error $errMsg
+            Add-Content -Path $logFile -Value $errMsg
+        } else {
+            Add-Content -Path $logFile -Value "  OK: SHA256 matches $($exp.SHA256)"
+        }
+    } else {
         $global:failedSteps++
-        Write-Error "Fixture $($f.Name) is empty!"
+        $errMsg = "  FAIL: Unexpected fixture $($f.Name) — no expected hash registered. Register or remove it."
+        Write-Error $errMsg
+        Add-Content -Path $logFile -Value $errMsg
     }
 }
+
 
 Log-Section "3. FULL UNFILTERED WORKSPACE TEST BATTERY"
 Run-Step "Workspace All Tests" "cargo test --workspace"

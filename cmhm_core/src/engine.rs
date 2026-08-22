@@ -188,6 +188,10 @@ pub struct LearnResult {
     pub state_node_id: u64,
     pub action_node_id: u64,
     pub outcome_node_id: u64,
+    /// Effective authority after role-based clamping — this is what was durably stored.
+    pub effective_authority: f32,
+    /// Effective provenance after role-based normalization — this is what was durably stored.
+    pub effective_provenance: String,
 }
 
 // ─── Engine Handle ─────────────────────────────────────────────────────────
@@ -548,6 +552,9 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                     match payload[0] {
                         WAL_TYPE_LEARN_V2 => {
                             // v3 Learn: full authority + provenance + supersedes.
+                            // SECURITY: WAL stores the EFFECTIVE (post-clamping) values.
+                            // Replay with CallerRole::System so authenticate_and_clamp
+                            // passes through the already-normalized values without re-clamping.
                             match bincode::deserialize::<WalLearnEntryV2>(&payload[1..]) {
                                 Ok(cmd) => {
                                     let _ = process_learn(
@@ -555,7 +562,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
                                         cmd.authority, cmd.provenance, cmd.supersedes,
-                                        crate::authority::CallerRole::User,
+                                        crate::authority::CallerRole::System,
                                         cmd.assertion_key, cmd.polarity,
                                         &cfg,
                                     );
@@ -691,7 +698,10 @@ fn worker_loop(
                     &cfg,
                 );
                 // Atomic WAL append: ONLY write to WAL if process_learn succeeded!
-                if result.is_ok() {
+                // SECURITY: Write the EFFECTIVE (post-clamping) authority and provenance,
+                // not the raw caller-supplied values. This ensures WAL replay cannot
+                // restore a higher privilege level than was actually granted at learn time.
+                if let Ok(ref lr) = result {
                     if let Some(wal) = &mut wal {
                         let entry = WalLearnEntryV2 {
                             state_emb:        state_emb.clone(),
@@ -700,8 +710,8 @@ fn worker_loop(
                             prediction_error,
                             emotional_tag,
                             model_id:         model_id.clone(),
-                            authority,
-                            provenance:       provenance.clone(),
+                            authority:        lr.effective_authority,
+                            provenance:       lr.effective_provenance.clone(),
                             supersedes,
                             assertion_key:    assertion_key.clone(),
                             polarity,
@@ -895,6 +905,10 @@ fn process_learn(
     // B4: Authenticate caller role and clamp authority to authorized class bounds.
     let (authority, provenance) = crate::authority::authenticate_and_clamp(authority, &provenance, caller_role);
 
+    // Capture the effective (clamped) values for durable WAL recording.
+    let effective_authority = authority;
+    let effective_provenance = provenance.clone();
+
     // Birth nodes
     let state_id  = birth_node(&mut *state, raw_state.to_vec(),  &state_proj,  model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity);
     let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None);
@@ -925,7 +939,13 @@ fn process_learn(
     // Update cumulative reinforcement tracker
     state.cumulative_reinforce += (epsilon - 0.5).abs();
 
-    Ok(LearnResult { state_node_id: state_id, action_node_id: action_id, outcome_node_id: outcome_id })
+    Ok(LearnResult {
+        state_node_id: state_id,
+        action_node_id: action_id,
+        outcome_node_id: outcome_id,
+        effective_authority,
+        effective_provenance,
+    })
 }
 
 
