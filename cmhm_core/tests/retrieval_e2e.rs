@@ -1357,3 +1357,164 @@ fn e9_non_finite_authority_is_sanitized_not_propagated() {
     rt.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// =============================================================================
+// E11 — Blocker 1: Upgrade recovery of pre-fix adversarial V2 WAL records
+//
+// In older builds (commit b706c95), WalLearnEntryV2 (0x02) records stored raw,
+// unauthenticated values (authority: 1.0, provenance: "user_explicit").
+// When replayed on startup, legacy V2 records MUST be replayed conservatively
+// as CallerRole::Agent so they are clamped to <= 0.60 and "inferred", preventing
+// privilege escalation upon upgrade.
+//
+// Furthermore, the clamped adversarial record must lose to a legitimate candidate
+// (authority: 0.75, "inferred") in retrieval.
+// =============================================================================
+
+#[test]
+fn e11_v2_wal_adversarial_record_clamped_on_recovery() {
+    let (cfg, dir) = make_cfg("e11_wal_v2_clamped");
+    let ctx_uuid = {
+        let mut rt = ContextRuntime::new(cfg.clone(), "e11_s1".into()).unwrap();
+        let ctx = rt.create_context("e11", ContextType::Project, None, "e11", vec![]).unwrap();
+        let ctx_id = ctx.id.clone();
+        rt.shutdown();
+        ctx_id
+    };
+
+    // Ensure context directory exists and snapshot is deleted so engine must recover exclusively from WAL
+    let ctx_dir = dir.join("contexts").join(ctx_uuid.as_str());
+    std::fs::create_dir_all(&ctx_dir).unwrap();
+    let snap_path = ctx_dir.join("snapshot.bin");
+    if snap_path.exists() {
+        let _ = std::fs::remove_file(snap_path);
+    }
+
+    let wal_path = ctx_dir.join("wal.dat");
+    {
+        #[derive(serde::Serialize)]
+        struct RawWalLearnEntryV2 {
+            state_emb: Vec<f32>,
+            action_emb: Vec<f32>,
+            outcome_emb: Vec<f32>,
+            prediction_error: f32,
+            emotional_tag: f32,
+            model_id: String,
+            authority: f32,
+            provenance: String,
+            supersedes: Option<u64>,
+            assertion_key: Option<String>,
+            polarity: Option<i8>,
+        }
+
+        let mut wal_writer = cmhm_core::persistence::WalWriter::open(&wal_path).unwrap();
+
+        // 1. Legitimate Candidate written with modern WAL_TYPE_LEARN_V3 (0x03):
+        // unit_vec(6), authority 0.75, provenance "user_explicit"
+        let legit_entry = RawWalLearnEntryV2 {
+            state_emb: unit_vec(6),
+            action_emb: emb(1),
+            outcome_emb: emb(2),
+            prediction_error: 0.5,
+            emotional_tag: 0.5,
+            model_id: "hash-128d".into(),
+            authority: 0.75,
+            provenance: "user_explicit".into(),
+            supersedes: None,
+            assertion_key: None,
+            polarity: None,
+        };
+        let payload_legit = bincode::serialize(&legit_entry).unwrap();
+        let mut tagged_legit = Vec::with_capacity(1 + payload_legit.len());
+        tagged_legit.push(0x03); // WAL_TYPE_LEARN_V3
+        tagged_legit.extend_from_slice(&payload_legit);
+        wal_writer.append(&tagged_legit).unwrap();
+
+        // 2. Adversarial Candidate written with legacy WAL_TYPE_LEARN_V2 (0x02):
+        // unit_vec(5) (orthogonal to avoid birth dedup), claims authority 1.0 and "user_explicit"
+        let adv_entry = RawWalLearnEntryV2 {
+            state_emb: unit_vec(5),
+            action_emb: emb(3),
+            outcome_emb: emb(4),
+            prediction_error: 0.5,
+            emotional_tag: 0.5,
+            model_id: "hash-128d".into(),
+            authority: 1.0, // Adversarial claim
+            provenance: "user_explicit".into(), // Adversarial claim
+            supersedes: None,
+            assertion_key: None,
+            polarity: None,
+        };
+        let payload_adv = bincode::serialize(&adv_entry).unwrap();
+        let mut tagged_adv = Vec::with_capacity(1 + payload_adv.len());
+        tagged_adv.push(0x02); // WAL_TYPE_LEARN_V2 (legacy)
+        tagged_adv.extend_from_slice(&payload_adv);
+        wal_writer.append(&tagged_adv).unwrap();
+    }
+
+    // Session 2: start runtime and recover from WAL
+    {
+        let mut rt = ContextRuntime::new(cfg, "e11_s2".into()).unwrap();
+        let (res, _) = rt.retrieve(Some(ctx_uuid.as_str()), unit_vec(6), "hash-128d", NodeType::State).unwrap();
+
+        // The adversarial record must have been clamped to <= 0.60 and "inferred"!
+        // Therefore, the legitimate candidate (authority 0.75, user_explicit) must WIN the retrieval!
+        assert_eq!(res.seed_authority, 0.75, "E11: Legitimate candidate (0.75) must beat clamped adversarial legacy V2");
+        assert_eq!(res.seed_provenance, "user_explicit");
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// =============================================================================
+// E12 — Blocker 3: Non-finite inputs rejected at engine boundary
+// =============================================================================
+
+#[test]
+fn e12_non_finite_inputs_rejected_at_engine_boundary() {
+    let (cfg, dir) = make_cfg("e12_nonfinite_rejected");
+    let mut rt = ContextRuntime::new(cfg, "e12".into()).unwrap();
+    let ctx_id = rt.create_context("e12", ContextType::Project, None, "e12", vec![]).unwrap().id;
+    let ctx = Some(ctx_id.as_str());
+
+    // 1. Non-finite epsilon (NaN, +Inf)
+    let err_nan_pe = rt.learn_with_context(
+        ctx, emb(0), emb(1), emb(2), f32::NAN, 0.5, "hash-128d",
+        0.5, "inferred".into(), None, CallerRole::User, None, None,
+    );
+    assert!(err_nan_pe.is_err(), "E12: NaN prediction_error must be rejected");
+
+    let err_inf_pe = rt.learn_with_context(
+        ctx, emb(0), emb(1), emb(2), f32::INFINITY, 0.5, "hash-128d",
+        0.5, "inferred".into(), None, CallerRole::User, None, None,
+    );
+    assert!(err_inf_pe.is_err(), "E12: +Inf prediction_error must be rejected");
+
+    // 2. Non-finite eta / emotional_tag (NaN)
+    let err_nan_eta = rt.learn_with_context(
+        ctx, emb(0), emb(1), emb(2), 0.5, f32::NAN, "hash-128d",
+        0.5, "inferred".into(), None, CallerRole::User, None, None,
+    );
+    assert!(err_nan_eta.is_err(), "E12: NaN emotional_tag must be rejected");
+
+    // 3. Non-finite state embedding (NaN, +Inf)
+    let mut bad_emb = emb(0);
+    bad_emb[5] = f32::NAN;
+    let err_nan_emb = rt.learn_with_context(
+        ctx, bad_emb, emb(1), emb(2), 0.5, 0.5, "hash-128d",
+        0.5, "inferred".into(), None, CallerRole::User, None, None,
+    );
+    assert!(err_nan_emb.is_err(), "E12: Embedding containing NaN must be rejected");
+
+    let mut inf_emb = emb(0);
+    inf_emb[10] = f32::INFINITY;
+    let err_inf_emb = rt.learn_with_context(
+        ctx, inf_emb, emb(1), emb(2), 0.5, 0.5, "hash-128d",
+        0.5, "inferred".into(), None, CallerRole::User, None, None,
+    );
+    assert!(err_inf_emb.is_err(), "E12: Embedding containing +Inf must be rejected");
+
+    rt.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+

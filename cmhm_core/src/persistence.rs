@@ -32,7 +32,9 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 ///   1 = pre-versioned (no envelope; `feedback_seen: HashSet<String>`)
 ///   2 = `SnapshotEnvelope`; `feedback_seen: HashSet<u64>` (FNV-1a); WAL type tags
 ///   3 = `Node` gains `authority: f32`, `provenance: String`, `superseded_by: Option<u64>`.
-///       `WalLearnEntryV2` (type `0x02`) replaces `WalLearnEntry` (type `0x00`) for new writes.
+///       `WalLearnEntryV2` written as `WAL_TYPE_LEARN_V3` (type `0x03`) for verified post-normalization writes.
+///       Legacy `WAL_TYPE_LEARN_V2` (type `0x02`) records replayed conservatively with `CallerRole::Agent`.
+///       Legacy `WalLearnEntry` (type `0x00`) replayed with neutral defaults.
 ///
 /// Migration from v2 → v3
 /// ───────────────────────

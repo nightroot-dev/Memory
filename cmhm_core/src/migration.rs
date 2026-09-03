@@ -14,13 +14,14 @@ use crate::{
     core_state::CoreState,
     node::{Node, NodeType},
     node_store::NodeStore,
+    edge::{Edge, EdgeType, EvidenceType},
     edge_store::EdgeStore,
     working_memory::WorkingMemory,
     episode_log::EpisodeLog,
     salience::SalienceEngine,
     dense_core::DenseCore,
     consolidation::Cohorts,
-    projection::ProjectionRegistry,
+    projection::{Projection, ProjectionRegistry},
 };
 
 /// Serialized Node representation in SNAPSHOT_VERSION = 2.
@@ -135,10 +136,10 @@ pub fn migrate_v2_to_v3(v2_payload: &[u8]) -> Result<CoreState> {
 /// Helper to generate a valid v2 snapshot envelope payload for fixture creation and testing.
 pub fn create_test_v2_snapshot_envelope_bytes() -> Vec<u8> {
     let mut nodes = HashMap::new();
-    let mut emb = vec![0.0f32; 128];
-    emb[0] = 1.0;
+    let mut emb0 = vec![0.0f32; 128];
+    emb0[0] = 1.0;
     nodes.insert(101u64, NodeV2 {
-        embedding: emb.clone(),
+        embedding: emb0.clone(),
         model_id: "hash-128d".to_string(),
         salience: 0.90,
         timestamp: 1700000000,
@@ -152,26 +153,113 @@ pub fn create_test_v2_snapshot_envelope_bytes() -> Vec<u8> {
         bandit_beta: 1.0,
     });
 
+    let mut emb1 = vec![0.0f32; 128];
+    emb1[1] = 1.0;
+    nodes.insert(102u64, NodeV2 {
+        embedding: emb1.clone(),
+        model_id: "hash-128d".to_string(),
+        salience: 0.75,
+        timestamp: 1700000010,
+        emotional_tag: 0.4,
+        node_type: NodeType::Action,
+        n_retrievals: 2,
+        last_retrieved: 1700001010,
+        half_life_days: 90.0,
+        max_prediction_error: 0.2,
+        bandit_alpha: 1.5,
+        bandit_beta: 1.0,
+    });
+
+    let mut emb2 = vec![0.0f32; 128];
+    emb2[2] = 1.0;
+    nodes.insert(103u64, NodeV2 {
+        embedding: emb2.clone(),
+        model_id: "hash-128d".to_string(),
+        salience: 0.65,
+        timestamp: 1700000020,
+        emotional_tag: 0.8,
+        node_type: NodeType::Outcome,
+        n_retrievals: 1,
+        last_retrieved: 1700001020,
+        half_life_days: 30.0,
+        max_prediction_error: 0.05,
+        bandit_alpha: 4.0,
+        bandit_beta: 1.0,
+    });
+
+    let mut edge_store = EdgeStore::new();
+    edge_store.upsert(101, 102, Edge {
+        alpha: 3.5,
+        beta: 1.2,
+        last_traversal_time: 1700000500.0,
+        edge_type: EdgeType::Sequence,
+        evidence_type: EvidenceType::Inferred,
+        is_intervention: false,
+    });
+    edge_store.upsert(102, 103, Edge {
+        alpha: 6.0,
+        beta: 0.8,
+        last_traversal_time: 1700000600.0,
+        edge_type: EdgeType::CausalHypothesis,
+        evidence_type: EvidenceType::Exact,
+        is_intervention: true,
+    });
+
+    let mut working_memory = WorkingMemory::new(8);
+    working_memory.push(101);
+    working_memory.push(102);
+    working_memory.push(103);
+
+    let mut episode_log = EpisodeLog::new();
+    episode_log.log(101, 102, 0.25, true);
+
+    let mut salience_engine = SalienceEngine::new();
+    salience_engine.update_and_calc(0.45, 0.55);
+    salience_engine.update_and_calc(0.85, 0.15);
+
+    let mut dense_core = DenseCore::new();
+    let mut e_arr0 = [0.0f32; 128];
+    e_arr0[0] = 1.0;
+    let mut e_arr1 = [0.0f32; 128];
+    e_arr1[1] = 1.0;
+    dense_core.update(0, &e_arr0, &e_arr1, 0.85);
+
+    let mut cohorts = Cohorts::new();
+    cohorts.centroids[0][0] = 0.4242;
+    cohorts.centroids[1][5] = 0.8484;
+
+    let mut projections = ProjectionRegistry::new();
+    let mut pbytes = Vec::new();
+    pbytes.extend_from_slice(&(128u32).to_le_bytes());
+    pbytes.extend(vec![0u8; 128 * 128 * 4 + 128 * 4]);
+    if let Ok(proj) = Projection::from_bytes(&pbytes) {
+        projections.register("fixture_v2_model".into(), proj);
+    }
+
+    let mut feedback_seen = HashSet::new();
+    feedback_seen.insert(9876543210123456789u64);
+    feedback_seen.insert(1234567890987654321u64);
+
     let v2_state = CoreStateV2 {
         node_store: NodeStoreV2 {
             nodes,
-            next_id: 102,
+            next_id: 104,
             global_ema: vec![0.0f32; 128],
             embed_dim: 128,
         },
-        edge_store: EdgeStore::new(),
-        working_memory: WorkingMemory::new(8),
-        episode_log: EpisodeLog::new(),
-        salience_engine: SalienceEngine::new(),
-        dense_core: DenseCore::new(),
-        cohorts: Cohorts::new(),
-        projections: ProjectionRegistry::new(),
-        cmd_seq: 5,
-        last_consolidation_secs: 50.0,
-        cumulative_reinforce: 0.8,
+        edge_store,
+        working_memory,
+        episode_log,
+        salience_engine,
+        dense_core,
+        cohorts,
+        projections,
+        cmd_seq: 42,
+        last_consolidation_secs: 150.0,
+        cumulative_reinforce: 2.75,
         global_ema: [0.0f32; 128],
-        feedback_seen: HashSet::new(),
-        birth_q30: 0.30,
+        feedback_seen,
+        birth_q30: 0.285,
     };
 
     #[derive(Serialize)]
@@ -311,16 +399,44 @@ mod tests {
         assert_eq!(v3.feedback_seen, v2.feedback_seen, "feedback_seen must be preserved");
         assert_eq!(v3.birth_q30, v2.birth_q30, "birth_q30 must be preserved");
 
-        // 3. Component store replay-equivalent state comparison via serialized bytes.
-        //    These store types do not implement PartialEq; byte-level serialization
-        //    equivalence proves they round-trip identically (replay-equivalent state).
-        //    Note: the v2 fixture has empty/default edge_store, working_memory, episode_log,
-        //    salience_engine, dense_core, cohorts, and projections (the fixture contains
-        //    only one node; these stores were empty at generation time).
-        let v2_edge_bytes = bincode::serialize(&v2.edge_store).expect("v2 edge_store must serialize");
-        let v3_edge_bytes = bincode::serialize(&v3.edge_store).expect("v3 edge_store must serialize");
-        assert_eq!(v2_edge_bytes, v3_edge_bytes, "edge_store bytes must be identical after migration");
+        // 3. Populated store invariant assertions: confirm stores are NOT empty
+        assert!(v2.node_store.nodes.len() >= 3, "Fixture v2 node_store must be populated with >= 3 nodes");
+        assert!(v2.edge_store.len() >= 2, "Fixture v2 edge_store must be populated with >= 2 edges");
+        assert!(v2.working_memory.len() >= 3, "Fixture v2 working_memory must be populated with >= 3 items");
+        assert!(v2.episode_log.len() >= 1, "Fixture v2 episode_log must be populated with >= 1 item");
+        assert!(v2.salience_engine.count >= 2, "Fixture v2 salience_engine count must be >= 2");
+        assert!(!v2.feedback_seen.is_empty(), "Fixture v2 feedback_seen must be populated");
 
+        // 4. Detailed component store field-by-field verification
+        // 4a. Edge store: verify every edge preserved bitwise
+        assert_eq!(v3.edge_store.len(), v2.edge_store.len(), "edge_store len must match");
+        for (src, tgt, e2) in v2.edge_store.all_edges() {
+            let e3 = v3.edge_store.get(src, tgt).unwrap_or_else(|| panic!("Edge {}->{} missing in v3", src, tgt));
+            assert_eq!(e3.alpha, e2.alpha, "Edge {}->{} alpha must match", src, tgt);
+            assert_eq!(e3.beta, e2.beta, "Edge {}->{} beta must match", src, tgt);
+            assert_eq!(e3.last_traversal_time, e2.last_traversal_time, "Edge {}->{} last_traversal_time must match", src, tgt);
+            assert_eq!(e3.edge_type, e2.edge_type, "Edge {}->{} edge_type must match", src, tgt);
+            assert_eq!(e3.evidence_type, e2.evidence_type, "Edge {}->{} evidence_type must match", src, tgt);
+            assert_eq!(e3.is_intervention, e2.is_intervention, "Edge {}->{} is_intervention must match", src, tgt);
+        }
+
+        // 4b. Working memory: verify exact order preserved
+        let wm2_recent: Vec<u64> = v2.working_memory.recent().collect();
+        let wm3_recent: Vec<u64> = v3.working_memory.recent().collect();
+        assert_eq!(wm3_recent, wm2_recent, "working_memory node order must match exactly");
+        assert_eq!(v3.working_memory.capacity(), v2.working_memory.capacity(), "working_memory capacity must match");
+
+        // 4c. Salience engine: verify Welford accumulator preserved
+        assert_eq!(v3.salience_engine.count, v2.salience_engine.count, "salience count must match");
+        assert_eq!(v3.salience_engine.mean, v2.salience_engine.mean, "salience mean must match");
+        assert_eq!(v3.salience_engine.m2, v2.salience_engine.m2, "salience m2 must match");
+
+        // 4d. Cohorts: verify centroids preserved
+        assert_eq!(v3.cohorts.centroids, v2.cohorts.centroids, "cohorts centroids must match");
+
+        // 5. Component store equivalence verification:
+        // 5a. Deterministic binary layout stores (dense_core, working_memory, episode_log, salience_engine, cohorts)
+        //     round-trip identically byte-for-byte.
         let v2_wm_bytes = bincode::serialize(&v2.working_memory).expect("v2 working_memory must serialize");
         let v3_wm_bytes = bincode::serialize(&v3.working_memory).expect("v3 working_memory must serialize");
         assert_eq!(v2_wm_bytes, v3_wm_bytes, "working_memory bytes must be identical after migration");
@@ -341,9 +457,16 @@ mod tests {
         let v3_coh_bytes = bincode::serialize(&v3.cohorts).expect("v3 cohorts must serialize");
         assert_eq!(v2_coh_bytes, v3_coh_bytes, "cohorts bytes must be identical after migration");
 
-        let v2_proj_bytes = bincode::serialize(&v2.projections).expect("v2 projections must serialize");
-        let v3_proj_bytes = bincode::serialize(&v3.projections).expect("v3 projections must serialize");
-        assert_eq!(v2_proj_bytes, v3_proj_bytes, "projections bytes must be identical after migration");
+        // 5b. DenseCore behavioral query equivalence
+        let mut test_q = [0.0f32; 128];
+        test_q[0] = 1.0;
+        assert_eq!(v3.dense_core.query(&test_q), v2.dense_core.query(&test_q), "dense_core query output must be identical");
+
+        // 5c. ProjectionRegistry behavioral projection equivalence
+        let test_vec = vec![1.0f32; 128];
+        let p2_res = v2.projections.project("fixture_v2_model", &test_vec).unwrap();
+        let p3_res = v3.projections.project("fixture_v2_model", &test_vec).unwrap();
+        assert_eq!(p3_res, p2_res, "projections behavior must be identical after migration");
     }
 }
 

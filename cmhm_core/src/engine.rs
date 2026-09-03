@@ -96,7 +96,9 @@ pub enum Command {
         path: PathBuf,
         tx: mpsc::SyncSender<Result<()>>,
     },
-    Shutdown,
+    Shutdown {
+        tx: mpsc::SyncSender<Result<()>>,
+    },
 }
 
 /// Explicit, structured error returned when a supersession invariant is violated.
@@ -179,8 +181,12 @@ struct WalFeedbackEntry {
 /// so the `_` (legacy) arm of the replay dispatch fires correctly.
 const WAL_TYPE_LEARN:    u8 = 0x00;
 const WAL_TYPE_FEEDBACK: u8 = 0x01;
-/// v3: Learn with authority + provenance + supersedes fields.
+/// Legacy v3 (early): unauthenticated authority + provenance fields.
+/// Replayed conservatively with CallerRole::Agent to prevent privilege escalation from pre-fix records.
 const WAL_TYPE_LEARN_V2: u8 = 0x02;
+/// v3-hardened: verified effective authority + provenance fields.
+/// Replayed with CallerRole::System since values were normalized and clamped at write time.
+const WAL_TYPE_LEARN_V3: u8 = 0x03;
 
 /// Result of a Learn command.
 #[derive(Debug, Clone)]
@@ -353,11 +359,13 @@ impl EngineHandle {
         resp_rx.recv().unwrap_or(0.30)
     }
 
-    /// Shut down the engine gracefully (takes a final snapshot).
+    /// Shut down the engine gracefully (takes a final snapshot and waits for disk flush).
     pub fn shutdown(self) -> Result<()> {
-
-        self.tx.send(Command::Shutdown)?;
-        Ok(())
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::Shutdown { tx: resp_tx }).is_err() {
+            return Ok(()); // Worker thread already stopped
+        }
+        resp_rx.recv().unwrap_or(Ok(()))
     }
 }
 
@@ -550,8 +558,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         continue;
                     }
                     match payload[0] {
-                        WAL_TYPE_LEARN_V2 => {
-                            // v3 Learn: full authority + provenance + supersedes.
+                        WAL_TYPE_LEARN_V3 => {
+                            // v3-hardened Learn: full effective authority + provenance + supersedes.
                             // SECURITY: WAL stores the EFFECTIVE (post-clamping) values.
                             // Replay with CallerRole::System so authenticate_and_clamp
                             // passes through the already-normalized values without re-clamping.
@@ -568,7 +576,27 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                     );
                                     replayed += 1;
                                 }
-                                Err(e) => tracing::warn!("WAL LearnV2 decode error: {e}"),
+                                Err(e) => tracing::warn!("WAL LearnV3 decode error: {e}"),
+                            }
+                        }
+                        WAL_TYPE_LEARN_V2 => {
+                            // Legacy v2 Learn: may contain pre-fix unauthenticated authority/provenance.
+                            // SECURITY: Replay conservatively with CallerRole::Agent so any forged
+                            // authority >0.60 or unauthenticated "user_explicit" provenance is clamped!
+                            match bincode::deserialize::<WalLearnEntryV2>(&payload[1..]) {
+                                Ok(cmd) => {
+                                    let _ = process_learn(
+                                        &mut state,
+                                        &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
+                                        cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        cmd.authority, cmd.provenance, cmd.supersedes,
+                                        crate::authority::CallerRole::Agent,
+                                        cmd.assertion_key, cmd.polarity,
+                                        &cfg,
+                                    );
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL LearnV2 (legacy) decode error: {e}"),
                             }
                         }
                         WAL_TYPE_LEARN => {
@@ -718,7 +746,7 @@ fn worker_loop(
                         };
                         if let Ok(payload) = bincode::serialize(&entry) {
                             let mut tagged = Vec::with_capacity(1 + payload.len());
-                            tagged.push(WAL_TYPE_LEARN_V2);
+                            tagged.push(WAL_TYPE_LEARN_V3);
                             tagged.extend_from_slice(&payload);
                             let _ = wal.append(&tagged);
                         }
@@ -797,9 +825,10 @@ fn worker_loop(
                 let _ = tx.send(state.birth_q30);
             }
 
-            Command::Shutdown => {
+            Command::Shutdown { tx } => {
                 tracing::info!("Worker shutting down. Taking final snapshot.");
-                let _ = write_snapshot(&state, &snapshot_path);
+                let res = write_snapshot(&state, &snapshot_path);
+                let _ = tx.send(res);
                 break;
             }
         }
@@ -880,6 +909,23 @@ fn process_learn(
     polarity: Option<i8>,
     cfg: &Config,
 ) -> Result<LearnResult> {
+    // Fail-safe validation for non-finite values and out-of-range inputs
+    if !epsilon.is_finite() || !(0.0..=1.0).contains(&epsilon) {
+        return Err(anyhow::anyhow!("prediction_error must be a finite number in [0.0, 1.0]"));
+    }
+    if !eta.is_finite() || !(0.0..=1.0).contains(&eta) {
+        return Err(anyhow::anyhow!("emotional_tag must be a finite number in [0.0, 1.0]"));
+    }
+    if raw_state.is_empty() || raw_state.iter().any(|x| !x.is_finite()) {
+        return Err(anyhow::anyhow!("state embedding contains non-finite values (NaN or Inf) or is empty"));
+    }
+    if raw_action.is_empty() || raw_action.iter().any(|x| !x.is_finite()) {
+        return Err(anyhow::anyhow!("action embedding contains non-finite values (NaN or Inf) or is empty"));
+    }
+    if raw_outcome.is_empty() || raw_outcome.iter().any(|x| !x.is_finite()) {
+        return Err(anyhow::anyhow!("outcome embedding contains non-finite values (NaN or Inf) or is empty"));
+    }
+
     let now = now_secs() as f32;
 
     // B6: Supersession validation BEFORE node creation and BEFORE any mutation.

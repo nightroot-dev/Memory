@@ -47,40 +47,57 @@ Run-Step "Git Status" "git status --porcelain"
 
 Log-Section "2. IMMUTABLE FIXTURE CRYPTOGRAPHIC VERIFICATION"
 
-# Expected fixture hashes and sizes - fail closed if any mismatch.
+# Expected fixture hashes and sizes - fail closed if any expected fixture is missing from disk.
 $expectedFixtures = @{
-    "v2_snapshot.bin"  = @{ Size = 792317; SHA256 = "121DDF7A3ED658DFED4F9FFE4C152D801653CC7DB12A914494EF2860EB4D1C9F" }
-    "legacy_v0_wal.dat" = @{ Size = 1598;  SHA256 = "BBAF6EC70F724CE439C33859DD3283255A287C655A2AFD9D79DF6B568ED28C2C" }
+    "v2_snapshot.bin"  = @{ Size = 859798; SHA256 = "425F6DB6459ABA70339062F53EE511D061F6DC0D0A005D3CD3D9F1E23ECDB09A" }
+    "legacy_v0_wal.dat" = @{ Size = 1598;   SHA256 = "BBAF6EC70F724CE439C33859DD3283255A287C655A2AFD9D79DF6B568ED28C2C" }
 }
 
-$fixtures = Get-ChildItem "cmhm_core\tests\fixtures" -File | Where-Object { $_.Extension -ne ".md" }
-foreach ($f in $fixtures) {
-    $hash = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToUpper()
-    $msg = "Fixture: $($f.Name)`n  Path: $($f.FullName)`n  Size: $($f.Length) bytes`n  SHA256: $hash"
+$fixtureDir = "cmhm_core\tests\fixtures"
+
+# FAIL CLOSED: Iterate over ALL expected fixture keys first to ensure no missing files!
+foreach ($expectedName in $expectedFixtures.Keys) {
+    $fixturePath = Join-Path $fixtureDir $expectedName
+    if (-not (Test-Path $fixturePath)) {
+        $global:failedSteps++
+        $errMsg = "  FAIL CLOSED: Expected fixture '$expectedName' is MISSING from disk at '$fixturePath'!"
+        Write-Error $errMsg
+        Add-Content -Path $logFile -Value $errMsg
+        continue
+    }
+
+    $item = Get-Item $fixturePath
+    $hash = (Get-FileHash $item.FullName -Algorithm SHA256).Hash.ToUpper()
+    $exp = $expectedFixtures[$expectedName]
+    $msg = "Fixture: $expectedName`n  Path: $($item.FullName)`n  Size: $($item.Length) bytes`n  SHA256: $hash"
     Write-Host $msg -ForegroundColor Magenta
     Add-Content -Path $logFile -Value $msg
 
-    if ($expectedFixtures.ContainsKey($f.Name)) {
-        $exp = $expectedFixtures[$f.Name]
-        if ($f.Length -ne $exp.Size) {
-            $global:failedSteps++
-            $errMsg = "  FAIL: Size mismatch for $($f.Name): got $($f.Length) bytes, expected $($exp.Size)"
-            Write-Error $errMsg
-            Add-Content -Path $logFile -Value $errMsg
-        } else {
-            Add-Content -Path $logFile -Value "  OK: Size matches $($exp.Size) bytes"
-        }
-        if ($hash -ne $exp.SHA256) {
-            $global:failedSteps++
-            $errMsg = "  FAIL: SHA256 mismatch for $($f.Name):`n    got:      $hash`n    expected: $($exp.SHA256)"
-            Write-Error $errMsg
-            Add-Content -Path $logFile -Value $errMsg
-        } else {
-            Add-Content -Path $logFile -Value "  OK: SHA256 matches $($exp.SHA256)"
-        }
-    } else {
+    if ($item.Length -ne $exp.Size) {
         $global:failedSteps++
-        $errMsg = "  FAIL: Unexpected fixture $($f.Name) - no expected hash registered. Register or remove it."
+        $errMsg = "  FAIL: Size mismatch for ${expectedName}: got $($item.Length) bytes, expected $($exp.Size)"
+        Write-Error $errMsg
+        Add-Content -Path $logFile -Value $errMsg
+    } else {
+        Add-Content -Path $logFile -Value "  OK: Size matches $($exp.Size) bytes"
+    }
+
+    if ($hash -ne $exp.SHA256) {
+        $global:failedSteps++
+        $errMsg = "  FAIL: SHA256 mismatch for ${expectedName}:`n    got:      $hash`n    expected: $($exp.SHA256)"
+        Write-Error $errMsg
+        Add-Content -Path $logFile -Value $errMsg
+    } else {
+        Add-Content -Path $logFile -Value "  OK: SHA256 matches $($exp.SHA256)"
+    }
+}
+
+# Check for any unexpected binary fixtures on disk
+$foundFiles = Get-ChildItem $fixtureDir -File | Where-Object { $_.Extension -ne ".md" }
+foreach ($f in $foundFiles) {
+    if (-not $expectedFixtures.ContainsKey($f.Name)) {
+        $global:failedSteps++
+        $errMsg = "  FAIL: Unexpected fixture $($f.Name) found on disk - no expected hash registered."
         Write-Error $errMsg
         Add-Content -Path $logFile -Value $errMsg
     }
