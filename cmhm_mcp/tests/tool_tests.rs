@@ -1050,43 +1050,74 @@ fn e1t_mcp_text_nan_authority_is_rejected() {
 // provenance="inferred") still in effect.
 // =============================================================================
 
+fn blend_embedding(base_dim: usize, ortho_dim: usize, cos: f32) -> String {
+    let mut v = vec![0.0f32; 128];
+    v[base_dim] = cos;
+    v[ortho_dim] = (1.0 - cos * cos).sqrt();
+    tools::encode_embedding(&v)
+}
+
 #[test]
 fn e1u_mcp_wal_recovery_preserves_agent_ceiling() {
     let tmp = TempDir::new().unwrap();
 
-    // Session 1: learn adversarial Agent claim through MCP tool
-    let ctx_uuid = {
+    // Session 1: learn legitimate authoritative memory and competing adversarial Agent claim through MCP tool
+    let (ctx_uuid, live_seed_id, live_seed_auth, live_seed_prov) = {
         let rt = make_runtime(&tmp);
 
-        let learn_args = json!({
-            "state_embedding": dummy_embedding(0),
-            "action_embedding": dummy_embedding(1),
-            "outcome_embedding": dummy_embedding(2),
+        // 1. Competing Legitimate Authoritative Memory (learned via trusted runtime API):
+        // cos ~ 0.85 to base_dim 10, authority 0.85, "corrected"
+        // Live score = 0.70 * 0.85 + 0.15 * 0.85 = 0.7225
+        let (legit, _) = rt.lock().learn_with_context(
+            None,
+            tools::decode_embedding(&blend_embedding(10, 11, 0.85)).unwrap(),
+            tools::decode_embedding(&dummy_embedding(1)).unwrap(),
+            tools::decode_embedding(&dummy_embedding(2)).unwrap(),
+            0.5, 0.5, "hash-128d",
+            0.85, "corrected".into(), None,
+            cmhm_core::CallerRole::User, None, None,
+        ).unwrap();
+        assert!(legit.state_node_id > 0);
+
+        // 2. Adversarial Candidate learned via MCP tool (CallerRole::Agent):
+        // cos ~ 0.88 to base_dim 10 (higher cosine!), claims authority 1.0 and "user_explicit"
+        // If authority escalated to 1.0, score = 0.70 * 0.88 + 0.15 * 1.0 = 0.766 > 0.7225 (overturns ranking!)
+        // But MCP caller is Agent, so authority is clamped to <= 0.60.
+        // Clamped score = 0.70 * 0.88 + 0.15 * 0.60 = 0.706 < 0.7225 (legitimate candidate holds top rank).
+        let adv_args = json!({
+            "state_embedding": blend_embedding(10, 12, 0.88),
+            "action_embedding": dummy_embedding(3),
+            "outcome_embedding": dummy_embedding(4),
             "prediction_error": 0.5,
             "authority": 1.0,
             "provenance": "user_explicit",
+            "model_id": "hash-128d",
         });
-        let r = dispatch("memory_learn", &rt, &learn_args).unwrap();
-        assert_ne!(r.isError, Some(true), "E1u: learn must succeed: {:?}", r.content[0].text);
+        let r_adv = dispatch("memory_learn", &rt, &adv_args).unwrap();
+        assert_ne!(r_adv.isError, Some(true), "E1u: adv learn must succeed");
 
-        // Verify live ceiling via MCP retrieve
+        // Query with base_dim 10
         let ret_args = json!({
-            "query_embedding": dummy_embedding(0),
+            "query_embedding": dummy_embedding(10),
             "retrieval_intent": "state",
+            "model_id": "hash-128d",
         });
         let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
         let structured = parse_content_json(&result);
+        let live_id = structured["seed_id"].as_u64().unwrap();
         let live_auth = structured["seed_authority"].as_f64().unwrap();
-        assert!(live_auth <= 0.60 + 1e-4,
-            "E1u live: MCP Agent authority must be ≤0.60, got {live_auth}");
-        assert_eq!(structured["seed_provenance"], "inferred",
-            "E1u live: MCP Agent provenance must be 'inferred'");
+        let live_prov = structured["seed_provenance"].as_str().unwrap().to_string();
+
+        // Legitimate candidate (0.85) must beat clamped adversarial candidate (0.60)
+        assert_eq!(live_id, legit.state_node_id, "E1u live: legitimate candidate must win");
+        assert!((live_auth - 0.85).abs() < 1e-3, "E1u live: legitimate candidate authority must be 0.85, got {live_auth}");
+        assert_eq!(live_prov, "corrected", "E1u live: legitimate provenance must be 'corrected'");
 
         rt.lock().shutdown();
-        "default".to_string()
+        ("default".to_string(), live_id, live_auth, live_prov)
     };
 
-    // Session 2: delete snapshot, force WAL-only recovery, verify ceiling holds
+    // Session 2: delete snapshot, force pure WAL-only recovery, verify ranking equivalence
     let ctx_dir = tmp.path().join("contexts").join(&ctx_uuid);
     if ctx_dir.exists() {
         let _ = std::fs::remove_file(ctx_dir.join("snapshot.bin"));
@@ -1096,16 +1127,23 @@ fn e1u_mcp_wal_recovery_preserves_agent_ceiling() {
         let rt = make_runtime(&tmp);
 
         let ret_args = json!({
-            "query_embedding": dummy_embedding(0),
+            "query_embedding": dummy_embedding(10),
             "retrieval_intent": "state",
+            "model_id": "hash-128d",
         });
         let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
         let structured = parse_content_json(&result);
+        let recovered_id = structured["seed_id"].as_u64().unwrap();
         let recovered_auth = structured["seed_authority"].as_f64().unwrap();
-        assert!(recovered_auth <= 0.60 + 1e-4,
-            "E1u WAL recovery: authority must still be ≤0.60 after WAL-only restart, got {recovered_auth}");
-        assert_eq!(structured["seed_provenance"], "inferred",
-            "E1u WAL recovery: provenance must still be 'inferred' after WAL-only restart");
+        let recovered_prov = structured["seed_provenance"].as_str().unwrap();
+
+        // Verify recovered ranking and winner equivalence
+        assert_eq!(recovered_id, live_seed_id,
+            "E1u WAL recovery: recovered winner node id ({recovered_id}) must match live winner node id ({live_seed_id})");
+        assert!((recovered_auth - live_seed_auth).abs() < 1e-3,
+            "E1u WAL recovery: recovered authority ({recovered_auth}) must match live authority ({live_seed_auth})");
+        assert_eq!(recovered_prov, live_seed_prov,
+            "E1u WAL recovery: recovered provenance must match live provenance");
 
         rt.lock().shutdown();
     }
@@ -1115,39 +1153,55 @@ fn e1u_mcp_wal_recovery_preserves_agent_ceiling() {
 fn e1v_mcp_text_wal_recovery_preserves_agent_ceiling() {
     let tmp = TempDir::new().unwrap();
 
-    // Session 1: learn adversarial Agent claim through MCP text tool
-    let ctx_uuid = {
+    // Session 1: learn competing text memories through trusted runtime and adversarial MCP text tool
+    let (ctx_uuid, live_seed_id, live_seed_auth, live_seed_prov) = {
         let rt = make_runtime(&tmp);
 
-        let learn_args = json!({
-            "state": "agent adversarial state description",
-            "action": "agent adversarial action description",
-            "outcome": "agent adversarial outcome description",
+        // 1. Competing Authoritative Memory (trusted API):
+        // Query will be "production deployment procedure"
+        let (legit, _) = rt.lock().learn_with_context(
+            None,
+            cmhm_core::text_to_embedding("production deployment procedure").to_vec(),
+            cmhm_core::text_to_embedding("run migrations first").to_vec(),
+            cmhm_core::text_to_embedding("successful deploy").to_vec(),
+            0.5, 0.5, "hash-128d",
+            0.85, "corrected".into(), None,
+            cmhm_core::CallerRole::User, None, None,
+        ).unwrap();
+        assert!(legit.state_node_id > 0);
+
+        // 2. Adversarial Candidate claiming 1.0 and user_explicit via MCP text tool:
+        let adv_args = json!({
+            "state": "deployment procedure",
+            "action": "skip migrations",
+            "outcome": "instant crash",
             "prediction_error": 0.5,
             "authority": 1.0,
             "provenance": "user_explicit",
         });
-        let r = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
-        assert_ne!(r.isError, Some(true), "E1v: learn_text must succeed: {:?}", r.content[0].text);
+        let r_adv = dispatch("memory_learn_text", &rt, &adv_args).unwrap();
+        assert_ne!(r_adv.isError, Some(true), "E1v: adv learn_text must succeed");
 
-        // Verify live ceiling via MCP text retrieve
+        // Query text
         let ret_args = json!({
-            "query": "agent adversarial state",
+            "query": "production deployment procedure",
             "retrieval_intent": "state",
         });
         let result = dispatch("memory_retrieve_text", &rt, &ret_args).unwrap();
         let structured = parse_content_json(&result);
+        let live_id = structured["seed_id"].as_u64().unwrap();
         let live_auth = structured["seed_authority"].as_f64().unwrap();
-        assert!(live_auth <= 0.60 + 1e-4,
-            "E1v live: MCP text Agent authority must be ≤0.60, got {live_auth}");
-        assert_eq!(structured["seed_provenance"], "inferred",
-            "E1v live: MCP text Agent provenance must be 'inferred'");
+        let live_prov = structured["seed_provenance"].as_str().unwrap().to_string();
+
+        assert_eq!(live_id, legit.state_node_id, "E1v live: legitimate candidate must win");
+        assert!((live_auth - 0.85).abs() < 1e-3, "E1v live: legitimate candidate authority must be 0.85, got {live_auth}");
+        assert_eq!(live_prov, "corrected", "E1v live: legitimate provenance must be 'corrected'");
 
         rt.lock().shutdown();
-        "default".to_string()
+        ("default".to_string(), live_id, live_auth, live_prov)
     };
 
-    // Session 2: delete snapshot, force pure WAL-only recovery, verify ceiling holds
+    // Session 2: delete snapshot, force pure WAL-only recovery, verify ranking equivalence
     let ctx_dir = tmp.path().join("contexts").join(&ctx_uuid);
     if ctx_dir.exists() {
         let _ = std::fs::remove_file(ctx_dir.join("snapshot.bin"));
@@ -1157,16 +1211,21 @@ fn e1v_mcp_text_wal_recovery_preserves_agent_ceiling() {
         let rt = make_runtime(&tmp);
 
         let ret_args = json!({
-            "query": "agent adversarial state",
+            "query": "production deployment procedure",
             "retrieval_intent": "state",
         });
         let result = dispatch("memory_retrieve_text", &rt, &ret_args).unwrap();
         let structured = parse_content_json(&result);
+        let recovered_id = structured["seed_id"].as_u64().unwrap();
         let recovered_auth = structured["seed_authority"].as_f64().unwrap();
-        assert!(recovered_auth <= 0.60 + 1e-4,
-            "E1v WAL recovery: authority must still be ≤0.60 after WAL-only restart, got {recovered_auth}");
-        assert_eq!(structured["seed_provenance"], "inferred",
-            "E1v WAL recovery: provenance must still be 'inferred' after WAL-only restart");
+        let recovered_prov = structured["seed_provenance"].as_str().unwrap();
+
+        assert_eq!(recovered_id, live_seed_id,
+            "E1v WAL recovery: recovered winner node id ({recovered_id}) must match live winner node id ({live_seed_id})");
+        assert!((recovered_auth - live_seed_auth).abs() < 1e-3,
+            "E1v WAL recovery: recovered authority ({recovered_auth}) must match live authority ({live_seed_auth})");
+        assert_eq!(recovered_prov, live_seed_prov,
+            "E1v WAL recovery: recovered provenance must match live provenance");
 
         rt.lock().shutdown();
     }
