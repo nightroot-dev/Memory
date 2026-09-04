@@ -39,29 +39,15 @@ function Run-Step([string]$stepName, [string]$command) {
     Log-Output ""
 
     try {
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = "cmd.exe"
-        $pinfo.Arguments = "/c $command"
-        $pinfo.RedirectStandardOutput = $true
-        $pinfo.RedirectStandardError = $true
-        $pinfo.UseShellExecute = $false
-        $pinfo.CreateNoWindow = $true
+        $tempOut = [System.IO.Path]::GetTempFileName()
+        cmd /c "$command > `"$tempOut`" 2>&1"
+        $exitCode = $LASTEXITCODE
 
-        $proc = New-Object System.Diagnostics.Process
-        $proc.StartInfo = $pinfo
-        $proc.Start() | Out-Null
+        $output = [System.IO.File]::ReadAllText($tempOut)
+        Remove-Item $tempOut -Force -ErrorAction SilentlyContinue
 
-        $stdout = $proc.StandardOutput.ReadToEnd()
-        $stderr = $proc.StandardError.ReadToEnd()
-        $proc.WaitForExit()
-
-        $exitCode = $proc.ExitCode
-
-        if ($stdout.Length -gt 0) {
-            Log-Output $stdout
-        }
-        if ($stderr.Length -gt 0) {
-            Log-Output $stderr
+        if ($output.Length -gt 0) {
+            Log-Output $output
         }
 
         Log-Output ""
