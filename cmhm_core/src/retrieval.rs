@@ -96,6 +96,15 @@ pub struct RetrievalResult {
     /// rather than risk returning a contested record. `conflict_candidates` still
     /// populated with the competing nodes for caller inspection.
     pub abstained: bool,
+    /// Passive diagnostic instrumentation: candidate IDs returned by nearest() / nearest_by_type()
+    /// before any filtering (Stage 0: RAW_NN).
+    pub raw_nn_candidates: Vec<u64>,
+    /// Passive diagnostic instrumentation: candidate IDs surviving Step 2a supersession
+    /// filtering (Stage 1: POST_FILTER).
+    pub post_filter_candidates: Vec<u64>,
+    /// Passive diagnostic instrumentation: composite-scored candidates sorted descending
+    /// with their scores (Stage 2: SCORED).
+    pub scored_candidates: Vec<(u64, f32)>,
 }
 
 /// Internal Dijkstra state.
@@ -178,6 +187,9 @@ pub fn retrieve(
                 conflict_detected:    false,
                 conflict_candidates:  vec![],
                 abstained:            false,
+                raw_nn_candidates:    vec![],
+                post_filter_candidates: vec![],
+                scored_candidates:    vec![],
             }
         };
     }
@@ -192,6 +204,8 @@ pub fn retrieve(
     if raw_candidates.is_empty() {
         return empty_result!("No memories yet.");
     }
+    // Stage 0: RAW_NN diagnostic snapshot (passive, unmutated)
+    let raw_nn_candidates: Vec<u64> = raw_candidates.iter().map(|(id, _)| *id).collect();
 
     // Step 2a: Filter out superseded candidates.
     // Superseded nodes are excluded entirely before scoring — no score comparison performed.
@@ -202,8 +216,25 @@ pub fn retrieve(
         })
         .collect();
 
+    // Stage 1: POST_FILTER diagnostic snapshot (passive, unmutated)
+    let post_filter_candidates: Vec<u64> = candidates.iter().map(|(id, _)| *id).collect();
+
     if candidates.is_empty() {
-        return empty_result!("All candidate nodes are superseded. No active seed available.");
+        return RetrievalResult {
+            causal_chain:         vec![],
+            dense_context:        dense_ctx,
+            explanation:          "All candidate nodes are superseded. No active seed available.".to_string(),
+            seed_id:              None,
+            seed_node_type:       None,
+            seed_authority:       0.5,
+            seed_provenance:      String::new(),
+            conflict_detected:    false,
+            conflict_candidates:  vec![],
+            abstained:            false,
+            raw_nn_candidates,
+            post_filter_candidates,
+            scored_candidates:    vec![],
+        };
     }
 
     // Step 2b: Score each active candidate.
@@ -229,6 +260,9 @@ pub fn retrieve(
 
     // Sort descending by score.
     scored.sort_by(|(_, sa), (_, sb)| sb.partial_cmp(sa).unwrap_or(Ordering::Equal));
+
+    // Stage 2: SCORED diagnostic snapshot (passive, unmutated)
+    let scored_candidates: Vec<(u64, f32)> = scored.clone();
 
     // Step 2c: Select seed (highest score).
     let (seed_id, _seed_score) = scored[0];
@@ -349,6 +383,9 @@ pub fn retrieve(
             conflict_detected:   true,
             conflict_candidates,
             abstained:           true,
+            raw_nn_candidates,
+            post_filter_candidates,
+            scored_candidates,
         };
     }
 
@@ -440,6 +477,9 @@ pub fn retrieve(
         conflict_detected,
         conflict_candidates,
         abstained: false,
+        raw_nn_candidates,
+        post_filter_candidates,
+        scored_candidates,
     }
 
 }

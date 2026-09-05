@@ -596,14 +596,180 @@ fn e1c_memory_retrieve_valid_intent_succeeds() {
 }
 
 #[test]
-fn e1d_memory_retrieve_text_missing_intent_is_error() {
+fn e1d_memory_retrieve_text_missing_or_null_intent_succeeds_unscoped() {
     let tmp = TempDir::new().unwrap();
     let rt = make_runtime(&tmp);
-    let args = json!({
-        "query": "how to configure database connection",
+
+    // Case 1: retrieval_intent omitted entirely from JSON
+    let args_omitted = json!({
+        "query": "how to configure database connection pool",
     });
-    let result = dispatch("memory_retrieve_text", &rt, &args).unwrap();
-    assert_eq!(result.isError, Some(true), "memory_retrieve_text without retrieval_intent must return error");
+    let result_omitted = dispatch("memory_retrieve_text", &rt, &args_omitted).unwrap();
+    assert_ne!(result_omitted.isError, Some(true), "memory_retrieve_text without retrieval_intent must succeed unscoped");
+    let structured_omitted = parse_content_json(&result_omitted);
+    assert!(structured_omitted.get("retrieve_id").is_some());
+    assert!(structured_omitted.get("raw_nn_candidates").is_some(), "Must expose raw_nn_candidates diagnostic");
+    assert!(structured_omitted.get("post_filter_candidates").is_some(), "Must expose post_filter_candidates diagnostic");
+    assert!(structured_omitted.get("scored_candidates").is_some(), "Must expose scored_candidates diagnostic");
+
+    // Case 2: retrieval_intent explicitly null
+    let args_null = json!({
+        "query": "how to configure database connection pool",
+        "retrieval_intent": null,
+    });
+    let result_null = dispatch("memory_retrieve_text", &rt, &args_null).unwrap();
+    assert_ne!(result_null.isError, Some(true), "memory_retrieve_text with retrieval_intent=null must succeed unscoped");
+    let structured_null = parse_content_json(&result_null);
+    assert!(structured_null.get("retrieve_id").is_some());
+}
+
+#[test]
+fn e1d2_mcp_unscoped_retrieval_competes_across_mixed_node_types() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Learn a State-Action-Outcome triple
+    let learn_args = json!({
+        "state": "rust compiler error borrow checker",
+        "action": "use clone or Arc Mutex synchronization primitive",
+        "outcome": "code compiles successfully without data races",
+        "prediction_error": 0.8,
+        "authority": 0.9,
+        "provenance": "user_explicit"
+    });
+    let learn_res = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+    assert_ne!(learn_res.isError, Some(true));
+
+    // Scoped retrieval with intent="state": candidate must be a State node
+    let scoped_args = json!({
+        "query": "synchronization primitive Arc Mutex",
+        "retrieval_intent": "state",
+    });
+    let scoped_res = dispatch("memory_retrieve_text", &rt, &scoped_args).unwrap();
+    assert_ne!(scoped_res.isError, Some(true));
+
+    // Unscoped retrieval with omitted intent: all node types compete in candidate pool
+    let unscoped_args = json!({
+        "query": "synchronization primitive Arc Mutex",
+    });
+    let unscoped_res = dispatch("memory_retrieve_text", &rt, &unscoped_args).unwrap();
+    assert_ne!(unscoped_res.isError, Some(true));
+    let unscoped_json = parse_content_json(&unscoped_res);
+    let raw_cands = unscoped_json["raw_nn_candidates"].as_array().expect("raw_nn_candidates array");
+    assert!(!raw_cands.is_empty(), "Unscoped retrieval must discover candidates across mixed types");
+}
+
+#[test]
+fn e1d3_mcp_adversarial_intent_fails_closed() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let adversarial_payloads = [
+        "state; DROP TABLE nodes;--",
+        "STATE", // case-sensitive check
+        "State", // TitleCase check
+        "",      // empty string
+        "   ",   // whitespace only
+        "outcome\0injection",
+        "../../etc/passwd",
+        "action OR 1=1",
+    ];
+
+    for payload in adversarial_payloads {
+        let args = json!({
+            "query": "database tuning max connections",
+            "retrieval_intent": payload,
+        });
+        let result = dispatch("memory_retrieve_text", &rt, &args).unwrap();
+        assert_eq!(
+            result.isError, Some(true),
+            "Adversarial retrieval_intent {payload:?} must fail closed (isError=true)"
+        );
+        let text = &result.content[0].text;
+        assert!(
+            text.contains("Invalid retrieval_intent"),
+            "Error text must explain invalid intent for {payload:?}: {text}"
+        );
+    }
+}
+
+#[test]
+fn e1d4_mcp_retrieval_is_pure_read_no_mutation() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Learn one record
+    let learn_args = json!({
+        "state": "memory leak in worker process",
+        "action": "restart worker periodically",
+        "outcome": "memory stabilized",
+        "prediction_error": 0.5,
+    });
+    let _ = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+
+    // Stats before retrieval
+    let stats_before = dispatch("memory_stats", &rt, &json!({})).unwrap();
+    let stats_before_text = stats_before.content[0].text.clone();
+
+    // Unscoped retrieval
+    let ret_args = json!({
+        "query": "memory leak worker restart",
+    });
+    let ret_res = dispatch("memory_retrieve_text", &rt, &ret_args).unwrap();
+    assert_ne!(ret_res.isError, Some(true));
+
+    // Stats after retrieval: version and learn count must not mutate
+    let stats_after = dispatch("memory_stats", &rt, &json!({})).unwrap();
+    let stats_after_text = stats_after.content[0].text.clone();
+
+    assert!(stats_before_text.contains("**Version**: 1 | **Learns**: 1"));
+    assert!(
+        stats_after_text.contains("**Version**: 1 | **Learns**: 1"),
+        "Retrieval must be a pure read operation: version and learn_count must not mutate"
+    );
+}
+
+#[test]
+fn e1d5_mcp_passive_diagnostics_expose_all_stages() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Learn a base record
+    let learn_base = dispatch("memory_learn_text", &rt, &json!({
+        "state": "postgresql max connections pool size",
+        "action": "disable pooling",
+        "outcome": "crashes under load",
+        "prediction_error": 0.9,
+        "authority": 0.1,
+        "provenance": "contradicted"
+    })).unwrap();
+    assert_ne!(learn_base.isError, Some(true));
+
+    // Unscoped retrieval: inspect the diagnostic stages
+    let ret_res = dispatch("memory_retrieve_text", &rt, &json!({
+        "query": "postgresql max connections pool size",
+    })).unwrap();
+    assert_ne!(ret_res.isError, Some(true));
+
+    let json_data = parse_content_json(&ret_res);
+
+    // Verify all 3 stages exist as valid arrays
+    let raw = json_data["raw_nn_candidates"].as_array().expect("raw_nn_candidates");
+    let post = json_data["post_filter_candidates"].as_array().expect("post_filter_candidates");
+    let scored = json_data["scored_candidates"].as_array().expect("scored_candidates");
+
+    assert!(!raw.is_empty(), "RAW_NN stage must not be empty");
+    assert!(!post.is_empty(), "POST_FILTER stage must not be empty");
+    assert!(!scored.is_empty(), "SCORED stage must not be empty");
+
+    // Verify SCORED items have node_id and score sorted descending
+    let mut prev_score = f64::INFINITY;
+    for item in scored {
+        assert!(item.get("node_id").is_some());
+        let sc = item["score"].as_f64().expect("score must be float");
+        assert!(sc <= prev_score + 1e-6, "SCORED stage must be sorted descending: {sc} > {prev_score}");
+        prev_score = sc;
+    }
 }
 
 #[test]

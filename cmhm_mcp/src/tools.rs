@@ -560,6 +560,12 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     "conflict_type": conflict_type_label(&c.conflict_type),
                 })).collect::<Vec<_>>(),
                 "causal_chain_len":  result.causal_chain.len(),
+                "raw_nn_candidates":      result.raw_nn_candidates,
+                "post_filter_candidates": result.post_filter_candidates,
+                "scored_candidates":      result.scored_candidates.iter().map(|(id, score)| json!({
+                    "node_id": id,
+                    "score":   score,
+                })).collect::<Vec<_>>(),
             });
             ToolCallResult {
                 content: vec![ContentItem::text(text), ContentItem::json(&structured)],
@@ -954,6 +960,12 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                     "conflict_type": conflict_type_label(&c.conflict_type),
                 })).collect::<Vec<_>>(),
                 "causal_chain_len":  result.causal_chain.len(),
+                "raw_nn_candidates":      result.raw_nn_candidates,
+                "post_filter_candidates": result.post_filter_candidates,
+                "scored_candidates":      result.scored_candidates.iter().map(|(id, score)| json!({
+                    "node_id": id,
+                    "score":   score,
+                })).collect::<Vec<_>>(),
             });
             ToolCallResult {
                 content: vec![ContentItem::text(text), ContentItem::json(&structured)],

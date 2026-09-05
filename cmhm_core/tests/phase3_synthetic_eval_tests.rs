@@ -199,6 +199,9 @@ fn synth_04_abstained_result_has_empty_chain_invariant() {
         conflict_detected:   true,
         conflict_candidates: vec![],
         abstained:           true,
+        raw_nn_candidates:   vec![],
+        post_filter_candidates: vec![],
+        scored_candidates:   vec![],
     };
 
     assert!(
