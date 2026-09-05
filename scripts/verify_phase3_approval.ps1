@@ -76,7 +76,8 @@ Write-Log "=== Phase 3 Approval Verification Script v1.2 ==="
 Write-Log "Repo: $RepoRoot"
 
 $Commit = (git -C $RepoRoot rev-parse HEAD).Trim()
-$Status = (git -C $RepoRoot status --porcelain).Trim()
+$rawStatus = git -C $RepoRoot status --porcelain
+$Status = if ($null -ne $rawStatus) { "$rawStatus".Trim() } else { "" }
 Write-Log "Git commit: $Commit"
 if ($Status -ne "") {
     Write-Log "WARNING: working tree is not clean: $Status"
