@@ -400,13 +400,16 @@ pub struct RetrieveTextParams {
 
     /// The kind of memory node to use as the retrieval seed.
     ///
-    /// **Required.** Controls which node roles are considered as seed candidates:
-    /// - `"state"` — retrieve the causal chain most relevant to the current situation (default use case).
-    /// - `"action"` — seed from action nodes.
-    /// - `"outcome"` — seed from outcome nodes.
+    /// **Optional.** Controls which node roles are considered as seed candidates:
+    /// - `"state"` — restrict seed candidates to State nodes (default use case).
+    /// - `"action"` — restrict seed candidates to Action nodes.
+    /// - `"outcome"` — restrict seed candidates to Outcome nodes.
+    /// - Omit entirely (null / absent) — **unscoped retrieval**: all node types compete
+    ///   in the candidate pool. Required for cross-type contradiction safety evaluation.
     ///
-    /// Unknown values return an `invalid_params` error.
-    pub retrieval_intent: String,
+    /// Unknown non-null values return an `invalid_params` error.
+    #[serde(default)]
+    pub retrieval_intent: Option<String>,
 }
 
 

@@ -843,13 +843,20 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
 
     let emb = text_to_embedding(&params.query).to_vec();
 
-    // Parse and require retrieval_intent — no unscoped retrieval from MCP.
-    let seed_type = match cmhm_core::node::NodeType::from_str(&params.retrieval_intent) {
-        Some(t) => t,
-        None => return error_result(format!(
-            "Invalid retrieval_intent {:?}. Must be one of: \"state\", \"action\", \"outcome\".",
-            params.retrieval_intent
-        )),
+    // Parse retrieval_intent:
+    //   None/absent → seed_type = None  (unscoped: all node types compete — required for
+    //                                    cross-type contradiction safety evaluation).
+    //   Some(s) and parseable → seed_type = Some(t)  (type-restricted pool).
+    //   Some(s) and unparseable → fail closed.
+    let seed_type: Option<cmhm_core::node::NodeType> = match &params.retrieval_intent {
+        None => None,
+        Some(s) => match cmhm_core::node::NodeType::from_str(s) {
+            Some(t) => Some(t),
+            None => return error_result(format!(
+                "Invalid retrieval_intent {:?}. Must be one of: \"state\", \"action\", \"outcome\", or omitted for unscoped retrieval.",
+                s
+            )),
+        },
     };
 
     // Generate retrieve_id before locking — UUID v4, unique per call
@@ -860,7 +867,12 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     let session_id = rt.session_id().to_string();
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
-    match rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, seed_type) {
+    // Dispatch: unscoped when retrieval_intent absent, scoped when present.
+    let retrieve_result = match seed_type {
+        None    => rt.retrieve_unscoped(ctx_id, emb, TEXT_MODEL_ID),
+        Some(t) => rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, t),
+    };
+    match retrieve_result {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()

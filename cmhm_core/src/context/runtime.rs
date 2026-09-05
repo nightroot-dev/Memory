@@ -328,6 +328,25 @@ impl ContextRuntime {
         Ok((result, desc))
     }
 
+    /// Unscoped retrieval — all NodeType variants compete in the candidate pool.
+    ///
+    /// Used when `retrieval_intent` is absent from the MCP call, or when a
+    /// benchmark must verify cross-type contradiction safety without type fencing.
+    pub fn retrieve_unscoped(
+        &mut self,
+        context_id: Option<&str>,
+        query_emb: Vec<f32>,
+        model_id:  &str,
+    ) -> Result<(RetrievalResult, ContextDescriptor)> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        let result = handle.retrieve_unscoped(query_emb, model_id)?;
+        let desc = self.registry.get(&id)
+            .map(ContextDescriptor::from)
+            .ok_or_else(|| anyhow::anyhow!("context vanished after retrieve_unscoped"))?;
+        Ok((result, desc))
+    }
+
 
     /// Maximum cosine similarity between `query_emb` and existing nodes of `node_type` in a context.
     ///

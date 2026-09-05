@@ -213,14 +213,29 @@ impl EngineHandle {
     /// Retrieve the causal chain most relevant to `query_emb`.
     ///
     /// `seed_type`: restricts seed candidate selection to nodes of that role.
-    /// This is mandatory — unscoped retrieval is not available from the public API.
-    /// Internal library code may call `retrieval::retrieve()` directly with `None`.
+    /// This is the scoped path — candidate pool is limited to one NodeType.
     pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: NodeType) -> Result<RetrievalResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         self.tx.send(Command::Retrieve {
             query_emb,
             model_id: model_id.into(),
             seed_type: Some(seed_type),
+            tx: resp_tx,
+        })?;
+        resp_rx.recv()?
+    }
+
+    /// Unscoped retrieval — candidate pool includes all NodeType variants.
+    ///
+    /// Use when the caller cannot assert node type intent, or when cross-type
+    /// contradiction safety must be verified (e.g., Phase 3 approval benchmark).
+    /// Passes `seed_type = None` to the retrieval engine.
+    pub fn retrieve_unscoped(&self, query_emb: Vec<f32>, model_id: impl Into<String>) -> Result<RetrievalResult> {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        self.tx.send(Command::Retrieve {
+            query_emb,
+            model_id: model_id.into(),
+            seed_type: None,
             tx: resp_tx,
         })?;
         resp_rx.recv()?
