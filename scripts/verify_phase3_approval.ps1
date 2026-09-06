@@ -106,7 +106,7 @@ if ($resCore.ExitCode -ne 0) {
     Write-Log $resCore.Output
     Fail "Core synthetic evaluation tests failed."
 }
-Write-Log "  PASS  Core synthetic evaluation tests (9/9 passed)"
+Write-Log "  PASS  Core synthetic evaluation tests (10/10 passed)"
 
 # 2c. MCP tool layer integration tests (exercising unscoped dispatch and diagnostics)
 Write-Log "Running MCP tool layer integration tests..."
