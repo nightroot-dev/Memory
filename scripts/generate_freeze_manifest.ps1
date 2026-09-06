@@ -2,7 +2,8 @@
 # Generates cryptographic freeze manifest for Phase 3 approval
 
 param(
-    [string]$OutFile = "phase3_freeze_manifest.txt"
+    [string]$OutFile = "phase3_freeze_manifest.txt",
+    [string]$FreezeCommit = "bc6634047cb900f90fd9832a6cf83793e885d1dc"
 )
 
 Set-StrictMode -Version Latest
@@ -24,7 +25,7 @@ $files = @(
     "scripts/verify_phase3_approval.ps1"
 )
 
-$commit = (git -C $RepoRoot rev-parse HEAD).Trim()
+$commit = $FreezeCommit
 $lines = [System.Collections.Generic.List[string]]::new()
 $lines.Add("=== Phase 3 Implementation Freeze Manifest ===")
 $lines.Add("Freeze Commit: $commit")
@@ -39,7 +40,7 @@ foreach ($rel in $files) {
         throw "Manifest file missing: $abs"
     }
     $h = (Get-FileHash $abs -Algorithm SHA256).Hash.ToUpper()
-    $lines.Add("| \`$rel\` | \`$h\` |")
+    $lines.Add('| `' + $rel + '` | `' + $h + '` |')
     Write-Host "$rel : $h"
 }
 
