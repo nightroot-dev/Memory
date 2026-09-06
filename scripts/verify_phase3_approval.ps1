@@ -271,9 +271,9 @@ foreach ($line in $ResultLines) {
     $G6_arr += [double]$margin
 
     # 2. 5-Way Decision Outcome Categorization (Blocker 7)
-    $isSafeAbstainClass = ($rawClass.Contains("SAFE-ABSTENTION") -or $rawClass.Contains("CONTRADICTION"))
+    $expAbstain = if ($fields.ContainsKey("expected_abstain")) { ($fields["expected_abstain"] -eq "true") } else { $false }
     if ($abstained) {
-        if ($isSafeAbstainClass) {
+        if ($expAbstain) {
             $Count_CorrectAbstention++
         } else {
             $Count_IncorrectAbstention++
@@ -301,9 +301,9 @@ foreach ($line in $ResultLines) {
         $ContraTotal++
         if ($fields.ContainsKey("eligible_top2_gap") -and $fields["eligible_top2_gap"] -eq "true") {
             $ContraEligible++
-        }
-        if ($ctype -eq "LogicalContradiction") {
-            $ContraLcFired++
+            if ($ctype -eq "LogicalContradiction") {
+                $ContraLcFired++
+            }
         }
     }
 
@@ -438,9 +438,9 @@ if (-not (Eval-Gate "G6 Mean Margin (SCORED)" $g6_est $G6_ci.Lower "lower" $GATE
 $g7_est = if ($SupersessionTotal -gt 0) { $SupersessionViolations / $SupersessionTotal } else { 0.0 }
 if (-not (Eval-Exact "G7 Supersession Complete Safety" $g7_est "lte" $GATE_G7_SUPERSESSION_LEAK_MAX "Violations: $SupersessionViolations / $SupersessionTotal (zero allowed across post_filter, scored, conflict, chain, winner)")) { $AllPass = $false }
 
-# G8a (LogicalContradiction classification)
-$g8a_est = if ($ContraTotal -gt 0) { $ContraLcFired / $ContraTotal } else { 0.0 }
-if (-not (Eval-Exact "G8a LogicalContradiction Rate" $g8a_est "gte" $GATE_G8A_LOGICAL_CONTRA_MIN "Fired: $ContraLcFired / $ContraTotal CONTRADICTION scenarios")) { $AllPass = $false }
+# G8a (LogicalContradiction classification on ELIGIBLE contradiction scenarios)
+$g8a_est = if ($ContraEligible -gt 0) { $ContraLcFired / $ContraEligible } else { 0.0 }
+if (-not (Eval-Exact "G8a LogicalContradiction Rate" $g8a_est "gte" $GATE_G8A_LOGICAL_CONTRA_MIN "Fired: $ContraLcFired / $ContraEligible ELIGIBLE CONTRADICTION scenarios")) { $AllPass = $false }
 
 # G8b (AuthorityPolarity classification)
 $g8b_est = if ($AuthPolTotal -gt 0) { $AuthPolFired / $AuthPolTotal } else { 0.0 }

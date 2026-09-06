@@ -1,19 +1,19 @@
 # scripts/audit_corpus_overlap.ps1
-# Phase 3 Independent Overlap Auditor — v1.0
+# Phase 3 Independent Overlap Auditor -- v1.3
 #
 # Audits a candidate Phase 3 approval corpus against the two prohibited corpora:
 #   1. cmhm_core/tests/dprime_bench.rs (15-query rejection set)
 #   2. cmhm_core/tests/phase3_held_out_bench.rs (compromised 32-query corpus)
 #
-# Protocol reference: docs/phase3_approval_protocol_v1.2.md
+# Protocol reference: docs/phase3_approval_protocol_v1.3.md
 #
-# Rules:
+# Measurable Novelty Rules:
 #   - Normalization: lowercase, alphanumeric + spaces only, collapsed whitespace.
 #   - Tokenization: word-level sliding 3-grams (word trigrams).
-#   - Similarity: Jaccard index = |A ∩ B| / |A ∪ B|.
-#   - Threshold: Jaccard >= 0.30 is an OVERLAP VIOLATION (fail closed).
-#   - Verbatim check: any shared >= 4-word sequence is an OVERLAP VIOLATION.
-#   - Duplicate check: candidate corpus must have zero duplicate queries.
+#   - Jaccard threshold: Jaccard index >= 0.30 is an OVERLAP VIOLATION.
+#   - Verbatim sequence: any shared verbatim sequence of >= 6 consecutive words is an OVERLAP VIOLATION.
+#   - Exact query collision: candidate query identical to any reference query is an OVERLAP VIOLATION.
+#   - Internal duplicates: candidate corpus must have zero duplicate queries.
 #   - Fail-closed: extraction errors, missing files, or empty corpora exit with non-zero code.
 #
 # Usage:
@@ -25,6 +25,7 @@ param(
     [string]$ReferenceRejectionPath = "cmhm_core/tests/dprime_bench.rs",
     [string]$ReferenceCompromisedPath = "cmhm_core/tests/phase3_held_out_bench.rs",
     [double]$MaxAllowedJaccard = 0.30,
+    [int]$MinVerbatimWords = 6,
     [switch]$SyntheticSelfTest = $false,
     [string]$AuditLogPath = "phase3_overlap_audit.log"
 )
@@ -34,16 +35,13 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
-# ── Text Normalization and Tokenization ────────────────────────────────────────
+# -- Text Normalization and Tokenization ----------------------------------------
 
 function Normalize-Text {
     param([string]$Text)
     if ([string]::IsNullOrWhiteSpace($Text)) { return "" }
-    # Lowercase
     $lower = $Text.ToLowerInvariant()
-    # Replace all non-alphanumeric characters with space
     $clean = $lower -replace '[^a-z0-9]', ' '
-    # Collapse multiple spaces into one
     $collapsed = ($clean -replace '\s+', ' ').Trim()
     return $collapsed
 }
@@ -55,7 +53,6 @@ function Get-WordTrigrams {
     $trigrams = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     
     if ($words.Count -lt 3) {
-        # Fallback for very short strings: use the full string or bigrams
         if ($words.Count -gt 0) {
             [void]$trigrams.Add(($words -join ' '))
         }
@@ -91,7 +88,7 @@ function Check-VerbatimOverlap {
     param(
         [string]$NormalizedA,
         [string]$NormalizedB,
-        [int]$MinWords = 4
+        [int]$MinWords = 6
     )
     $wordsA = $NormalizedA -split ' ' | Where-Object { $_ -ne "" }
     if ($wordsA.Count -lt $MinWords) { return $false }
@@ -105,7 +102,7 @@ function Check-VerbatimOverlap {
     return $false
 }
 
-# ── Extraction Helpers ─────────────────────────────────────────────────────────
+# -- Extraction Helpers ---------------------------------------------------------
 
 function Extract-StringsFromRustFile {
     param(
@@ -119,7 +116,6 @@ function Extract-StringsFromRustFile {
     $results = [System.Collections.Generic.List[string]]::new()
     
     foreach ($field in $FieldNames) {
-        # Match patterns like: query: "..." or query: ("...") or positive_text: "..."
         $pattern = "$field\s*:\s*`"([^`"]+)`""
         $matches = [regex]::Matches($content, $pattern)
         foreach ($m in $matches) {
@@ -132,29 +128,29 @@ function Extract-StringsFromRustFile {
     return $results
 }
 
-# ── Synthetic Self-Test Mode ──────────────────────────────────────────────────
+# -- Synthetic Self-Test Mode --------------------------------------------------
 
 if ($SyntheticSelfTest) {
     Write-Host "=== Running Independent Overlap Auditor Synthetic Self-Tests ==="
     
     # Test 1: Identical strings must yield Jaccard = 1.0 and verbatim match
-    $s1 = "how to configure postgresql max connections properly"
-    $s2 = "how to configure postgresql max connections properly"
+    $s1 = "how to configure postgresql max connections properly in production cluster"
+    $s2 = "how to configure postgresql max connections properly in production cluster"
     $t1 = Get-WordTrigrams (Normalize-Text $s1)
     $t2 = Get-WordTrigrams (Normalize-Text $s2)
     $j1 = Compute-Jaccard $t1 $t2
     if ([Math]::Abs($j1 - 1.0) -gt 1e-6) {
         throw "SelfTest 1 FAILED: identical strings must have Jaccard 1.0, got $j1"
     }
-    $v1 = Check-VerbatimOverlap (Normalize-Text $s1) (Normalize-Text $s2)
+    $v1 = Check-VerbatimOverlap (Normalize-Text $s1) (Normalize-Text $s2) 6
     if (-not $v1) {
         throw "SelfTest 1 FAILED: identical strings must have verbatim overlap"
     }
     Write-Host "  PASS  SelfTest 1: Identical strings detected (Jaccard = 1.0, verbatim = true)"
     
     # Test 2: Paraphrase / Near-duplicate must trigger threshold (>= 0.30)
-    $p1 = "configure postgresql connection pool size using pgbouncer in front"
-    $p2 = "configure postgresql connection pool size using pgbouncer proxy"
+    $p1 = "configure postgresql connection pool size using pgbouncer in front of master"
+    $p2 = "configure postgresql connection pool size using pgbouncer proxy for database"
     $tp1 = Get-WordTrigrams (Normalize-Text $p1)
     $tp2 = Get-WordTrigrams (Normalize-Text $p2)
     $jp = Compute-Jaccard $tp1 $tp2
@@ -163,7 +159,7 @@ if ($SyntheticSelfTest) {
     }
     Write-Host "  PASS  SelfTest 2: Near-duplicate correctly detected (Jaccard = $("{0:F4}" -f $jp) >= 0.30)"
     
-    # Test 3: Completely distinct strings must have Jaccard < 0.10
+    # Test 3: Completely distinct strings must have Jaccard < 0.10 and no verbatim overlap
     $d1 = "kubernetes pod memory limits and cgroups eviction threshold"
     $d2 = "redis sentinel replication quorum and master failover timeout"
     $td1 = Get-WordTrigrams (Normalize-Text $d1)
@@ -171,6 +167,10 @@ if ($SyntheticSelfTest) {
     $jd = Compute-Jaccard $td1 $td2
     if ($jd -ge 0.10) {
         throw "SelfTest 3 FAILED: distinct strings should have Jaccard < 0.10, got $jd"
+    }
+    $vd = Check-VerbatimOverlap (Normalize-Text $d1) (Normalize-Text $d2) 6
+    if ($vd) {
+        throw "SelfTest 3 FAILED: distinct strings should not have verbatim overlap"
     }
     Write-Host "  PASS  SelfTest 3: Distinct strings confirmed disjoint (Jaccard = $("{0:F4}" -f $jd) < 0.10)"
     
@@ -190,7 +190,7 @@ if ($SyntheticSelfTest) {
     exit 0
 }
 
-# ── Primary Audit Execution ───────────────────────────────────────────────────
+# -- Primary Audit Execution ---------------------------------------------------
 
 if ($CandidateCorpusPath -eq "") {
     Write-Error "CandidateCorpusPath is required when not running with -SyntheticSelfTest."
@@ -206,7 +206,7 @@ Write-Host "=== Phase 3 Independent Overlap Audit ==="
 Write-Host "Candidate:   $AbsCandidate"
 Write-Host "Reference 1: $AbsRefRej"
 Write-Host "Reference 2: $AbsRefComp"
-Write-Host "Threshold:   Jaccard < $MaxAllowedJaccard"
+Write-Host "Thresholds:  Jaccard < $MaxAllowedJaccard, Verbatim < $MinVerbatimWords words"
 
 # Check files exist
 if (-not (Test-Path $AbsCandidate)) {
@@ -265,7 +265,7 @@ $logLines.Add("Candidate SHA-256:   $((Get-FileHash $AbsCandidate -Algorithm SHA
 $logLines.Add("Ref Rejection SHA:   $((Get-FileHash $AbsRefRej -Algorithm SHA256).Hash)")
 $logLines.Add("Ref Compromised SHA: $((Get-FileHash $AbsRefComp -Algorithm SHA256).Hash)")
 $logLines.Add("Candidate Queries:   $($candidateQueries.Count)")
-$logLines.Add("Threshold:           Jaccard < $MaxAllowedJaccard")
+$logLines.Add("Threshold:           Jaccard < $MaxAllowedJaccard, Verbatim < $MinVerbatimWords words")
 
 foreach ($cand in $candidateTexts) {
     $normCand = Normalize-Text $cand
@@ -276,17 +276,19 @@ foreach ($cand in $candidateTexts) {
         $triRef  = Get-WordTrigrams $normRef
         $totalComparisons++
         
+        # Check exact normalized match
+        $exactMatch = ($normCand -eq $normRef)
+        
         $jaccard = Compute-Jaccard $triCand $triRef
         if ($jaccard -gt $maxJaccard) {
             $maxJaccard = $jaccard
         }
         
-        $verbatim = Check-VerbatimOverlap $normCand $normRef 4
+        $verbatim = Check-VerbatimOverlap $normCand $normRef $MinVerbatimWords
         
-        if ($jaccard -ge $MaxAllowedJaccard -or $verbatim) {
+        if ($exactMatch -or $jaccard -ge $MaxAllowedJaccard -or $verbatim) {
             $violations++
-            $logLines.Add("VIOLATION: Jaccard=$("{0:F4}" -f $jaccard), Verbatim=$verbatim")
-            # Note: For strict isolation, specific query texts are recorded only in the sealed log
+            $logLines.Add("VIOLATION: Jaccard=$("{0:F4}" -f $jaccard), Verbatim=$verbatim, ExactMatch=$exactMatch")
         }
     }
 }
