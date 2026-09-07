@@ -125,7 +125,9 @@ function Extract-StringsFromRustFile {
             }
         }
     }
-    return $results
+    # NOTE: comma operator forces PS to preserve an empty List as a List object
+    # rather than unwrapping it to $null (PS pipeline unrolling behaviour).
+    return ,$results
 }
 
 # -- Synthetic Self-Test Mode --------------------------------------------------
@@ -223,8 +225,10 @@ if (-not (Test-Path $AbsRefComp)) {
 }
 
 # Extract candidate elements
+# Note: approval bench uses pos_text/neg_text; held-out bench uses positive_text/hard_neg_text.
+# Both aliases included so either corpus format is covered.
 $candidateQueries = Extract-StringsFromRustFile $AbsCandidate @("query")
-$candidateTexts   = Extract-StringsFromRustFile $AbsCandidate @("query", "positive_text", "hard_neg_text")
+$candidateTexts   = Extract-StringsFromRustFile $AbsCandidate @("query", "positive_text", "hard_neg_text", "pos_text", "neg_text")
 
 if ($candidateQueries.Count -lt 40) {
     Write-Error "FAIL CLOSED: Candidate corpus has $($candidateQueries.Count) queries; minimum required is 40."
