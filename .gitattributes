@@ -1,0 +1,11 @@
+# Normalize line endings for all text files
+* text=lf eol=lf
+
+# Binaries - no line ending processing
+*.bin binary
+*.dat binary
+*.zip binary
+*.snap.tmp binary
+*.wal binary
+*.png binary
+*.snapshot binary
