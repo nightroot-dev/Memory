@@ -140,12 +140,35 @@ if ($resAuditRun.ExitCode -ne 0) {
 }
 Write-Log "Overlap audit PASSED. Zero overlap violations detected."
 
-# -- Section 4: Execute Corpus Benchmark via Cargo -----------------------------
+# -- Section 4a: Stage 1.5 -- Conformance Validation (Protocol v1.8 Section 12) --------
+# Validates every scenario against the Section 4.4 class-spec matrix.
+# Failure terminates the run BEFORE Stage 2 is executed (attempt is NOT consumed).
+
+Write-Log ""
+Write-Log "=== Stage 1.5: Running Conformance Validator (phase3_conformance_check) ==="
+
+$conformanceCmd = "cargo test --manifest-path `"$RepoRoot\Cargo.toml`" --package $CorpusPackage --test $CorpusTestName phase3_conformance_check -- --nocapture"
+$resConformance = Run-CommandCapture $conformanceCmd
+Write-Log $resConformance.Output
+if ($resConformance.ExitCode -ne 0) {
+    Write-Log ""
+    Write-Log "FATAL: Conformance check failed -- attempt NOT consumed."
+    Write-Log "Fix the corpus to match Protocol v1.8 Section 4.4 before proceeding to Stage 2."
+    Fail "Stage 1.5 FAILED: corpus does not conform to Section 4.4 class-spec matrix."
+}
+if ($resConformance.Output -match "CONFORMANCE_CHECK\|FAIL") {
+    Write-Log ""
+    Write-Log "FATAL: Conformance check output contains FAIL lines -- attempt NOT consumed."
+    Fail "Stage 1.5 FAILED: CONFORMANCE_CHECK|FAIL detected in output."
+}
+Write-Log "Stage 1.5 PASSED. All scenarios conform to Section 4.4 class-spec matrix."
+
+# -- Section 4b: Execute Corpus Benchmark via Cargo (Stage 2 -- consumes the attempt) --
 
 Write-Log ""
 Write-Log "=== Executing Approval Benchmark ($CorpusPackage / $CorpusTestName) ==="
 
-$benchCmd = "cargo test --manifest-path `"$RepoRoot\Cargo.toml`" --package $CorpusPackage --test $CorpusTestName -- --test-threads=1 --nocapture"
+$benchCmd = "cargo test --manifest-path `"$RepoRoot\Cargo.toml`" --package $CorpusPackage --test $CorpusTestName $CorpusTestName -- --test-threads=1 --nocapture"
 $resBench = Run-CommandCapture $benchCmd
 $BenchExit = $resBench.ExitCode
 $BenchOutput = $resBench.Output

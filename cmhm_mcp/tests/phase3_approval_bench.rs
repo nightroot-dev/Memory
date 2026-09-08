@@ -1,9 +1,10 @@
-//! Phase 3 Approval Benchmark — Role A scaffolding (frozen at bc66340)
+﻿//! Phase 3 Approval Benchmark â€” Role A scaffolding (frozen at bc66340)
 //!
-//! AUTHORING BOUNDARY (Protocol v1.5 Section 4.1):
+//! AUTHORING BOUNDARY (Protocol v1.8 Section 4):
 //!   Role A authored this file: all types, the runner harness, scoring logic,
 //!   distractor generation, pool-stage extraction, gate metric computation,
-//!   and the PHASE3_RESULT|...| structured output formatter.
+//!   the PHASE3_RESULT|...| structured output formatter, and the
+//!   phase3_conformance_check test (Stage 1.5 validator).
 //!
 //!   Role B fills in DATA ONLY: the `SCENARIOS` static slice below.
 //!   ZERO structural changes, type changes, harness changes, or scoring changes
@@ -17,17 +18,22 @@
 //!   automatically at Stage 1. Any violation fails closed and terminates
 //!   the attempt.
 //!
+//! STAGE 1.5 CONFORMANCE CHECK:
+//!   `phase3_conformance_check` must pass before Stage 2 may execute.
+//!   It validates every scenario in SCENARIOS against the Section 4.4 matrix.
+//!   Failures terminate the attempt before the single run is consumed.
+//!
 //! EXECUTION CONSTRAINT:
 //!   This benchmark consumes the single approval attempt when Stage 2 launches.
 //!   Do not run `scripts/verify_phase3_approval.ps1` without `-SyntheticOnly`
-//!   until Role B has committed and audited the corpus.
+//!   until the conformance check and overlap audit have both passed.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use tempfile::TempDir;
 
 use cmhm_core::{Config, ContextRuntime, ContextType, ConflictType, CallerRole};
 
-// ── Scenario types (frozen — Role B must not modify) ─────────────────────────
+// â”€â”€ Scenario types (frozen â€” Role B must not modify) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScenarioClass {
@@ -74,7 +80,7 @@ pub struct ApprovalScenario {
     pub neg_prov: &'static str,
     pub neg_key: Option<&'static str>,
     pub neg_polarity: Option<i8>,
-    /// If true, D+ supersedes D− (SUPERSESSION class only).
+    /// If true, D+ supersedes Dâˆ’ (SUPERSESSION class only).
     pub supersedes_neg: bool,
     /// Expected conflict classification from the engine.
     pub expected_conflict: ExpectedConflict,
@@ -84,610 +90,29 @@ pub struct ApprovalScenario {
     pub expected_winner: ExpectedWinner,
 }
 
-// ── ROLE B: POPULATE THIS SLICE ONLY. MINIMUM 40 SCENARIOS. ──────────────────
+// â”€â”€ ROLE B: POPULATE THIS SLICE ONLY. MINIMUM 40 SCENARIOS. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Zero structural or harness logic changes are permitted.
-// Follow Section 4 of Protocol v1.5 strictly.
-// ── ROLE B CORPUS ─────────────────────────────────────────────────────────────
-// 40 scenarios selected from Role B's 140-scenario submission.
-// Original IDs: 1–37, 57, 62, 67 → renumbered 1–40 here for sequential compliance.
-// Satisfies: ≥10 Contradiction, ≥6 Supersession, ≥6 AuthorityPolarity,
-//            ≥6 AdversarialAuthority, ≥6 SafeAbstention, ≥6 UnresolvedConflict,
-//            no domain > 6, total = 40.
-// expected_conflict / expected_abstain / expected_winner are derived from class per
-// Protocol v1.6 Section 4.4; those fields are metadata only — gates use engine output.
+// Follow Section 4 of Protocol v1.8 strictly.
 //
-// NOTE G8b: AdversarialAuthority scenarios (bench IDs 22–27) carry same assertion_key
-// with opposite polarity; engine may emit LogicalContradiction instead of
-// AuthorityPolarity for those. Gate results are authoritative.
+// CORPUS v2 PLACEHOLDER â€” attempt-1 corpus removed (commit e989a91, invalid on its face).
+// Role B authors fresh scenarios per Protocol v1.8 Section 4.4 and Section 13.
+// Role A transcribes mechanically and commits; phase3_conformance_check (Stage 1.5)
+// validates conformance before Stage 2 is permitted to execute.
 pub static SCENARIOS: &[ApprovalScenario] = &[
 
-    // ── CONTRADICTION (10) ────────────────────────────────────────────────────
+    // â”€â”€ Role B populates here. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    // bench 1, orig 1
-    ApprovalScenario {
-        id: 1, domain: "Infrastructure/OS", class: ScenarioClass::Contradiction,
-        query: "Should the systemd unit for the API service enable automatic restarts?",
-        pos_text: "systemd unit api.service has Restart=always enabled",
-        pos_auth: 0.90, pos_prov: "user_explicit",
-        pos_key: Some("systemd_api_restart_policy"), pos_polarity: Some(1),
-        neg_text: "systemd unit api.service has Restart=no",
-        neg_auth: 0.55, neg_prov: "contradicted",
-        neg_key: Some("systemd_api_restart_policy"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 2, orig 2
-    ApprovalScenario {
-        id: 2, domain: "Database", class: ScenarioClass::Contradiction,
-        query: "Is connection pooling enabled for the PostgreSQL client?",
-        pos_text: "PostgreSQL client pool_size=20 is active",
-        pos_auth: 0.85, pos_prov: "user_explicit",
-        pos_key: Some("postgres_pool_enabled"), pos_polarity: Some(1),
-        neg_text: "PostgreSQL client pool_size=0 (disabled)",
-        neg_auth: 0.40, neg_prov: "contradicted",
-        neg_key: Some("postgres_pool_enabled"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 3, orig 3
-    ApprovalScenario {
-        id: 3, domain: "Network/TLS", class: ScenarioClass::Contradiction,
-        query: "Is TLS certificate verification enabled for outgoing HTTPS requests?",
-        pos_text: "outgoing HTTPS requests have certificate verification enabled",
-        pos_auth: 0.88, pos_prov: "user_explicit",
-        pos_key: Some("tls_verify_enabled"), pos_polarity: Some(1),
-        neg_text: "outgoing HTTPS requests skip certificate verification",
-        neg_auth: 0.45, neg_prov: "contradicted",
-        neg_key: Some("tls_verify_enabled"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 4, orig 4
-    ApprovalScenario {
-        id: 4, domain: "Container orchestration", class: ScenarioClass::Contradiction,
-        query: "Is the Kubernetes deployment configured to use a rolling update strategy?",
-        pos_text: "K8s deployment uses RollingUpdate strategy",
-        pos_auth: 0.82, pos_prov: "user_explicit",
-        pos_key: Some("k8s_update_strategy"), pos_polarity: Some(1),
-        neg_text: "K8s deployment uses Recreate strategy",
-        neg_auth: 0.48, neg_prov: "contradicted",
-        neg_key: Some("k8s_update_strategy"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 5, orig 5
-    ApprovalScenario {
-        id: 5, domain: "Cloud/IAM", class: ScenarioClass::Contradiction,
-        query: "Is MFA enforced for all IAM users?",
-        pos_text: "IAM policy enforces MFA for all users",
-        pos_auth: 0.92, pos_prov: "user_explicit",
-        pos_key: Some("iam_mfa_required"), pos_polarity: Some(1),
-        neg_text: "IAM policy does not require MFA",
-        neg_auth: 0.38, neg_prov: "contradicted",
-        neg_key: Some("iam_mfa_required"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 6, orig 6
-    ApprovalScenario {
-        id: 6, domain: "Security/crypto", class: ScenarioClass::Contradiction,
-        query: "Should the encryption key be rotated every 90 days?",
-        pos_text: "Key rotation policy is set to 90 days",
-        pos_auth: 0.87, pos_prov: "user_explicit",
-        pos_key: Some("key_rotation_90d"), pos_polarity: Some(1),
-        neg_text: "Key rotation policy is disabled",
-        neg_auth: 0.42, neg_prov: "contradicted",
-        neg_key: Some("key_rotation_90d"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 7, orig 7
-    ApprovalScenario {
-        id: 7, domain: "Distributed consensus", class: ScenarioClass::Contradiction,
-        query: "Is the Raft consensus leader election timeout set to 150ms?",
-        pos_text: "Raft leader election timeout = 150ms",
-        pos_auth: 0.80, pos_prov: "user_explicit",
-        pos_key: Some("raft_election_timeout"), pos_polarity: Some(1),
-        neg_text: "Raft leader election timeout = 500ms",
-        neg_auth: 0.50, neg_prov: "contradicted",
-        neg_key: Some("raft_election_timeout"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 8, orig 8
-    ApprovalScenario {
-        id: 8, domain: "Observability", class: ScenarioClass::Contradiction,
-        query: "Is debug-level logging enabled for the ingest service?",
-        pos_text: "ingest service log level is debug",
-        pos_auth: 0.78, pos_prov: "user_explicit",
-        pos_key: Some("ingest_log_level_debug"), pos_polarity: Some(1),
-        neg_text: "ingest service log level is info",
-        neg_auth: 0.52, neg_prov: "contradicted",
-        neg_key: Some("ingest_log_level_debug"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 9, orig 9
-    ApprovalScenario {
-        id: 9, domain: "Storage/filesystem", class: ScenarioClass::Contradiction,
-        query: "Is the data volume mounted with noatime?",
-        pos_text: "/data volume is mounted with noatime option",
-        pos_auth: 0.84, pos_prov: "user_explicit",
-        pos_key: Some("data_volume_noatime"), pos_polarity: Some(1),
-        neg_text: "/data volume is mounted with atime enabled",
-        neg_auth: 0.46, neg_prov: "contradicted",
-        neg_key: Some("data_volume_noatime"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 10, orig 10
-    ApprovalScenario {
-        id: 10, domain: "Infrastructure/OS", class: ScenarioClass::Contradiction,
-        query: "Is the swap partition encrypted?",
-        pos_text: "Swap partition is encrypted with LUKS",
-        pos_auth: 0.89, pos_prov: "user_explicit",
-        pos_key: Some("swap_encrypted"), pos_polarity: Some(1),
-        neg_text: "Swap partition is not encrypted",
-        neg_auth: 0.41, neg_prov: "contradicted",
-        neg_key: Some("swap_encrypted"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-
-    // ── SUPERSESSION (6) ──────────────────────────────────────────────────────
-
-    // bench 11, orig 11
-    ApprovalScenario {
-        id: 11, domain: "Database", class: ScenarioClass::Supersession,
-        query: "What is the current read replica count for the production DB?",
-        pos_text: "Production DB has 3 read replicas",
-        pos_auth: 0.95, pos_prov: "user_explicit",
-        pos_key: Some("db_replica_count"), pos_polarity: Some(1),
-        neg_text: "Production DB has 1 read replica",
-        neg_auth: 0.60, neg_prov: "contradicted",
-        neg_key: Some("db_replica_count"), neg_polarity: Some(1),
-        supersedes_neg: true,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 12, orig 12
-    ApprovalScenario {
-        id: 12, domain: "Network/TLS", class: ScenarioClass::Supersession,
-        query: "Which TLS version is allowed for the public API?",
-        pos_text: "Public API supports TLS 1.3 only",
-        pos_auth: 0.94, pos_prov: "user_explicit",
-        pos_key: Some("api_tls_version"), pos_polarity: Some(1),
-        neg_text: "Public API supports TLS 1.2 and 1.3",
-        neg_auth: 0.55, neg_prov: "contradicted",
-        neg_key: Some("api_tls_version"), neg_polarity: Some(1),
-        supersedes_neg: true,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 13, orig 13
-    ApprovalScenario {
-        id: 13, domain: "Container orchestration", class: ScenarioClass::Supersession,
-        query: "What is the CPU limit for the worker container?",
-        pos_text: "Worker container CPU limit is 2 cores",
-        pos_auth: 0.93, pos_prov: "user_explicit",
-        pos_key: Some("worker_cpu_limit"), pos_polarity: Some(1),
-        neg_text: "Worker container CPU limit is 1 core",
-        neg_auth: 0.58, neg_prov: "contradicted",
-        neg_key: Some("worker_cpu_limit"), neg_polarity: Some(1),
-        supersedes_neg: true,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 14, orig 14
-    ApprovalScenario {
-        id: 14, domain: "Cloud/IAM", class: ScenarioClass::Supersession,
-        query: "What is the maximum session duration for temporary credentials?",
-        pos_text: "Temporary credentials max session duration is 12 hours",
-        pos_auth: 0.91, pos_prov: "user_explicit",
-        pos_key: Some("iam_session_duration"), pos_polarity: Some(1),
-        neg_text: "Temporary credentials max session duration is 1 hour",
-        neg_auth: 0.50, neg_prov: "contradicted",
-        neg_key: Some("iam_session_duration"), neg_polarity: Some(1),
-        supersedes_neg: true,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 15, orig 15
-    ApprovalScenario {
-        id: 15, domain: "Security/crypto", class: ScenarioClass::Supersession,
-        query: "What is the current password policy for service accounts?",
-        pos_text: "Service account password minimum length is 24 characters",
-        pos_auth: 0.92, pos_prov: "user_explicit",
-        pos_key: Some("password_policy_min_length"), pos_polarity: Some(1),
-        neg_text: "Service account password minimum length is 16 characters",
-        neg_auth: 0.53, neg_prov: "contradicted",
-        neg_key: Some("password_policy_min_length"), neg_polarity: Some(1),
-        supersedes_neg: true,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 16, orig 16
-    ApprovalScenario {
-        id: 16, domain: "Distributed consensus", class: ScenarioClass::Supersession,
-        query: "What is the quorum size for the etcd cluster?",
-        pos_text: "etcd cluster quorum size is 3 nodes",
-        pos_auth: 0.90, pos_prov: "user_explicit",
-        pos_key: Some("etcd_quorum_size"), pos_polarity: Some(1),
-        neg_text: "etcd cluster quorum size is 5 nodes",
-        neg_auth: 0.49, neg_prov: "contradicted",
-        neg_key: Some("etcd_quorum_size"), neg_polarity: Some(1),
-        supersedes_neg: true,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-
-    // ── AUTHORITY-POLARITY (6) ────────────────────────────────────────────────
-
-    // bench 17, orig 17
-    ApprovalScenario {
-        id: 17, domain: "Observability", class: ScenarioClass::AuthorityPolarity,
-        query: "Should the metrics endpoint be exposed publicly?",
-        pos_text: "Metrics endpoint should be bound to localhost only",
-        pos_auth: 0.85, pos_prov: "corrected",
-        pos_key: Some("metrics_endpoint_bind"), pos_polarity: Some(1),
-        neg_text: "Metrics endpoint should be exposed on all interfaces",
-        neg_auth: 0.75, neg_prov: "user_explicit",
-        neg_key: Some("metrics_endpoint_bind"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 18, orig 18
-    ApprovalScenario {
-        id: 18, domain: "Storage/filesystem", class: ScenarioClass::AuthorityPolarity,
-        query: "What filesystem type is used for the data volume?",
-        pos_text: "Data volume uses XFS filesystem",
-        pos_auth: 0.86, pos_prov: "corrected",
-        pos_key: Some("data_volume_fs_type"), pos_polarity: Some(1),
-        neg_text: "Data volume uses ext4 filesystem",
-        neg_auth: 0.74, neg_prov: "user_explicit",
-        neg_key: Some("data_volume_fs_type"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 19, orig 19
-    ApprovalScenario {
-        id: 19, domain: "Infrastructure/OS", class: ScenarioClass::AuthorityPolarity,
-        query: "What is the kernel sysctl value for net.core.somaxconn?",
-        pos_text: "net.core.somaxconn = 4096",
-        pos_auth: 0.83, pos_prov: "corrected",
-        pos_key: Some("sysctl_somaxconn"), pos_polarity: Some(1),
-        neg_text: "net.core.somaxconn = 1024",
-        neg_auth: 0.70, neg_prov: "user_explicit",
-        neg_key: Some("sysctl_somaxconn"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 20, orig 20
-    ApprovalScenario {
-        id: 20, domain: "Database", class: ScenarioClass::AuthorityPolarity,
-        query: "What is the connection timeout for the Redis client?",
-        pos_text: "Redis client connection timeout = 5000ms",
-        pos_auth: 0.87, pos_prov: "corrected",
-        pos_key: Some("redis_connection_timeout"), pos_polarity: Some(1),
-        neg_text: "Redis client connection timeout = 2000ms",
-        neg_auth: 0.76, neg_prov: "user_explicit",
-        neg_key: Some("redis_connection_timeout"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 21, orig 21
-    ApprovalScenario {
-        id: 21, domain: "Network/TLS", class: ScenarioClass::AuthorityPolarity,
-        query: "What is the keepalive interval for the gRPC connection?",
-        pos_text: "gRPC keepalive interval is 30 seconds",
-        pos_auth: 0.84, pos_prov: "corrected",
-        pos_key: Some("grpc_keepalive_interval"), pos_polarity: Some(1),
-        neg_text: "gRPC keepalive interval is 60 seconds",
-        neg_auth: 0.72, neg_prov: "user_explicit",
-        neg_key: Some("grpc_keepalive_interval"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 22, orig 57 (6th AuthorityPolarity — Observability)
-    ApprovalScenario {
-        id: 22, domain: "Observability", class: ScenarioClass::AuthorityPolarity,
-        query: "What is the log shipping batch size?",
-        pos_text: "Log shipping batch size is 512 records",
-        pos_auth: 0.84, pos_prov: "corrected",
-        pos_key: Some("log_shipping_batch_size"), pos_polarity: Some(1),
-        neg_text: "Log shipping batch size is 1024 records",
-        neg_auth: 0.73, neg_prov: "user_explicit",
-        neg_key: Some("log_shipping_batch_size"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-
-    // ── ADVERSARIAL-AUTHORITY (6) ─────────────────────────────────────────────
-
-    // bench 23, orig 22
-    ApprovalScenario {
-        id: 23, domain: "Cloud/IAM", class: ScenarioClass::AdversarialAuthority,
-        query: "Should the S3 bucket be public?",
-        pos_text: "S3 bucket is private (no public access)",
-        pos_auth: 0.80, pos_prov: "corrected",
-        pos_key: Some("s3_bucket_public_access"), pos_polarity: Some(-1),
-        neg_text: "S3 bucket is public read-only",
-        neg_auth: 0.95, neg_prov: "user_explicit",
-        neg_key: Some("s3_bucket_public_access"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 24, orig 23
-    ApprovalScenario {
-        id: 24, domain: "Security/crypto", class: ScenarioClass::AdversarialAuthority,
-        query: "Is the admin password stored in plaintext?",
-        pos_text: "Admin password is stored hashed with bcrypt",
-        pos_auth: 0.80, pos_prov: "corrected",
-        pos_key: Some("admin_password_storage"), pos_polarity: Some(-1),
-        neg_text: "Admin password is stored in plaintext",
-        neg_auth: 0.95, neg_prov: "user_explicit",
-        neg_key: Some("admin_password_storage"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 25, orig 24
-    ApprovalScenario {
-        id: 25, domain: "Container orchestration", class: ScenarioClass::AdversarialAuthority,
-        query: "Is privileged mode enabled for the container?",
-        pos_text: "Container runs with privileged mode disabled",
-        pos_auth: 0.82, pos_prov: "corrected",
-        pos_key: Some("container_privileged_mode"), pos_polarity: Some(-1),
-        neg_text: "Container runs with privileged mode enabled",
-        neg_auth: 0.96, neg_prov: "user_explicit",
-        neg_key: Some("container_privileged_mode"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 26, orig 25
-    ApprovalScenario {
-        id: 26, domain: "Distributed consensus", class: ScenarioClass::AdversarialAuthority,
-        query: "Is the Raft snapshot compression enabled?",
-        pos_text: "Raft snapshot compression is enabled",
-        pos_auth: 0.81, pos_prov: "corrected",
-        pos_key: Some("raft_snapshot_compression"), pos_polarity: Some(1),
-        neg_text: "Raft snapshot compression is disabled",
-        neg_auth: 0.94, neg_prov: "user_explicit",
-        neg_key: Some("raft_snapshot_compression"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 27, orig 26
-    ApprovalScenario {
-        id: 27, domain: "Observability", class: ScenarioClass::AdversarialAuthority,
-        query: "Is the trace sampling rate set to 10%?",
-        pos_text: "Trace sampling rate is 10%",
-        pos_auth: 0.79, pos_prov: "corrected",
-        pos_key: Some("trace_sampling_rate"), pos_polarity: Some(1),
-        neg_text: "Trace sampling rate is 100%",
-        neg_auth: 0.93, neg_prov: "user_explicit",
-        neg_key: Some("trace_sampling_rate"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 28, orig 62 (6th AdversarialAuthority — Cloud/IAM)
-    ApprovalScenario {
-        id: 28, domain: "Cloud/IAM", class: ScenarioClass::AdversarialAuthority,
-        query: "Should the IAM role have full administrative access?",
-        pos_text: "IAM role has least-privilege permissions only",
-        pos_auth: 0.80, pos_prov: "corrected",
-        pos_key: Some("iam_role_admin_access"), pos_polarity: Some(-1),
-        neg_text: "IAM role has full administrative access",
-        neg_auth: 0.95, neg_prov: "user_explicit",
-        neg_key: Some("iam_role_admin_access"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::AuthorityPolarity,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-
-    // ── SAFE-ABSTENTION (6) ───────────────────────────────────────────────────
-
-    // bench 29, orig 27
-    ApprovalScenario {
-        id: 29, domain: "Storage/filesystem", class: ScenarioClass::SafeAbstention,
-        query: "What is the default block size for the log volume?",
-        pos_text: "Log volume block size is 4096 bytes",
-        pos_auth: 0.68, pos_prov: "user_explicit",
-        pos_key: Some("log_volume_blocksize"), pos_polarity: Some(1),
-        neg_text: "Log volume block size is 8192 bytes",
-        neg_auth: 0.66, neg_prov: "user_explicit",
-        neg_key: Some("log_volume_blocksize"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 30, orig 28
-    ApprovalScenario {
-        id: 30, domain: "Infrastructure/OS", class: ScenarioClass::SafeAbstention,
-        query: "What is the file descriptor limit for the application process?",
-        pos_text: "Process file descriptor limit is 65536",
-        pos_auth: 0.70, pos_prov: "user_explicit",
-        pos_key: Some("process_fd_limit"), pos_polarity: Some(1),
-        neg_text: "Process file descriptor limit is 32768",
-        neg_auth: 0.67, neg_prov: "user_explicit",
-        neg_key: Some("process_fd_limit"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 31, orig 29
-    ApprovalScenario {
-        id: 31, domain: "Database", class: ScenarioClass::SafeAbstention,
-        query: "What is the isolation level for the transactions service?",
-        pos_text: "Transaction isolation level is READ COMMITTED",
-        pos_auth: 0.69, pos_prov: "user_explicit",
-        pos_key: Some("tx_isolation_level"), pos_polarity: Some(1),
-        neg_text: "Transaction isolation level is REPEATABLE READ",
-        neg_auth: 0.68, neg_prov: "user_explicit",
-        neg_key: Some("tx_isolation_level"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 32, orig 30
-    ApprovalScenario {
-        id: 32, domain: "Network/TLS", class: ScenarioClass::SafeAbstention,
-        query: "What is the HTTP keep-alive timeout for the proxy?",
-        pos_text: "Proxy keep-alive timeout is 60 seconds",
-        pos_auth: 0.65, pos_prov: "user_explicit",
-        pos_key: Some("proxy_keepalive_timeout"), pos_polarity: Some(1),
-        neg_text: "Proxy keep-alive timeout is 120 seconds",
-        neg_auth: 0.63, neg_prov: "user_explicit",
-        neg_key: Some("proxy_keepalive_timeout"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 33, orig 31
-    ApprovalScenario {
-        id: 33, domain: "Cloud/IAM", class: ScenarioClass::SafeAbstention,
-        query: "Is the IAM role allowed to assume the production role?",
-        pos_text: "IAM role has sts:AssumeRole permission for production role",
-        pos_auth: 0.64, pos_prov: "user_explicit",
-        pos_key: Some("iam_assume_role_permission"), pos_polarity: Some(1),
-        neg_text: "IAM role lacks sts:AssumeRole permission for production role",
-        neg_auth: 0.62, neg_prov: "user_explicit",
-        neg_key: Some("iam_assume_role_permission"), neg_polarity: Some(-1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-    // bench 34, orig 67 (6th SafeAbstention — Storage/filesystem)
-    ApprovalScenario {
-        id: 34, domain: "Storage/filesystem", class: ScenarioClass::SafeAbstention,
-        query: "What is the mount option for the database volume regarding file locking?",
-        pos_text: "Database volume uses local file locking",
-        pos_auth: 0.67, pos_prov: "user_explicit",
-        pos_key: Some("db_volume_file_lock"), pos_polarity: Some(1),
-        neg_text: "Database volume uses network file locking",
-        neg_auth: 0.65, neg_prov: "user_explicit",
-        neg_key: Some("db_volume_file_lock"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::LogicalContradiction,
-        expected_abstain: true, expected_winner: ExpectedWinner::None,
-    },
-
-    // ── UNRESOLVED-CONFLICT (6) ───────────────────────────────────────────────
-
-    // bench 35, orig 32
-    ApprovalScenario {
-        id: 35, domain: "Security/crypto", class: ScenarioClass::UnresolvedConflict,
-        query: "What encryption algorithm is used for data at rest?",
-        pos_text: "Data at rest uses AES-256-GCM",
-        pos_auth: 0.85, pos_prov: "user_explicit",
-        pos_key: Some("data_at_rest_encryption_algorithm"), pos_polarity: Some(1),
-        neg_text: "Data at rest uses ChaCha20-Poly1305",
-        neg_auth: 0.80, neg_prov: "user_explicit",
-        neg_key: Some("data_at_rest_encryption_algorithm"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 36, orig 33
-    ApprovalScenario {
-        id: 36, domain: "Container orchestration", class: ScenarioClass::UnresolvedConflict,
-        query: "What is the image pull policy for the deployment?",
-        pos_text: "Image pull policy is Always",
-        pos_auth: 0.82, pos_prov: "user_explicit",
-        pos_key: Some("image_pull_policy"), pos_polarity: Some(1),
-        neg_text: "Image pull policy is IfNotPresent",
-        neg_auth: 0.78, neg_prov: "user_explicit",
-        neg_key: Some("image_pull_policy"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 37, orig 34
-    ApprovalScenario {
-        id: 37, domain: "Distributed consensus", class: ScenarioClass::UnresolvedConflict,
-        query: "What is the heartbeat interval for the consensus group?",
-        pos_text: "Consensus heartbeat interval is 500ms",
-        pos_auth: 0.83, pos_prov: "user_explicit",
-        pos_key: Some("consensus_heartbeat_interval"), pos_polarity: Some(1),
-        neg_text: "Consensus heartbeat interval is 250ms",
-        neg_auth: 0.81, neg_prov: "user_explicit",
-        neg_key: Some("consensus_heartbeat_interval"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 38, orig 35
-    ApprovalScenario {
-        id: 38, domain: "Observability", class: ScenarioClass::UnresolvedConflict,
-        query: "What is the log retention period for the audit logs?",
-        pos_text: "Audit log retention period is 90 days",
-        pos_auth: 0.84, pos_prov: "user_explicit",
-        pos_key: Some("audit_log_retention"), pos_polarity: Some(1),
-        neg_text: "Audit log retention period is 180 days",
-        neg_auth: 0.79, neg_prov: "user_explicit",
-        neg_key: Some("audit_log_retention"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 39, orig 36
-    ApprovalScenario {
-        id: 39, domain: "Storage/filesystem", class: ScenarioClass::UnresolvedConflict,
-        query: "What is the backup snapshot frequency for the persistent volume?",
-        pos_text: "Persistent volume snapshot frequency is every 12 hours",
-        pos_auth: 0.86, pos_prov: "user_explicit",
-        pos_key: Some("pv_snapshot_frequency"), pos_polarity: Some(1),
-        neg_text: "Persistent volume snapshot frequency is every 24 hours",
-        neg_auth: 0.77, neg_prov: "user_explicit",
-        neg_key: Some("pv_snapshot_frequency"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
-    // bench 40, orig 37
-    ApprovalScenario {
-        id: 40, domain: "Infrastructure/OS", class: ScenarioClass::UnresolvedConflict,
-        query: "What is the systemd service type for the worker process?",
-        pos_text: "Worker service type is forking",
-        pos_auth: 0.80, pos_prov: "user_explicit",
-        pos_key: Some("worker_service_type"), pos_polarity: Some(1),
-        neg_text: "Worker service type is simple",
-        neg_auth: 0.76, neg_prov: "user_explicit",
-        neg_key: Some("worker_service_type"), neg_polarity: Some(1),
-        supersedes_neg: false,
-        expected_conflict: ExpectedConflict::None,
-        expected_abstain: false, expected_winner: ExpectedWinner::Pos,
-    },
 ];
 
-// ── Distractor RNG seed (frozen by protocol) ──────────────────────────────────
+
+// â”€â”€ Distractor RNG seed (frozen by protocol) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DISTRACTOR_RNG_SEED: u64 = 0xA3F7_2B91_C5D4_E608;
 const MIN_DISTRACTORS: usize = 60;
 
-// ── Runtime counter for isolated temp dirs ───────────────────────────────────
+// â”€â”€ Runtime counter for isolated temp dirs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
-// ── Harness helpers (frozen — Role B must not modify) ────────────────────────
+// â”€â”€ Harness helpers (frozen â€” Role B must not modify) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 fn make_runtime_pair() -> (ContextRuntime, TempDir) {
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -758,7 +183,7 @@ fn learn_distractor(rt: &mut ContextRuntime, ctx_id: &str, seed: u64) -> u64 {
     res.state_node_id
 }
 
-// ── Per-scenario result (frozen) ──────────────────────────────────────────────
+// â”€â”€ Per-scenario result (frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 struct ScenarioResult {
     id: usize,
@@ -786,7 +211,7 @@ struct ScenarioResult {
     neg_id:              u64,
 }
 
-// ── 5-way outcome categorisation (frozen) ─────────────────────────────────────
+// â”€â”€ 5-way outcome categorisation (frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[derive(Debug, Default)]
 struct OutcomeCounts {
@@ -809,7 +234,7 @@ fn categorise(r: &ScenarioResult) -> &'static str {
     }
 }
 
-// ── Bootstrap CI helper (10,000 resamples, frozen) ────────────────────────────
+// â”€â”€ Bootstrap CI helper (10,000 resamples, frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 fn bootstrap_ci_proportion(hits: usize, n: usize, iters: usize, seed: u64)
     -> (f64, f64)
@@ -834,7 +259,7 @@ fn bootstrap_ci_proportion(hits: usize, n: usize, iters: usize, seed: u64)
     (lo, hi)
 }
 
-// ── Gate evaluation (frozen) ───────────────────────────────────────────────────
+// â”€â”€ Gate evaluation (frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 struct GateResult {
     name:   &'static str,
@@ -845,17 +270,17 @@ struct GateResult {
     note:   String,
 }
 
-// ── Main benchmark test ────────────────────────────────────────────────────────
+// â”€â”€ Main benchmark test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn phase3_approval_benchmark() {
     assert!(
         !SCENARIOS.is_empty(),
-        "SCENARIOS is empty — Role B must populate the corpus before running the benchmark."
+        "SCENARIOS is empty â€” Role B must populate the corpus before running the benchmark."
     );
     assert!(
         SCENARIOS.len() >= 40,
-        "SCENARIOS has {} entries; protocol requires ≥ 40.",
+        "SCENARIOS has {} entries; protocol requires â‰¥ 40.",
         SCENARIOS.len()
     );
 
@@ -863,7 +288,7 @@ fn phase3_approval_benchmark() {
     let mut results: Vec<ScenarioResult> = Vec::with_capacity(n);
 
     for scenario in SCENARIOS.iter() {
-        // ── Isolated runtime per scenario ──────────────────────────────────
+        // â”€â”€ Isolated runtime per scenario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let (mut rt, _tmp) = make_runtime_pair();
         let ctx_id = rt.create_context(
             &format!("approval-{}", scenario.id),
@@ -871,14 +296,14 @@ fn phase3_approval_benchmark() {
             None, "", vec![],
         ).expect("create_context").id.to_string();
 
-        // ── Populate 60+ background distractors ───────────────────────────
+        // â”€â”€ Populate 60+ background distractors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let base_seed = DISTRACTOR_RNG_SEED
             .wrapping_add((scenario.id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
         for i in 0..MIN_DISTRACTORS {
             learn_distractor(&mut rt, &ctx_id, base_seed.wrapping_add(i as u64));
         }
 
-        // ── Learn D− (negative / dangerous) ───────────────────────────────
+        // â”€â”€ Learn Dâˆ’ (negative / dangerous) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let neg_id = learn_text(
             &mut rt, &ctx_id,
             scenario.neg_text,
@@ -889,8 +314,8 @@ fn phase3_approval_benchmark() {
             scenario.neg_polarity,
         );
 
-        // ── Learn D+ (positive / correct) ─────────────────────────────────
-        // For SUPERSESSION: D+ supersedes D−.
+        // â”€â”€ Learn D+ (positive / correct) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // For SUPERSESSION: D+ supersedes Dâˆ’.
         let supersedes_arg = if scenario.supersedes_neg { Some(neg_id) } else { None };
         let pos_id = learn_text(
             &mut rt, &ctx_id,
@@ -902,14 +327,14 @@ fn phase3_approval_benchmark() {
             scenario.pos_polarity,
         );
 
-        // ── Retrieve via production unscoped path ──────────────────────────
+        // â”€â”€ Retrieve via production unscoped path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         use cmhm_core::text_to_embedding;
         let query_emb = text_to_embedding(scenario.query).to_vec();
         let (result, _) = rt
             .retrieve_unscoped(Some(&ctx_id), query_emb, "hash-128d")
             .expect("retrieve_unscoped");
 
-        // ── Pool stage membership ──────────────────────────────────────────
+        // â”€â”€ Pool stage membership â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let pos_in_raw_nn      = result.raw_nn_candidates.contains(&pos_id);
         let neg_in_raw_nn      = result.raw_nn_candidates.contains(&neg_id);
         let pos_in_post_filter = result.post_filter_candidates.contains(&pos_id);
@@ -928,7 +353,7 @@ fn phase3_approval_benchmark() {
             .find(|&&(id, _)| id == neg_id)
             .map(|&(_, s)| s);
 
-        // ── Engine decision ────────────────────────────────────────────────
+        // â”€â”€ Engine decision â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         let abstained    = result.abstained;
         let winner_id    = result.seed_id;
         // conflict_type is stored on ConflictCandidate entries; take from first if present
@@ -952,7 +377,7 @@ fn phase3_approval_benchmark() {
         });
     }
 
-    // ── Compute gate metrics ──────────────────────────────────────────────────
+    // â”€â”€ Compute gate metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     // Subpopulation filters
     let all_n = n;
@@ -968,7 +393,7 @@ fn phase3_approval_benchmark() {
     let safe_abstention: Vec<&ScenarioResult> = results.iter()
         .filter(|r| r.class == ScenarioClass::SafeAbstention).collect();
 
-    // S1: LC eligibility — D+ and D− both in SCORED top-2, gap < 0.02
+    // S1: LC eligibility â€” D+ and Dâˆ’ both in SCORED top-2, gap < 0.02
     let s1_eligible: Vec<&ScenarioResult> = contradiction.iter().copied()
         .filter(|r| {
             match (r.pos_rank_scored, r.neg_rank_scored, r.pos_score, r.neg_score) {
@@ -996,7 +421,7 @@ fn phase3_approval_benchmark() {
     let g6_sum: f64 = results.iter()
         .map(|r| (r.pos_score.unwrap_or(0.0) - r.neg_score.unwrap_or(0.0)) as f64).sum();
     let g6_val = g6_sum / all_n as f64;
-    // G7: Supersession Safety — superseded D− must not appear in post_filter/scored/chain/winner
+    // G7: Supersession Safety â€” superseded Dâˆ’ must not appear in post_filter/scored/chain/winner
     let g7_violations = supersession.iter()
         .filter(|r| r.neg_in_post_filter || r.neg_rank_scored.is_some()
             || r.winner_id == Some(r.neg_id)).count();
@@ -1011,13 +436,13 @@ fn phase3_approval_benchmark() {
         .filter(|r| r.conflict_type.is_none()).count();
     // G9: Safe Abstention rate
     let g9_hits = safe_abstention.iter().filter(|r| r.abstained).count();
-    // G10: Pool Contamination — D− absent from RAW_NN for non-supersession scenarios
+    // G10: Pool Contamination â€” Dâˆ’ absent from RAW_NN for non-supersession scenarios
     let non_supersession: Vec<&ScenarioResult> = results.iter()
         .filter(|r| r.class != ScenarioClass::Supersession).collect();
     let g10_violations = non_supersession.iter()
         .filter(|r| !r.neg_in_raw_nn).count();
 
-    // ── Bootstrap CIs ─────────────────────────────────────────────────────────
+    // â”€â”€ Bootstrap CIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let bs = 10_000usize;
     let (g1_lo, g1_hi) = bootstrap_ci_proportion(g1_hits, all_n, bs, 0x1111);
     let (g2_lo, g2_hi) = bootstrap_ci_proportion(g2_hits, all_n, bs, 0x2222);
@@ -1058,7 +483,7 @@ fn phase3_approval_benchmark() {
         (samples[(0.025 * bs as f64) as usize], samples[(0.975 * bs as f64) as usize])
     };
 
-    // ── Evaluate gates ─────────────────────────────────────────────────────────
+    // â”€â”€ Evaluate gates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let gates: Vec<GateResult> = vec![
         GateResult { name: "G1",  passed: g1_lo  >= 0.40,
             value: g1_hits as f64 / all_n as f64, ci_lo: g1_lo,  ci_hi: g1_hi,
@@ -1107,7 +532,7 @@ fn phase3_approval_benchmark() {
             note: format!("{} violations / {} non-supersession", g10_violations, non_supersession.len()) },
     ];
 
-    // ── 5-way outcome decomposition ────────────────────────────────────────────
+    // â”€â”€ 5-way outcome decomposition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let mut outcomes = OutcomeCounts::default();
     for r in &results {
         match categorise(r) {
@@ -1120,7 +545,7 @@ fn phase3_approval_benchmark() {
         }
     }
 
-    // ── Structured output (parsed by verify_phase3_approval.ps1) ──────────────
+    // â”€â”€ Structured output (parsed by verify_phase3_approval.ps1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     println!("PHASE3_RESULT|N={}", n);
     for g in &gates {
         println!(
@@ -1134,7 +559,7 @@ fn phase3_approval_benchmark() {
     println!("PHASE3_RESULT|OUTCOME|correct_abstention={}",   outcomes.correct_abstention);
     println!("PHASE3_RESULT|OUTCOME|incorrect_abstention={}", outcomes.incorrect_abstention);
 
-    // ── Per-scenario detail ────────────────────────────────────────────────────
+    // â”€â”€ Per-scenario detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     for r in &results {
         println!(
             "PHASE3_RESULT|SCENARIO|id={}|domain={}|class={:?}|pos_rank={:?}|neg_rank={:?}|\
@@ -1146,12 +571,295 @@ fn phase3_approval_benchmark() {
         );
     }
 
-    // ── Final verdict ──────────────────────────────────────────────────────────
+    // â”€â”€ Final verdict â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     let all_passed = gates.iter().all(|g| g.passed);
     println!("PHASE3_RESULT|VERDICT|{}", if all_passed { "APPROVED" } else { "REJECTED" });
 
     assert!(
         all_passed,
         "Phase 3 approval benchmark FAILED. Check PHASE3_RESULT|GATE|... lines above for failures."
+    );
+}
+
+// ── Stage 1.5: Pre-run conformance validator (Protocol v1.8 Section 12) ─────────────
+//
+// Validates every scenario in SCENARIOS against the Section 4.4 class-spec matrix.
+// Called by verify_phase3_approval.ps1 before Stage 2. Failure terminates the attempt
+// BEFORE the single run is consumed. No corpus content is inspected by Role A.
+
+#[test]
+fn phase3_conformance_check() {
+    // ── Global: corpus size ────────────────────────────────────────────────────
+    assert!(
+        !SCENARIOS.is_empty(),
+        "CONFORMANCE_CHECK|FAIL|global|field=corpus_size|value=0|expected=>=40 — SCENARIOS is empty"
+    );
+    assert!(
+        SCENARIOS.len() >= 40,
+        "CONFORMANCE_CHECK|FAIL|global|field=corpus_size|value={}|expected=>=40",
+        SCENARIOS.len()
+    );
+
+    // ── Global: unique IDs ─────────────────────────────────────────────────────
+    {
+        let mut seen_ids = std::collections::HashSet::new();
+        for s in SCENARIOS {
+            assert!(
+                seen_ids.insert(s.id),
+                "CONFORMANCE_CHECK|FAIL|id={}|field=id|value={}|expected=unique",
+                s.id, s.id
+            );
+        }
+    }
+
+    // ── Global: unique queries (case-insensitive) ──────────────────────────────
+    {
+        let mut seen_queries = std::collections::HashSet::new();
+        for s in SCENARIOS {
+            let lower = s.query.to_lowercase();
+            assert!(
+                seen_queries.insert(lower.clone()),
+                "CONFORMANCE_CHECK|FAIL|id={}|field=query|value=duplicate|expected=unique",
+                s.id
+            );
+        }
+    }
+
+    // ── Global: domain cap (<= 6 per domain) ──────────────────────────────────
+    {
+        let mut domain_counts: std::collections::HashMap<&str, usize> =
+            std::collections::HashMap::new();
+        for s in SCENARIOS {
+            *domain_counts.entry(s.domain).or_insert(0) += 1;
+        }
+        for (domain, count) in &domain_counts {
+            assert!(
+                *count <= 6,
+                "CONFORMANCE_CHECK|FAIL|global|field=domain_cap|value={}:{}|expected=<=6",
+                domain, count
+            );
+        }
+    }
+
+    // ── Global: per-class minimums ─────────────────────────────────────────────
+    {
+        use ScenarioClass::*;
+        let counts = |cls: ScenarioClass| SCENARIOS.iter().filter(|s| s.class == cls).count();
+        let contradiction_n = counts(Contradiction);
+        let supersession_n  = counts(Supersession);
+        let auth_pol_n      = counts(AuthorityPolarity);
+        let adv_auth_n      = counts(AdversarialAuthority);
+        let safe_abs_n      = counts(SafeAbstention);
+        let unresolved_n    = counts(UnresolvedConflict);
+
+        assert!(contradiction_n >= 10,
+            "CONFORMANCE_CHECK|FAIL|global|field=class_min_Contradiction|value={}|expected=>=10",
+            contradiction_n);
+        assert!(supersession_n >= 6,
+            "CONFORMANCE_CHECK|FAIL|global|field=class_min_Supersession|value={}|expected=>=6",
+            supersession_n);
+        assert!(auth_pol_n >= 6,
+            "CONFORMANCE_CHECK|FAIL|global|field=class_min_AuthorityPolarity|value={}|expected=>=6",
+            auth_pol_n);
+        assert!(adv_auth_n >= 6,
+            "CONFORMANCE_CHECK|FAIL|global|field=class_min_AdversarialAuthority|value={}|expected=>=6",
+            adv_auth_n);
+        assert!(safe_abs_n >= 6,
+            "CONFORMANCE_CHECK|FAIL|global|field=class_min_SafeAbstention|value={}|expected=>=6",
+            safe_abs_n);
+        assert!(unresolved_n >= 6,
+            "CONFORMANCE_CHECK|FAIL|global|field=class_min_UnresolvedConflict|value={}|expected=>=6",
+            unresolved_n);
+
+        println!(
+            "CONFORMANCE_CHECK|PASS|N={}|classes=Contradiction:{},Supersession:{},\
+             AuthorityPolarity:{},AdversarialAuthority:{},SafeAbstention:{},\
+             UnresolvedConflict:{}",
+            SCENARIOS.len(),
+            contradiction_n, supersession_n, auth_pol_n,
+            adv_auth_n, safe_abs_n, unresolved_n
+        );
+    }
+
+    // ── Per-scenario validation ────────────────────────────────────────────────
+    let mut checked = 0usize;
+    for s in SCENARIOS {
+        let id = s.id;
+        match s.class {
+
+            // ── CONTRADICTION ──────────────────────────────────────────────────
+            // Section 12.3: pos_prov=user_explicit, pos_polarity=Some(1), pos_auth>=0.80,
+            //   neg_auth in [0.70,0.85], neg_prov=contradicted, neg_polarity=Some(-1),
+            //   neg_key==pos_key, supersedes_neg=false.
+            ScenarioClass::Contradiction => {
+                assert_eq!(s.pos_prov, "user_explicit",
+                    "CONFORMANCE FAIL id={} Contradiction field=pos_prov: {:?} -- expected user_explicit",
+                    id, s.pos_prov);
+                assert_eq!(s.pos_polarity, Some(1),
+                    "CONFORMANCE FAIL id={} Contradiction field=pos_polarity: {:?} -- expected Some(1)",
+                    id, s.pos_polarity);
+                assert!(s.pos_auth >= 0.80,
+                    "CONFORMANCE FAIL id={} Contradiction field=pos_auth: {:.3} -- expected >=0.80",
+                    id, s.pos_auth);
+                assert!(s.neg_auth >= 0.70 && s.neg_auth <= 0.85,
+                    "CONFORMANCE FAIL id={} Contradiction field=neg_auth: {:.3} -- expected 0.70..=0.85",
+                    id, s.neg_auth);
+                assert_eq!(s.neg_prov, "contradicted",
+                    "CONFORMANCE FAIL id={} Contradiction field=neg_prov: {:?} -- expected contradicted",
+                    id, s.neg_prov);
+                assert_eq!(s.neg_polarity, Some(-1),
+                    "CONFORMANCE FAIL id={} Contradiction field=neg_polarity: {:?} -- expected Some(-1)",
+                    id, s.neg_polarity);
+                assert_eq!(s.neg_key, s.pos_key,
+                    "CONFORMANCE FAIL id={} Contradiction field=neg_key: {:?} -- expected == pos_key {:?}",
+                    id, s.neg_key, s.pos_key);
+                assert!(!s.supersedes_neg,
+                    "CONFORMANCE FAIL id={} Contradiction field=supersedes_neg: true -- expected false",
+                    id);
+            }
+
+            // ── SUPERSESSION ───────────────────────────────────────────────────
+            // Section 12.3: pos_prov=user_explicit, neg_prov=contradicted,
+            //   pos_auth >= neg_auth + 0.05, neg_polarity==pos_polarity,
+            //   supersedes_neg=true.
+            ScenarioClass::Supersession => {
+                assert_eq!(s.pos_prov, "user_explicit",
+                    "CONFORMANCE FAIL id={} Supersession field=pos_prov: {:?} -- expected user_explicit",
+                    id, s.pos_prov);
+                assert_eq!(s.neg_prov, "contradicted",
+                    "CONFORMANCE FAIL id={} Supersession field=neg_prov: {:?} -- expected contradicted",
+                    id, s.neg_prov);
+                assert!(s.pos_auth >= s.neg_auth + 0.05,
+                    "CONFORMANCE FAIL id={} Supersession field=auth_gap: pos={:.3} neg={:.3} -- expected pos>=neg+0.05",
+                    id, s.pos_auth, s.neg_auth);
+                assert_eq!(s.neg_polarity, s.pos_polarity,
+                    "CONFORMANCE FAIL id={} Supersession field=polarity_match: neg={:?} pos={:?} -- must be equal (same-fact temporal replacement)",
+                    id, s.neg_polarity, s.pos_polarity);
+                assert!(s.supersedes_neg,
+                    "CONFORMANCE FAIL id={} Supersession field=supersedes_neg: false -- expected true",
+                    id);
+            }
+
+            // ── AUTHORITY-POLARITY ─────────────────────────────────────────────
+            // Section 12.3: pos_auth in [0.80,0.90], pos_prov in {user_explicit,corrected},
+            //   neg_auth in [0.70,0.80], neg_prov=contradicted,
+            //   neg_key!=pos_key OR neg_key==None, supersedes_neg=false.
+            ScenarioClass::AuthorityPolarity => {
+                assert!(s.pos_auth >= 0.80 && s.pos_auth <= 0.90,
+                    "CONFORMANCE FAIL id={} AuthorityPolarity field=pos_auth: {:.3} -- expected 0.80..=0.90",
+                    id, s.pos_auth);
+                assert!(s.pos_prov == "user_explicit" || s.pos_prov == "corrected",
+                    "CONFORMANCE FAIL id={} AuthorityPolarity field=pos_prov: {:?} -- expected user_explicit or corrected",
+                    id, s.pos_prov);
+                assert!(s.neg_auth >= 0.70 && s.neg_auth <= 0.80,
+                    "CONFORMANCE FAIL id={} AuthorityPolarity field=neg_auth: {:.3} -- expected 0.70..=0.80",
+                    id, s.neg_auth);
+                assert_eq!(s.neg_prov, "contradicted",
+                    "CONFORMANCE FAIL id={} AuthorityPolarity field=neg_prov: {:?} -- expected contradicted",
+                    id, s.neg_prov);
+                assert!(s.neg_key != s.pos_key || s.neg_key.is_none(),
+                    "CONFORMANCE FAIL id={} AuthorityPolarity field=neg_key: {:?} -- expected different from pos_key {:?} or None",
+                    id, s.neg_key, s.pos_key);
+                assert!(!s.supersedes_neg,
+                    "CONFORMANCE FAIL id={} AuthorityPolarity field=supersedes_neg: true -- expected false",
+                    id);
+            }
+
+            // ── ADVERSARIAL-AUTHORITY ──────────────────────────────────────────
+            // Section 12.3: pos_auth in [0.75,0.85], pos_prov=corrected,
+            //   neg_auth in [0.90,1.00], neg_prov=user_explicit,
+            //   neg_auth > pos_auth, supersedes_neg=false.
+            ScenarioClass::AdversarialAuthority => {
+                assert!(s.pos_auth >= 0.75 && s.pos_auth <= 0.85,
+                    "CONFORMANCE FAIL id={} AdversarialAuthority field=pos_auth: {:.3} -- expected 0.75..=0.85",
+                    id, s.pos_auth);
+                assert_eq!(s.pos_prov, "corrected",
+                    "CONFORMANCE FAIL id={} AdversarialAuthority field=pos_prov: {:?} -- expected corrected",
+                    id, s.pos_prov);
+                assert!(s.neg_auth >= 0.90 && s.neg_auth <= 1.00,
+                    "CONFORMANCE FAIL id={} AdversarialAuthority field=neg_auth: {:.3} -- expected 0.90..=1.00",
+                    id, s.neg_auth);
+                assert_eq!(s.neg_prov, "user_explicit",
+                    "CONFORMANCE FAIL id={} AdversarialAuthority field=neg_prov: {:?} -- expected user_explicit (adversarial high-authority assertion)",
+                    id, s.neg_prov);
+                assert!(s.neg_auth > s.pos_auth,
+                    "CONFORMANCE FAIL id={} AdversarialAuthority field=auth_ordering: neg={:.3} pos={:.3} -- expected neg_auth > pos_auth",
+                    id, s.neg_auth, s.pos_auth);
+                assert!(!s.supersedes_neg,
+                    "CONFORMANCE FAIL id={} AdversarialAuthority field=supersedes_neg: true -- expected false",
+                    id);
+            }
+
+            // ── SAFE-ABSTENTION ────────────────────────────────────────────────
+            // Section 12.3: pos_auth in [0.75,0.90], pos_prov=user_explicit,
+            //   neg_auth in [0.75,0.87], neg_prov=contradicted,
+            //   |pos_auth-neg_auth|<=0.10, supersedes_neg=false.
+            // NOTE: no pos_auth > neg_auth ordering constraint (near-equal is the spec;
+            //   either may be slightly higher -- see Section 12.3 annotation).
+            ScenarioClass::SafeAbstention => {
+                assert!(s.pos_auth >= 0.75 && s.pos_auth <= 0.90,
+                    "CONFORMANCE FAIL id={} SafeAbstention field=pos_auth: {:.3} -- expected 0.75..=0.90",
+                    id, s.pos_auth);
+                assert_eq!(s.pos_prov, "user_explicit",
+                    "CONFORMANCE FAIL id={} SafeAbstention field=pos_prov: {:?} -- expected user_explicit",
+                    id, s.pos_prov);
+                assert!(s.neg_auth >= 0.75 && s.neg_auth <= 0.87,
+                    "CONFORMANCE FAIL id={} SafeAbstention field=neg_auth: {:.3} -- expected 0.75..=0.87",
+                    id, s.neg_auth);
+                assert_eq!(s.neg_prov, "contradicted",
+                    "CONFORMANCE FAIL id={} SafeAbstention field=neg_prov: {:?} -- expected contradicted",
+                    id, s.neg_prov);
+                assert!((s.pos_auth - s.neg_auth).abs() <= 0.10,
+                    "CONFORMANCE FAIL id={} SafeAbstention field=auth_gap: |{:.3}-{:.3}|={:.3} -- expected <=0.10",
+                    id, s.pos_auth, s.neg_auth, (s.pos_auth - s.neg_auth).abs());
+                assert!(!s.supersedes_neg,
+                    "CONFORMANCE FAIL id={} SafeAbstention field=supersedes_neg: true -- expected false",
+                    id);
+            }
+
+            // ── UNRESOLVED-CONFLICT ────────────────────────────────────────────
+            // Section 12.3: pos_auth in [0.80,1.00], pos_prov=user_explicit,
+            //   neg_auth in [0.75,0.85], neg_prov=user_explicit,
+            //   pos_auth > neg_auth, no polarity clash, supersedes_neg=false.
+            ScenarioClass::UnresolvedConflict => {
+                assert!(s.pos_auth >= 0.80 && s.pos_auth <= 1.00,
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=pos_auth: {:.3} -- expected 0.80..=1.00",
+                    id, s.pos_auth);
+                assert_eq!(s.pos_prov, "user_explicit",
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=pos_prov: {:?} -- expected user_explicit",
+                    id, s.pos_prov);
+                assert!(s.neg_auth >= 0.75 && s.neg_auth <= 0.85,
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=neg_auth: {:.3} -- expected 0.75..=0.85",
+                    id, s.neg_auth);
+                assert_eq!(s.neg_prov, "user_explicit",
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=neg_prov: {:?} -- expected user_explicit",
+                    id, s.neg_prov);
+                assert!(s.pos_auth > s.neg_auth,
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=auth_ordering: pos={:.3} neg={:.3} -- expected pos_auth > neg_auth",
+                    id, s.pos_auth, s.neg_auth);
+                // Polarity clash check: must NOT have (pos=+1, neg=-1) or (pos=-1, neg=+1)
+                let clash = matches!(
+                    (s.pos_polarity, s.neg_polarity),
+                    (Some(1), Some(-1)) | (Some(-1), Some(1))
+                );
+                assert!(!clash,
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=polarity_clash: pos={:?} neg={:?} -- expected no clash",
+                    id, s.pos_polarity, s.neg_polarity);
+                assert!(!s.supersedes_neg,
+                    "CONFORMANCE FAIL id={} UnresolvedConflict field=supersedes_neg: true -- expected false",
+                    id);
+            }
+        }
+        checked += 1;
+    }
+
+    // ── Self-integrity: all scenarios were checked ─────────────────────────────
+    assert_eq!(checked, SCENARIOS.len(),
+        "CONFORMANCE_CHECK|FAIL|global|field=self_integrity: checked={} but SCENARIOS.len()={}",
+        checked, SCENARIOS.len());
+
+    println!(
+        "CONFORMANCE_CHECK|PASS|N={}|all_per_scenario_checks=ok|domains_ok=true",
+        SCENARIOS.len()
     );
 }
