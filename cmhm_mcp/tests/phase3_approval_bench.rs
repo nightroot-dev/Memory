@@ -1,4 +1,4 @@
-﻿//! Phase 3 Approval Benchmark â€” Role A scaffolding (frozen at bc66340)
+//! Phase 3 Approval Benchmark — Role A scaffolding (frozen at bc66340)
 //!
 //! AUTHORING BOUNDARY (Protocol v1.8 Section 4):
 //!   Role A authored this file: all types, the runner harness, scoring logic,
@@ -33,7 +33,7 @@ use tempfile::TempDir;
 
 use cmhm_core::{Config, ContextRuntime, ContextType, ConflictType, CallerRole};
 
-// â”€â”€ Scenario types (frozen â€” Role B must not modify) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Scenario types (frozen — Role B must not modify) ─────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScenarioClass {
@@ -80,7 +80,7 @@ pub struct ApprovalScenario {
     pub neg_prov: &'static str,
     pub neg_key: Option<&'static str>,
     pub neg_polarity: Option<i8>,
-    /// If true, D+ supersedes Dâˆ’ (SUPERSESSION class only).
+    /// If true, D+ supersedes D− (SUPERSESSION class only).
     pub supersedes_neg: bool,
     /// Expected conflict classification from the engine.
     pub expected_conflict: ExpectedConflict,
@@ -90,29 +90,29 @@ pub struct ApprovalScenario {
     pub expected_winner: ExpectedWinner,
 }
 
-// â”€â”€ ROLE B: POPULATE THIS SLICE ONLY. MINIMUM 40 SCENARIOS. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ROLE B: POPULATE THIS SLICE ONLY. MINIMUM 40 SCENARIOS. ──────────────────
 // Zero structural or harness logic changes are permitted.
 // Follow Section 4 of Protocol v1.8 strictly.
 //
-// CORPUS v2 PLACEHOLDER â€” attempt-1 corpus removed (commit e989a91, invalid on its face).
+// CORPUS v2 PLACEHOLDER — attempt-1 corpus removed (commit e989a91, invalid on its face).
 // Role B authors fresh scenarios per Protocol v1.8 Section 4.4 and Section 13.
 // Role A transcribes mechanically and commits; phase3_conformance_check (Stage 1.5)
 // validates conformance before Stage 2 is permitted to execute.
 pub static SCENARIOS: &[ApprovalScenario] = &[
 
-    // â”€â”€ Role B populates here. â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Role B populates here. ─────────────────────────────────────────────────
 
 ];
 
 
-// â”€â”€ Distractor RNG seed (frozen by protocol) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Distractor RNG seed (frozen by protocol) ──────────────────────────────────
 const DISTRACTOR_RNG_SEED: u64 = 0xA3F7_2B91_C5D4_E608;
 const MIN_DISTRACTORS: usize = 60;
 
-// â”€â”€ Runtime counter for isolated temp dirs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Runtime counter for isolated temp dirs ───────────────────────────────────
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
-// â”€â”€ Harness helpers (frozen â€” Role B must not modify) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Harness helpers (frozen — Role B must not modify) ────────────────────────
 
 fn make_runtime_pair() -> (ContextRuntime, TempDir) {
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -183,7 +183,7 @@ fn learn_distractor(rt: &mut ContextRuntime, ctx_id: &str, seed: u64) -> u64 {
     res.state_node_id
 }
 
-// â”€â”€ Per-scenario result (frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Per-scenario result (frozen) ──────────────────────────────────────────────
 
 struct ScenarioResult {
     id: usize,
@@ -211,7 +211,7 @@ struct ScenarioResult {
     neg_id:              u64,
 }
 
-// â”€â”€ 5-way outcome categorisation (frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 5-way outcome categorisation (frozen) ─────────────────────────────────────
 
 #[derive(Debug, Default)]
 struct OutcomeCounts {
@@ -234,7 +234,7 @@ fn categorise(r: &ScenarioResult) -> &'static str {
     }
 }
 
-// â”€â”€ Bootstrap CI helper (10,000 resamples, frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Bootstrap CI helper (10,000 resamples, frozen) ────────────────────────────
 
 fn bootstrap_ci_proportion(hits: usize, n: usize, iters: usize, seed: u64)
     -> (f64, f64)
@@ -259,7 +259,7 @@ fn bootstrap_ci_proportion(hits: usize, n: usize, iters: usize, seed: u64)
     (lo, hi)
 }
 
-// â”€â”€ Gate evaluation (frozen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Gate evaluation (frozen) ───────────────────────────────────────────────────
 
 struct GateResult {
     name:   &'static str,
@@ -270,17 +270,17 @@ struct GateResult {
     note:   String,
 }
 
-// â”€â”€ Main benchmark test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main benchmark test ────────────────────────────────────────────────────────
 
 #[test]
 fn phase3_approval_benchmark() {
     assert!(
         !SCENARIOS.is_empty(),
-        "SCENARIOS is empty â€” Role B must populate the corpus before running the benchmark."
+        "SCENARIOS is empty — Role B must populate the corpus before running the benchmark."
     );
     assert!(
         SCENARIOS.len() >= 40,
-        "SCENARIOS has {} entries; protocol requires â‰¥ 40.",
+        "SCENARIOS has {} entries; protocol requires ≥ 40.",
         SCENARIOS.len()
     );
 
@@ -288,7 +288,7 @@ fn phase3_approval_benchmark() {
     let mut results: Vec<ScenarioResult> = Vec::with_capacity(n);
 
     for scenario in SCENARIOS.iter() {
-        // â”€â”€ Isolated runtime per scenario â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Isolated runtime per scenario ──────────────────────────────────
         let (mut rt, _tmp) = make_runtime_pair();
         let ctx_id = rt.create_context(
             &format!("approval-{}", scenario.id),
@@ -296,14 +296,14 @@ fn phase3_approval_benchmark() {
             None, "", vec![],
         ).expect("create_context").id.to_string();
 
-        // â”€â”€ Populate 60+ background distractors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Populate 60+ background distractors ───────────────────────────
         let base_seed = DISTRACTOR_RNG_SEED
             .wrapping_add((scenario.id as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
         for i in 0..MIN_DISTRACTORS {
             learn_distractor(&mut rt, &ctx_id, base_seed.wrapping_add(i as u64));
         }
 
-        // â”€â”€ Learn Dâˆ’ (negative / dangerous) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Learn D− (negative / dangerous) ───────────────────────────────
         let neg_id = learn_text(
             &mut rt, &ctx_id,
             scenario.neg_text,
@@ -314,8 +314,8 @@ fn phase3_approval_benchmark() {
             scenario.neg_polarity,
         );
 
-        // â”€â”€ Learn D+ (positive / correct) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // For SUPERSESSION: D+ supersedes Dâˆ’.
+        // ── Learn D+ (positive / correct) ─────────────────────────────────
+        // For SUPERSESSION: D+ supersedes D−.
         let supersedes_arg = if scenario.supersedes_neg { Some(neg_id) } else { None };
         let pos_id = learn_text(
             &mut rt, &ctx_id,
@@ -327,14 +327,14 @@ fn phase3_approval_benchmark() {
             scenario.pos_polarity,
         );
 
-        // â”€â”€ Retrieve via production unscoped path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Retrieve via production unscoped path ──────────────────────────
         use cmhm_core::text_to_embedding;
         let query_emb = text_to_embedding(scenario.query).to_vec();
         let (result, _) = rt
             .retrieve_unscoped(Some(&ctx_id), query_emb, "hash-128d")
             .expect("retrieve_unscoped");
 
-        // â”€â”€ Pool stage membership â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Pool stage membership ──────────────────────────────────────────
         let pos_in_raw_nn      = result.raw_nn_candidates.contains(&pos_id);
         let neg_in_raw_nn      = result.raw_nn_candidates.contains(&neg_id);
         let pos_in_post_filter = result.post_filter_candidates.contains(&pos_id);
@@ -353,7 +353,7 @@ fn phase3_approval_benchmark() {
             .find(|&&(id, _)| id == neg_id)
             .map(|&(_, s)| s);
 
-        // â”€â”€ Engine decision â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Engine decision ────────────────────────────────────────────────
         let abstained    = result.abstained;
         let winner_id    = result.seed_id;
         // conflict_type is stored on ConflictCandidate entries; take from first if present
@@ -377,7 +377,7 @@ fn phase3_approval_benchmark() {
         });
     }
 
-    // â”€â”€ Compute gate metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Compute gate metrics ──────────────────────────────────────────────────
 
     // Subpopulation filters
     let all_n = n;
@@ -393,7 +393,7 @@ fn phase3_approval_benchmark() {
     let safe_abstention: Vec<&ScenarioResult> = results.iter()
         .filter(|r| r.class == ScenarioClass::SafeAbstention).collect();
 
-    // S1: LC eligibility â€” D+ and Dâˆ’ both in SCORED top-2, gap < 0.02
+    // S1: LC eligibility — D+ and D− both in SCORED top-2, gap < 0.02
     let s1_eligible: Vec<&ScenarioResult> = contradiction.iter().copied()
         .filter(|r| {
             match (r.pos_rank_scored, r.neg_rank_scored, r.pos_score, r.neg_score) {
@@ -421,7 +421,7 @@ fn phase3_approval_benchmark() {
     let g6_sum: f64 = results.iter()
         .map(|r| (r.pos_score.unwrap_or(0.0) - r.neg_score.unwrap_or(0.0)) as f64).sum();
     let g6_val = g6_sum / all_n as f64;
-    // G7: Supersession Safety â€” superseded Dâˆ’ must not appear in post_filter/scored/chain/winner
+    // G7: Supersession Safety — superseded D− must not appear in post_filter/scored/chain/winner
     let g7_violations = supersession.iter()
         .filter(|r| r.neg_in_post_filter || r.neg_rank_scored.is_some()
             || r.winner_id == Some(r.neg_id)).count();
@@ -436,13 +436,13 @@ fn phase3_approval_benchmark() {
         .filter(|r| r.conflict_type.is_none()).count();
     // G9: Safe Abstention rate
     let g9_hits = safe_abstention.iter().filter(|r| r.abstained).count();
-    // G10: Pool Contamination â€” Dâˆ’ absent from RAW_NN for non-supersession scenarios
+    // G10: Pool Contamination — D− absent from RAW_NN for non-supersession scenarios
     let non_supersession: Vec<&ScenarioResult> = results.iter()
         .filter(|r| r.class != ScenarioClass::Supersession).collect();
     let g10_violations = non_supersession.iter()
         .filter(|r| !r.neg_in_raw_nn).count();
 
-    // â”€â”€ Bootstrap CIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Bootstrap CIs ─────────────────────────────────────────────────────────
     let bs = 10_000usize;
     let (g1_lo, g1_hi) = bootstrap_ci_proportion(g1_hits, all_n, bs, 0x1111);
     let (g2_lo, g2_hi) = bootstrap_ci_proportion(g2_hits, all_n, bs, 0x2222);
@@ -483,7 +483,7 @@ fn phase3_approval_benchmark() {
         (samples[(0.025 * bs as f64) as usize], samples[(0.975 * bs as f64) as usize])
     };
 
-    // â”€â”€ Evaluate gates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Evaluate gates ─────────────────────────────────────────────────────────
     let gates: Vec<GateResult> = vec![
         GateResult { name: "G1",  passed: g1_lo  >= 0.40,
             value: g1_hits as f64 / all_n as f64, ci_lo: g1_lo,  ci_hi: g1_hi,
@@ -532,7 +532,7 @@ fn phase3_approval_benchmark() {
             note: format!("{} violations / {} non-supersession", g10_violations, non_supersession.len()) },
     ];
 
-    // â”€â”€ 5-way outcome decomposition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── 5-way outcome decomposition ────────────────────────────────────────────
     let mut outcomes = OutcomeCounts::default();
     for r in &results {
         match categorise(r) {
@@ -545,7 +545,7 @@ fn phase3_approval_benchmark() {
         }
     }
 
-    // â”€â”€ Structured output (parsed by verify_phase3_approval.ps1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Structured output (parsed by verify_phase3_approval.ps1) ──────────────
     println!("PHASE3_RESULT|N={}", n);
     for g in &gates {
         println!(
@@ -559,7 +559,7 @@ fn phase3_approval_benchmark() {
     println!("PHASE3_RESULT|OUTCOME|correct_abstention={}",   outcomes.correct_abstention);
     println!("PHASE3_RESULT|OUTCOME|incorrect_abstention={}", outcomes.incorrect_abstention);
 
-    // â”€â”€ Per-scenario detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Per-scenario detail ────────────────────────────────────────────────────
     for r in &results {
         println!(
             "PHASE3_RESULT|SCENARIO|id={}|domain={}|class={:?}|pos_rank={:?}|neg_rank={:?}|\
@@ -571,7 +571,7 @@ fn phase3_approval_benchmark() {
         );
     }
 
-    // â”€â”€ Final verdict â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Final verdict ──────────────────────────────────────────────────────────
     let all_passed = gates.iter().all(|g| g.passed);
     println!("PHASE3_RESULT|VERDICT|{}", if all_passed { "APPROVED" } else { "REJECTED" });
 
@@ -672,7 +672,7 @@ fn phase3_conformance_check() {
             unresolved_n);
 
         println!(
-            "CONFORMANCE_CHECK|PASS|N={}|classes=Contradiction:{},Supersession:{},\
+            "CONFORMANCE_COUNTS|N={}|Contradiction:{},Supersession:{},\
              AuthorityPolarity:{},AdversarialAuthority:{},SafeAbstention:{},\
              UnresolvedConflict:{}",
             SCENARIOS.len(),
