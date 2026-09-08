@@ -241,8 +241,48 @@ if ($SyntheticSelfTest) {
         throw "SelfTest 4 FAILED: missing file did not fail closed"
     }
     Write-Host "  PASS  SelfTest 4: Missing file correctly fails closed"
-    
-    Write-Host "=== All 4 Overlap Auditor Synthetic Self-Tests PASSED ==="
+
+    # -- Source 3 live-fire tests (prove attempt-1 detection actually fires) ----
+
+    # Build the same norm-set the primary audit builds, using $Attempt1Queries defined above.
+    $st_attempt1NormSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($q in $Attempt1Queries) {
+        [void]$st_attempt1NormSet.Add((Normalize-Text $q))
+    }
+    if ($st_attempt1NormSet.Count -ne 40) {
+        throw "SelfTest 5/6 setup FAILED: expected 40 attempt-1 queries in norm-set, got $($st_attempt1NormSet.Count)"
+    }
+
+    # Test 5: Verbatim attempt-1 query MUST be caught by exact normalized match.
+    # Using "Should the metrics endpoint be exposed publicly?" (attempt-1 ID 17).
+    $st5_query = "Should the metrics endpoint be exposed publicly?"
+    $st5_norm  = Normalize-Text $st5_query
+    if (-not $st_attempt1NormSet.Contains($st5_norm)) {
+        throw "SelfTest 5 FAILED: verbatim attempt-1 query not caught by Source 3 check. Normalized form: '$st5_norm'"
+    }
+    Write-Host "  PASS  SelfTest 5: Verbatim attempt-1 query correctly caught by Source 3 (norm='$st5_norm')"
+
+    # Test 6: Same query with case and whitespace mangled MUST still be caught after normalization.
+    # "Should  THE  Metrics  Endpoint  Be  Exposed  Publicly?" -- mixed case, double spaces.
+    $st6_query = "Should  THE  Metrics  Endpoint  Be  Exposed  Publicly?"
+    $st6_norm  = Normalize-Text $st6_query
+    if ($st6_norm -ne $st5_norm) {
+        throw "SelfTest 6 FAILED: mangled query did not normalize to same form as verbatim. Got '$st6_norm', expected '$st5_norm'"
+    }
+    if (-not $st_attempt1NormSet.Contains($st6_norm)) {
+        throw "SelfTest 6 FAILED: case/whitespace-mangled attempt-1 query not caught by Source 3 check. Normalized form: '$st6_norm'"
+    }
+    Write-Host "  PASS  SelfTest 6: Case/whitespace-mangled attempt-1 query correctly caught by Source 3 (norm='$st6_norm')"
+
+    # Sanity check: a genuinely fresh query must NOT appear in the norm-set.
+    $st_fresh = "Which RAID level should the backup array use?"
+    $st_fresh_norm = Normalize-Text $st_fresh
+    if ($st_attempt1NormSet.Contains($st_fresh_norm)) {
+        throw "SelfTest 6b FAILED: fresh query '$st_fresh' incorrectly matched against attempt-1 set"
+    }
+    Write-Host "  PASS  SelfTest 6b: Fresh query correctly NOT matched (norm='$st_fresh_norm')"
+
+    Write-Host "=== All 6 Overlap Auditor Synthetic Self-Tests PASSED ==="
     exit 0
 }
 
