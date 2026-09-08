@@ -1,11 +1,16 @@
 # scripts/audit_corpus_overlap.ps1
-# Phase 3 Independent Overlap Auditor -- v1.3
+# Phase 3 Independent Overlap Audit -- v1.4
 #
-# Audits a candidate Phase 3 approval corpus against the two prohibited corpora:
+# Audits a candidate Phase 3 approval corpus against THREE prohibited corpora:
 #   1. cmhm_core/tests/dprime_bench.rs (15-query rejection set)
 #   2. cmhm_core/tests/phase3_held_out_bench.rs (compromised 32-query corpus)
+#   3. ATTEMPT-1 QUERY LIST (40 queries, hardcoded from scaffold commit e989a91)
+#      Enforcement: verbatim exact match after case+whitespace normalization.
+#      Reviewer ruling (2026-09-08): "zero attempt-1 query reuse" is non-negotiable;
+#      fresh means fresh — not minor paraphrases of attempt-1 ancestors either.
+#      The Jaccard + verbatim checks (sources 1 & 2) also apply to source 3.
 #
-# Protocol reference: docs/phase3_approval_protocol_v1.3.md
+# Protocol reference: docs/phase3_approval_protocol_v1.8.md
 #
 # Measurable Novelty Rules:
 #   - Normalization: lowercase, alphanumeric + spaces only, collapsed whitespace.
@@ -13,6 +18,8 @@
 #   - Jaccard threshold: Jaccard index >= 0.30 is an OVERLAP VIOLATION.
 #   - Verbatim sequence: any shared verbatim sequence of >= 6 consecutive words is an OVERLAP VIOLATION.
 #   - Exact query collision: candidate query identical to any reference query is an OVERLAP VIOLATION.
+#   - Attempt-1 exact match: candidate query that normalizes identically to any attempt-1 query
+#     is an OVERLAP VIOLATION (checked separately for clear failure attribution).
 #   - Internal duplicates: candidate corpus must have zero duplicate queries.
 #   - Fail-closed: extraction errors, missing files, or empty corpora exit with non-zero code.
 #
@@ -34,6 +41,53 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+
+# -- Attempt-1 Query Exclusion List (hardcoded, recoverable from scaffold commit e989a91) ------
+# These 40 queries were used in the attempt-1 corpus (ruled INVALID ON ITS FACE).
+# Reviewer ruling 2026-09-08: zero verbatim or near-verbatim reuse permitted.
+# Hardcoded here so the exclusion is pinned and tamper-evident independent of any file on disk.
+$Attempt1Queries = @(
+    "Should the systemd unit for the API service enable automatic restarts?",
+    "Is connection pooling enabled for the PostgreSQL client?",
+    "Is TLS certificate verification enabled for outgoing HTTPS requests?",
+    "Is the Kubernetes deployment configured to use a rolling update strategy?",
+    "Is MFA enforced for all IAM users?",
+    "Should the encryption key be rotated every 90 days?",
+    "Is the Raft consensus leader election timeout set to 150ms?",
+    "Is debug-level logging enabled for the ingest service?",
+    "Is the data volume mounted with noatime?",
+    "Is the swap partition encrypted?",
+    "What is the current read replica count for the production DB?",
+    "Which TLS version is allowed for the public API?",
+    "What is the CPU limit for the worker container?",
+    "What is the maximum session duration for temporary credentials?",
+    "What is the current password policy for service accounts?",
+    "What is the quorum size for the etcd cluster?",
+    "Should the metrics endpoint be exposed publicly?",
+    "What filesystem type is used for the data volume?",
+    "What is the kernel sysctl value for net.core.somaxconn?",
+    "What is the connection timeout for the Redis client?",
+    "What is the keepalive interval for the gRPC connection?",
+    "What is the log shipping batch size?",
+    "Should the S3 bucket be public?",
+    "Is the admin password stored in plaintext?",
+    "Is privileged mode enabled for the container?",
+    "Is the Raft snapshot compression enabled?",
+    "Is the trace sampling rate set to 10%?",
+    "Should the IAM role have full administrative access?",
+    "What is the default block size for the log volume?",
+    "What is the file descriptor limit for the application process?",
+    "What is the isolation level for the transactions service?",
+    "What is the HTTP keep-alive timeout for the proxy?",
+    "Is the IAM role allowed to assume the production role?",
+    "What is the mount option for the database volume regarding file locking?",
+    "What encryption algorithm is used for data at rest?",
+    "What is the image pull policy for the deployment?",
+    "What is the heartbeat interval for the consensus group?",
+    "What is the log retention period for the audit logs?",
+    "What is the backup snapshot frequency for the persistent volume?",
+    "What is the systemd service type for the worker process?"
+)
 
 # -- Text Normalization and Tokenization ----------------------------------------
 
@@ -246,53 +300,81 @@ foreach ($q in $candidateQueries) {
     [void]$uniqueQueries.Add($norm)
 }
 
-# Extract reference elements
+# -- Attempt-1 Exact-Match Check (Source 3: hardcoded exclusion list) ----------
+# Fails closed if any candidate query normalizes to an attempt-1 query.
+# Applied before Jaccard comparison so failure attribution is unambiguous.
+Write-Host "Running attempt-1 query exclusion check ($($Attempt1Queries.Count) hardcoded queries)..."
+$attempt1NormSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($q in $Attempt1Queries) {
+    [void]$attempt1NormSet.Add((Normalize-Text $q))
+}
+$attempt1Violations = 0
+foreach ($cq in $candidateQueries) {
+    $normCq = Normalize-Text $cq
+    if ($attempt1NormSet.Contains($normCq)) {
+        Write-Host "  ATTEMPT-1 VIOLATION: '$cq'"
+        $attempt1Violations++
+    }
+}
+if ($attempt1Violations -gt 0) {
+    Write-Error "FAIL CLOSED: $attempt1Violations candidate query/queries match attempt-1 corpus verbatim (case/whitespace-normalized). Zero attempt-1 query reuse is required."
+    exit 1
+}
+Write-Host "  Attempt-1 exclusion check PASSED (0 matches)."
+
+# Extract reference elements (sources 1 & 2)
 $refRejTexts  = Extract-StringsFromRustFile $AbsRefRej @("query", "positive_text", "hard_neg_text", "positive", "hard_negative", "negative")
 $refCompTexts = Extract-StringsFromRustFile $AbsRefComp @("query", "positive_text", "hard_neg_text")
 
+# Build combined reference pool: sources 1 + 2 + 3 (attempt-1 queries included for Jaccard/verbatim)
 $allRefTexts = [System.Collections.Generic.List[string]]::new()
 $allRefTexts.AddRange($refRejTexts)
 $allRefTexts.AddRange($refCompTexts)
+foreach ($q in $Attempt1Queries) { $allRefTexts.Add($q) }
 
 Write-Host "Candidate strings to audit: $($candidateTexts.Count) (Queries: $($candidateQueries.Count))"
-Write-Host "Reference strings to compare: $($allRefTexts.Count)"
+Write-Host "Reference strings to compare: $($allRefTexts.Count) (dprime=$($refRejTexts.Count) held-out=$($refCompTexts.Count) attempt-1=$($Attempt1Queries.Count))"
 
-# Audit comparisons
+# Audit comparisons (Jaccard + verbatim across all three sources)
 $maxJaccard = 0.0
 $violations = 0
 $totalComparisons = 0
 
 $logLines = [System.Collections.Generic.List[string]]::new()
-$logLines.Add("=== Phase 3 Overlap Audit Log ===")
+$logLines.Add("=== Phase 3 Overlap Audit Log (v1.4) ===")
 $logLines.Add("Timestamp: $(Get-Date -Format 'o')")
 $logLines.Add("Candidate SHA-256:   $((Get-FileHash $AbsCandidate -Algorithm SHA256).Hash)")
 $logLines.Add("Ref Rejection SHA:   $((Get-FileHash $AbsRefRej -Algorithm SHA256).Hash)")
 $logLines.Add("Ref Compromised SHA: $((Get-FileHash $AbsRefComp -Algorithm SHA256).Hash)")
+$logLines.Add("Ref Attempt-1:       40 queries hardcoded at audit-script commit (recoverable from e989a91)")
+$logLines.Add("Attempt-1 Exact Matches: $attempt1Violations (must be 0)")
 $logLines.Add("Candidate Queries:   $($candidateQueries.Count)")
 $logLines.Add("Threshold:           Jaccard < $MaxAllowedJaccard, Verbatim < $MinVerbatimWords words")
 
 foreach ($cand in $candidateTexts) {
     $normCand = Normalize-Text $cand
     $triCand  = Get-WordTrigrams $normCand
-    
+
     foreach ($ref in $allRefTexts) {
         $normRef = Normalize-Text $ref
         $triRef  = Get-WordTrigrams $normRef
         $totalComparisons++
-        
+
         # Check exact normalized match
         $exactMatch = ($normCand -eq $normRef)
-        
+
         $jaccard = Compute-Jaccard $triCand $triRef
         if ($jaccard -gt $maxJaccard) {
             $maxJaccard = $jaccard
         }
-        
+
         $verbatim = Check-VerbatimOverlap $normCand $normRef $MinVerbatimWords
-        
+
         if ($exactMatch -or $jaccard -ge $MaxAllowedJaccard -or $verbatim) {
             $violations++
             $logLines.Add("VIOLATION: Jaccard=$("{0:F4}" -f $jaccard), Verbatim=$verbatim, ExactMatch=$exactMatch")
+            $logLines.Add("  CANDIDATE: $cand")
+            $logLines.Add("  REFERENCE: $ref")
         }
     }
 }
