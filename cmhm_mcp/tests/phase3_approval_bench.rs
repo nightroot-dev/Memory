@@ -259,7 +259,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
     },
     ApprovalScenario {
         id: 213, domain: "Container orchestration", class: ScenarioClass::Supersession,
-        query:    "What is the memory limit for the worker container?",
+        query:    "How much memory is allocated to the worker container?",
         pos_text: "Worker container memory limit is 512 MiB",
         pos_auth: 0.93, pos_prov: "user_explicit", pos_key: Some("worker_memory_limit"), pos_polarity: Some(1),
         neg_text: "Worker container memory limit is 256 MiB",
@@ -342,7 +342,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
     },
     ApprovalScenario {
         id: 221, domain: "Network/TLS", class: ScenarioClass::AuthorityPolarity,
-        query:    "What is the TCP keepalive interval for the internal proxy?",
+        query:    "How often should the internal proxy send TCP keepalive probes?",
         pos_text: "Internal proxy TCP keepalive interval is 300 seconds",
         pos_auth: 0.84, pos_prov: "corrected", pos_key: Some("proxy_tcp_keepalive"), pos_polarity: Some(1),
         neg_text: "Internal proxy TCP keepalive interval is 600 seconds",
@@ -428,7 +428,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
 
     ApprovalScenario {
         id: 227, domain: "Storage/filesystem", class: ScenarioClass::SafeAbstention,
-        query:    "Which file locking mechanism should the database volume use?",
+        query:    "Should the database volume use local or network file locking?",
         pos_text: "Database volume uses local file locking",
         pos_auth: 0.80, pos_prov: "user_explicit", pos_key: Some("db_volume_lock_mechanism"), pos_polarity: Some(1),
         neg_text: "Database volume uses network file locking",
@@ -468,7 +468,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
     },
     ApprovalScenario {
         id: 231, domain: "Cloud/IAM", class: ScenarioClass::SafeAbstention,
-        query:    "Should the IAM role have write access to the production database?",
+        query:    "What level of access should the IAM role have to the production database?",
         pos_text: "IAM role has read-only access to production database",
         pos_auth: 0.82, pos_prov: "user_explicit", pos_key: Some("iam_role_production_db_access"), pos_polarity: Some(1),
         neg_text: "IAM role has write access to production database",
@@ -511,7 +511,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
     },
     ApprovalScenario {
         id: 234, domain: "Distributed consensus", class: ScenarioClass::UnresolvedConflict,
-        query:    "What election timeout should the consensus group use?",
+        query:    "How long should the consensus group wait before declaring a leader election?",
         pos_text: "Consensus election timeout is 1 second",
         pos_auth: 0.81, pos_prov: "user_explicit", pos_key: Some("consensus_election_timeout_value"), pos_polarity: Some(1),
         neg_text: "Consensus election timeout is 2 seconds",
@@ -521,7 +521,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
     },
     ApprovalScenario {
         id: 235, domain: "Observability", class: ScenarioClass::UnresolvedConflict,
-        query:    "What should the metrics retention period be?",
+        query:    "How many days should metrics be retained before deletion?",
         pos_text: "Metrics retention period is 90 days",
         pos_auth: 0.83, pos_prov: "user_explicit", pos_key: Some("metrics_retention_period"), pos_polarity: Some(1),
         neg_text: "Metrics retention period is 180 days",
@@ -531,7 +531,7 @@ pub static SCENARIOS: &[ApprovalScenario] = &[
     },
     ApprovalScenario {
         id: 236, domain: "Storage/filesystem", class: ScenarioClass::UnresolvedConflict,
-        query:    "What should the snapshot frequency be for the database volume?",
+        query:    "How often should snapshots be taken of the database volume?",
         pos_text: "Database volume snapshot frequency is every 6 hours",
         pos_auth: 0.84, pos_prov: "user_explicit", pos_key: Some("db_snapshot_frequency_value"), pos_polarity: Some(1),
         neg_text: "Database volume snapshot frequency is every 12 hours",
