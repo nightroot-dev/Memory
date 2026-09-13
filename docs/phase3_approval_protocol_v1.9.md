@@ -67,7 +67,7 @@ RECORDED ROLE A CONTAMINATION (attempt 1, post-run): Role A read corpus Rust fil
 | 16 | Attempt-2 REJECTED on merits: conflict-detection and abstention subsystems never fired | Resolved | Recorded in Section 15; root cause in Section 14.1; remediated in Section 14 |
 | 17 | conflict_detection_threshold = 0.02 never fires under hash-128d embeddings | Resolved | Section 14: score-gap gate DELETED from decision path; per-signal metadata contract specified |
 | 18 | abstain_on_conflict = false (default) prevents all safe abstention | Resolved | Section 14.6: production default changed to true |
-| 19 | S1 gate hardcodes gap < 0.02 in bench (line 849) independent of Config; guarantees attempt-3 S1 = 0/N | Resolved | Section 14.8: S1 re-scoped to top-2 co-presence; owner sign-off recorded |
+| 19 | S1 gate hardcodes gap < 0.02 in bench (line 849) independent of Config; guarantees attempt-3 S1 = 0/N | Resolved | Section 14.8: S1 re-scoped to top-2 co-presence; owner and reviewer sign-offs recorded |
 
 ---
 
@@ -143,7 +143,7 @@ Occupancy@5 = (total D- in top-5 slots) / (5 * N)
 
 GOVERNING CONSTRAINT: No gate may be removed, weakened, or reinterpreted after observing a failure.
 
-Note: S1 metric is amended in this version to remove the score-gap clause. Disclosure and owner sign-off in Section 14.8.
+Note: S1 metric is amended in this version to remove the score-gap clause. Disclosure, owner sign-off, and reviewer confirmation are recorded in Section 14.8.
 
 | Gate | Metric | Numerator | Denominator | Threshold | CI Condition |
 |---|---|---|---|---|---|
@@ -177,22 +177,38 @@ Note: S1 metric is amended in this version to remove the score-gap clause. Discl
 
 ## 8. Frozen Artifact Cryptographic Manifest
 
-*(Unchanged from v1.8)*
-
 Implementation freeze commit: bc6634047cb900f90fd9832a6cf83793e885d1dc
+Archive: phase3-bc66340-lf.zip (2,812,990 bytes, SHA-256: 7D91A8B38F5D96123B6A5C312EDD99B2D5D16D890FAD079380B062EFEFC5DF70)
+Line-ending policy: LF only. Hashes are raw-byte hashes of extracted archive entries.
 
-NOTE: retrieval.rs, engine.rs, and config.rs hashes below are the v1.8 frozen baseline. These files will differ after Section 14 remediation. New hashes recorded in Section 10.1 after remediation commit.
+Frozen implementation files (v1.8 baseline -- retrieval.rs, engine.rs, and config.rs hashes will change after Section 14 remediation; new hashes recorded in Section 10.1):
 
 | File | Size | SHA-256 |
 |---|---|---|
 | cmhm_core/src/retrieval.rs | 21,380 | 5243A41869776FE0E78AE458FA0796E01C69644BE787487E5FF3C5B07C5C0A81 |
 | cmhm_core/src/engine.rs | 57,100 | F4BBF63D2A12D31DF7BE394F9EFD8B899E112B448972B64D9B5A2A3D0A89B066 |
-| cmhm_core/src/config.rs | 7,215 | 63E2F0ABCDDCBCD04E2A9ABBA1CA60B6E2A49B6D3E70D476F88D3BE9F61E8CC0 |
+| cmhm_core/src/context/runtime.rs | 30,015 | 563EAFEE66E0D93EEF3F1C82DC976B443020D62A311A53E8119C13EEC4297789 |
+| cmhm_core/src/text_embed.rs | 7,489 | A6E2A21D483E6F048FE236D4CFDF842AE07E3EF9C8EE250C4D648AB3E71E89B3 |
+| cmhm_mcp/src/schema.rs | 17,171 | BE27A3E4E4956F0C589409A9AE7FD06DF8BD71F13691A4FD63CAFF744F0380FC |
+| cmhm_mcp/src/tools.rs | 59,596 | 0B4A5F85F4A714B7722032A8F291141186142D9E3E1625871C31953575601449 |
 | cmhm_mcp/src/lib.rs | 1,451 | F5E09E80B4756F309EF8FB7467058D1C09E7B1FEAD51DC29A40F6F00C65E6845 |
-| cmhm_mcp/src/tools.rs | 58,624 | 806BE9F9FC611C32E65AA9AC6B4BA6DA6939B2BB94F29721A2D80DC41124706E |
+| cmhm_mcp/tests/tool_tests.rs | 58,624 | 806BE9F9FC611C32E65AA9AC6B4BA6DA6939B2BB94F29721A2D80DC41124706E |
 | cmhm_core/tests/phase3_synthetic_eval_tests.rs | 18,811 | 5D0C483C9258BAD34DC62364A16C8833BD798AA2C025563A1069F43850416AC0 |
 | scripts/audit_corpus_overlap.ps1 | 12,533 | E3C8BE2FF91E5083864769F1189070846BD5808B7204161C3956A630CB7CCB59 |
 | scripts/verify_phase3_approval.ps1 | 19,385 | 519EA3AC53FE3E73768B950352AEDCF0437D3044C219E45EC45958BE2EEA94D2 |
+| cmhm_core/src/config.rs [NEW v1.9] | 10,549 | F0A7532E6C2F72A3363D107B60FC108BB77C0542473201FF8CF8C456BF749CAD |
+
+config.rs is listed as NEW v1.9: it was omitted from the v1.8 manifest table. The hash above is the state at commit 551121ee. It will change after Section 14.6 defaults are applied; the post-remediation hash will be recorded in Section 10.1.
+
+Post-freeze harness changes (outside manifest; do not affect the implementation under test):
+
+| File | Change | Commit |
+|---|---|---|
+| cmhm_mcp/tests/phase3_approval_bench.rs | Scaffold authored; corpus v2 transcribed; g5_slots defect fixed | 984bef7, 1b07c83 |
+| scripts/audit_corpus_overlap.ps1 | PS empty-List unrolling bug fixed; pos_text/neg_text field aliases added; Source 3 (43 attempt-1 queries) + live-fire self-tests added | e989a91, 57e31a0 |
+| scripts/verify_phase3_approval.ps1 | Stage 1.5 conformance gate added | a80457d |
+
+Note on post-freeze script hashes: the working-tree hashes of audit_corpus_overlap.ps1 and verify_phase3_approval.ps1 differ from the archive hashes above because both scripts grew after bc66340 (Source 3 additions, Stage 1.5 integration). Current working-tree hashes: audit_corpus_overlap.ps1 = 20,197 bytes / 805C425C71ACBF18154813178B6D836AD3982CD41FBC20EF1F8C3F6CCC1A3F59; verify_phase3_approval.ps1 = 20,647 bytes / 702E1D8DD6943B497E0184705857B8A7DCAD9744E925B1D14EABE2F6A11CC8D2. These will be updated again when Source 4 is added (Section 16.1 prerequisite 5).
 
 ---
 
@@ -274,7 +290,7 @@ Role A read corpus Rust file post-run and cited authority value ranges in diagno
 
 ### 11.5 Section 4.4 Change Log: v1.6 to v1.7/v1.8
 
-*(Full change log unchanged -- see v1.8 Section 11.5 for complete text.)*
+*(Full change log unchanged -- see v1.8 Section 11.5, permanently retained in repo at docs/phase3_approval_protocol_v1.8.md, for complete text.)*
 
 Seven fixed values widened to ranges (Category A). One substantive provenance correction: AdversarialAuthority D- prov contradicted -> user_explicit (Category B). Full rationale in v1.8.
 
@@ -294,7 +310,7 @@ Validates every scenario against Section 4.4 before Stage 2 executes.
 
 ### 12.3 Per-Scenario Validation Rules
 
-*(Full rules unchanged from v1.8 -- see v1.8 Section 12.3 for complete text.)*
+*(Full rules unchanged from v1.8 -- see v1.8 Section 12.3, permanently retained in repo at docs/phase3_approval_protocol_v1.8.md, for complete text.)*
 
 ### 12.4 Global Corpus Validation Rules
 
@@ -357,7 +373,7 @@ Signal definitions:
 |---|---|---|
 | LogicalContradiction | top-2 share identical non-empty assertion_key AND pa * pb < 0 | conflict_detected=true, conflict_type=LogicalContradiction, abstained=true |
 | ProvenancePair | One of top-2 is HIGH_TRUST prov AND the other is LOW_TRUST prov (any ordering) | conflict_detected=true, conflict_type=AuthorityPolarity; abstained=true iff TrustCompromised holds |
-| TrustCompromised (ProvenancePair sub-condition) | ProvenancePair fires AND |auth_rank1 - auth_rank2| < delta_authority (0.10) | abstained=true (requires abstain_on_conflict=true in Config) |
+| TrustCompromised (sub-condition of ProvenancePair) | ProvenancePair fires AND abs(auth_rank1 - auth_rank2) <= delta_authority (0.10) | abstained=true (requires abstain_on_conflict=true in Config) |
 | AdversarialPair | BOTH top-2 are HIGH_TRUST AND pos_prov == "corrected" AND neg_auth > pos_auth | conflict_detected=true, conflict_type=AuthorityPolarity, abstained=true |
 | score_gap_proximity | -- | DELETED from decision path; see Section 14.3 |
 
@@ -366,11 +382,13 @@ Class-by-class behavior under contract:
 | Class | Signal fires | conflict_type | abstained |
 |---|---|---|---|
 | Contradiction | LogicalContradiction (same key, opposing polarity) | LogicalContradiction | true |
-| AuthorityPolarity | ProvenancePair (contradicted D- vs HIGH_TRUST D+); auth gap ~0.10-0.20 >= delta_authority (0.10); TrustCompromised does NOT fire | AuthorityPolarity | false |
+| AuthorityPolarity | ProvenancePair (contradicted D- vs HIGH_TRUST D+); TrustCompromised fires iff abs(auth gap) <= 0.10 | AuthorityPolarity | false (typical; see note) |
 | AdversarialAuthority | AdversarialPair (both HIGH_TRUST, pos_prov=corrected, neg_auth > pos_auth) | AuthorityPolarity | true |
-| SafeAbstention | ProvenancePair (contradicted D- vs user_explicit D+); auth gap <= 0.10 < delta_authority; TrustCompromised fires | AuthorityPolarity | true |
+| SafeAbstention | ProvenancePair (contradicted D- vs user_explicit D+); abs(auth gap) <= 0.10; TrustCompromised fires | AuthorityPolarity | true |
 | UnresolvedConflict | No signal (both user_explicit; no LOW_TRUST; AdversarialPair: pos_auth > neg_auth fails condition) | None | false |
 | Supersession | No signal (D- filtered Step 2a; never reaches detector) | None | false |
+
+Note on AuthorityPolarity abstention: Section 4.4 permits |pos_auth - neg_auth| in the range 0.00-0.20 for AP scenarios (D+ 0.80-0.90, D- 0.70-0.80). Conformant AP scenarios with |auth gap| <= 0.10 satisfy TrustCompromised and will abstain. This produces correct_abstention for those scenarios (AP expected_abstain=true per §4.4), not incorrect_abstention -- the class-level Abstain column in §4.4 is true, so the engine abstaining is the expected behavior. The class-table "false (typical)" refers to the sub-population with auth gap > 0.10; the abstaining sub-population is equally accepted behavior. No gate penalizes either outcome.
 
 G8b derivation (verified against Section 6 gate definition):
 G8b gate: count(conflict_type = AuthorityPolarity) / (AUTH_POLARITY + ADVERSARIAL) >= 0.80 exact.
@@ -383,7 +401,9 @@ Misfire verification:
 - Contradiction: LogicalContradiction fires first (precedence 1); ProvenancePair not reached.
 - Supersession: D- filtered Step 2a; not in SCORED top-2; no signal.
 - UnresolvedConflict: both HIGH_TRUST, pos_auth > neg_auth -> AdversarialPair (neg_auth > pos_auth) fails; no LOW_TRUST -> ProvenancePair fails; no key clash -> LogicalContradiction fails. conflict_type = None. G8c satisfied.
-- SafeAbstention abstention (abstained=true) does not affect G8b; G8b denominator is AP+AA only.
+- SafeAbstention abstention does not affect G8b; G8b denominator is AP+AA only.
+
+G8a as consistency check: Under the metadata-only detection contract, LogicalContradiction fires deterministically whenever a Contradiction pair is jointly in SCORED top-2 (same assertion_key + opposing polarity is guaranteed by §4.4 for all Contradiction scenarios). Therefore G8a = 1.0 whenever S1's numerator > 0 -- G8a is no longer an independent capability measure. Its role under the new contract is to verify the implementation correctly fires LC given co-presence; the effective contradiction-safety gate is S1 alone (which permits up to 40% of Contradiction scenarios to miss top-2 entirely and return an un-flagged answer -- exposure that existed in v1.8 and is unchanged). Future readers must not credit G8a with independent evidentiary weight beyond implementation correctness.
 
 ### 14.3 Disposition of conflict_detection_threshold
 
@@ -405,22 +425,30 @@ delta_authority = 0.10 (pre-declared; not adjustable after attempt 3 is observed
 
 Derivation from scoring mathematics:
 
-The composite scoring formula (retrieval.rs:252-254, production defaults):
+The composite scoring formula (retrieval.rs:252-254, production defaults verified against frozen archive at bc66340):
 
   score = 0.7 * cos(query, node) + 0.3 * cos(dense_ctx, node) + 0.8 * node.authority
 
+Production defaults confirmed: query_weight=0.7, context_weight=0.3, authority_weight=0.8, conflict_detection_threshold=0.02, abstain_on_conflict=false (config.rs:172-179).
+
 The authority contribution to composite score differential is 0.8 * |auth_a - auth_b|.
 
-Under hash-128d, embeddings have no semantic geometry -- cosine similarity of a semantically distinct node with a query is noise uncorrelated with meaning. For a 128-dimensional random unit vector, the expected absolute cosine difference between two independent draws is approximately 1/sqrt(128) ~= 0.088. The query-term contribution to this noise is 0.7 * 0.088 ~= 0.062.
+Under hash-128d (FNV-1a), embeddings have no semantic geometry -- cosine similarity of a semantically distinct node with a query is noise uncorrelated with meaning. For a D-dimensional random unit vector, the standard deviation of the cosine with another random unit vector is sigma = 1/sqrt(D). For D=128: sigma_cosine = 1/sqrt(128) ~= 0.0884 per component term.
 
-The crossover: below what authority margin can a cosine-noise realization reverse the authority-based ordering?
+With two cosine terms, the combined score noise standard deviation (assuming query and context embeddings are independent noise) is:
 
-  0.8 * |auth_a - auth_b| < 0.062
-  |auth_a - auth_b| < 0.077
+  sigma_combined = sqrt(0.7^2 + 0.3^2) / sqrt(128) ~= sqrt(0.58) / 11.314 ~= 0.0672
 
-Below this margin, the authority differential contributes less to composite score than a typical hash-128d cosine noise unit -- the winner cannot be confidently preferred on authority grounds alone. Rounding to one decimal place conservatively: delta_authority = 0.10 (at gap=0.10, authority contributes 0.080, within one standard deviation of the 0.062 cosine noise unit).
+The crossover: below what authority margin can a combined cosine-noise realization (1 sigma) reverse the authority-based ordering?
 
-Relationship to Section 4.4 SafeAbstention constraint: Section 4.4 specifies |pos_auth - neg_auth| <= 0.10 for SafeAbstention. delta_authority = 0.10 coincides with this bound. The two are independently derived: Section 4.4's bound was set to express "near-equal authority" from a corpus-design perspective; delta_authority was derived from the scoring mathematics (at what gap does authority fail to exceed cosine noise?). They converge at 0.10 because they model the same physical boundary from different angles. This coincidence is stated here and must not be cited as a tuning justification in any future protocol version.
+  0.8 * |auth_a - auth_b| < sigma_combined
+  |auth_a - auth_b| < 0.0672 / 0.8 ~= 0.084
+
+Below this margin, the authority differential contributes less to composite score than a one-sigma combined cosine noise unit -- the winner cannot be confidently preferred on authority grounds alone within the typical noise band. Rounding to one decimal place conservatively: delta_authority = 0.10 (at gap=0.10, authority contributes 0.080, within one sigma of the 0.067 combined noise unit).
+
+Relationship to Section 4.4 SafeAbstention constraint: Section 4.4 specifies |pos_auth - neg_auth| <= 0.10 for SafeAbstention. delta_authority = 0.10 coincides with this bound. The two are independently derived: Section 4.4's bound was set to express "near-equal authority" from a corpus-design perspective; delta_authority was derived from the scoring mathematics (at what gap does authority fail to exceed one-sigma combined cosine noise?). They converge at 0.10 because they model the same physical boundary from different angles. This coincidence is stated here and must not be cited as a tuning justification in any future protocol version.
+
+Implementation note: 0.10 must be implemented as a named constant (e.g., TRUST_COMPROMISE_DELTA) in retrieval.rs with a doc comment citing Section 14.5. It must not appear as an inline literal to prevent silent drift in future edits.
 
 ### 14.6 Engine Default Changes (Production)
 
@@ -441,7 +469,7 @@ Changes in cmhm_core/src/retrieval.rs (Step 2d):
 1. Delete the outer `if gap < conflict_detection_threshold { ... }` gate and its closing brace.
 2. Retain LogicalContradiction check unchanged -- remove only gap-gate enclosure.
 3. Retain SupersessionConflict check unchanged -- remove only gap-gate enclosure. (Defensive; D- filtered Step 2a, but retained against future Step 2a changes.)
-4. Replace existing provenance-pair check with ProvenancePair signal (Section 14.2): HIGH_TRUST vs LOW_TRUST, regardless of gap. Add TrustCompromised sub-condition: if |auth_rank1 - auth_rank2| < 0.10, set should_abstain = true.
+4. Replace existing provenance-pair check with ProvenancePair signal (Section 14.2): HIGH_TRUST vs LOW_TRUST, regardless of gap. Add TrustCompromised sub-condition: if abs(auth_rank1 - auth_rank2) <= 0.10 (using named constant TRUST_COMPROMISE_DELTA), set should_abstain = true.
 5. Add AdversarialPair signal (Section 14.2): both HIGH_TRUST, pos_prov == "corrected", neg_auth > pos_auth -> conflict_type = AuthorityPolarity, abstained = true.
 6. Delete ScoreAmbiguity branch (fallthrough of old gap-gated provenance check; not a signal in new contract; no gate in Section 6).
 
@@ -476,9 +504,7 @@ This is a mechanism-decoupling, not a pass-adjustment, for four independent reas
 
 Role A owner sign-off: I assert that the S1 amendment is mechanism-decoupling. The gap < 0.02 clause is removed because its referent (score-proximity detection) is removed on embedding-theoretic grounds. The remaining metric measures the co-presence precondition that G8a requires and that any top-2-based detector depends on.
 
-Reviewer sign-off required: The reviewer must independently confirm this is mechanism-decoupling before v1.9 becomes governing. Space reserved:
-
-[REVIEWER SIGN-OFF: to be recorded here when v1.9 is approved]
+Reviewer sign-off (2026-09-13): The reviewer independently verified against governing v1.8 (§6 S1 row, §4.4 note) that the removed gap < 0.02 clause was eligibility bookkeeping for the score-proximity detector deleted by Section 14, that threshold and denominator are unchanged, and that the amendment widens G8a's denominator (strictening it). Confirmed: mechanism-decoupling, not gate weakening. The protected property — joint top-2 co-presence for adjudication — is embedder-agnostic and is what the amended metric measures.
 
 ---
 
@@ -589,6 +615,7 @@ Corpus v2 (commit 11c0a07) is permanently consumed. It may be used as diagnostic
 | Prohibited Corpora | Items 3-4 added (consumed corpora v1 and v2) | S4.3 |
 | Section 6 S1 gate | Metric amended: gap < 0.02 clause removed; top-2 co-presence only. Threshold/denominator unchanged. | S6, S14.8 |
 | Harness Configuration Mandate | Config::default() override prohibition; data_dir and projections_dir only exceptions | S9 |
+| Manifest table | Reproduced verbatim from v1.8; config.rs added as NEW v1.9 | S8 |
 | Scaffold freeze table | v1.8 identity recorded; v1.9 placeholders added | S10.1 |
 | Manifest NOTE | Pre-discloses retrieval.rs/config.rs hashes will change post-remediation | S8 |
 | Conflict-Detection Contract | Per-signal metadata contract; gap gate DELETED (not re-configured); trust-tier table; signal precedence; post-filter input requirement; delta_authority=0.10 derived from scoring math; AdversarialPair with abstention and tightened condition; gap-independence unit test required | S14 (NEW) |
