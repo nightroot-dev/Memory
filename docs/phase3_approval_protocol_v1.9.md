@@ -2,7 +2,7 @@
 
 **Version:** 1.9
 **Supersedes:** v1.8 (A9E8D8F17795D9457B3660881E715BBF77FEE869E34A0A4CCC935B196BDC70AA)
-**Status:** DRAFT -- PENDING REVIEWER APPROVAL before governing
+**Status:** GOVERNING -- Approved by Reviewer on 2026-09-13 (baseline commit 66e86bc, SHA-256 56A8858854E47C02AACA22A09979F32B00B3EEDB7354500D4F94666DC796BD47)
 
 ---
 
@@ -208,7 +208,7 @@ Post-freeze harness changes (outside manifest; do not affect the implementation 
 | scripts/audit_corpus_overlap.ps1 | PS empty-List unrolling bug fixed; pos_text/neg_text field aliases added; Source 3 (43 attempt-1 queries) + live-fire self-tests added | e989a91, 57e31a0 |
 | scripts/verify_phase3_approval.ps1 | Stage 1.5 conformance gate added | a80457d |
 
-Note on post-freeze script hashes: the working-tree hashes of audit_corpus_overlap.ps1 and verify_phase3_approval.ps1 differ from the archive hashes above because both scripts grew after bc66340 (Source 3 additions, Stage 1.5 integration). Current working-tree hashes: audit_corpus_overlap.ps1 = 20,197 bytes / 805C425C71ACBF18154813178B6D836AD3982CD41FBC20EF1F8C3F6CCC1A3F59; verify_phase3_approval.ps1 = 20,647 bytes / 702E1D8DD6943B497E0184705857B8A7DCAD9744E925B1D14EABE2F6A11CC8D2. These will be updated again when Source 4 is added (Section 16.1 prerequisite 5).
+Note on post-freeze script hashes: the working-tree hashes of audit_corpus_overlap.ps1 and verify_phase3_approval.ps1 differ from the archive hashes above because both scripts grew after bc66340 (Source 3 additions, Stage 1.5 integration). Current working-tree hashes: audit_corpus_overlap.ps1 = 27,543 bytes / 6FB3FD92DF80F760BE64E3B6C575FC4A5DF25CC55BE9171475FEC8D88E8ABFBA (commit 7c90c3a); verify_phase3_approval.ps1 = 20,647 bytes / 702E1D8DD6943B497E0184705857B8A7DCAD9744E925B1D14EABE2F6A11CC8D2.
 
 ---
 
@@ -241,8 +241,15 @@ HARNESS CONFIGURATION MANDATE (v1.9): The benchmark harness must run with Config
 | v1.8 scaffold freeze commit | a80457dd99bf1ae36511270937c41b99606787e7 |
 | v1.8 SHA-256 | E7267F1569A7D56E7A84A6B60FA60BE013B45D0A5CDE5DDA2057167C80B0B2A7 |
 | v1.8 size | 42,783 bytes |
-| v1.9 remediation commit | to be set after Section 14 engine changes (retrieval.rs + config.rs) |
-| v1.9 scaffold freeze commit | to be set after S1 bench re-scope + SCENARIOS cleared for corpus v3 |
+| v1.9 remediation commit | a1a933d2948a297db7760c275f098c50d63be19e |
+| v1.9 remediation retrieval.rs SHA-256 | 88626F3865B29FDBBFEBC5598CF5BA84807BC56C61A38912501B63607BEC585C (21,892 bytes) |
+| v1.9 remediation config.rs SHA-256 | 37F61660A3637DE59955D8472A99C2C99D84582FB99643363FAD13BFF7A9DE94 (10,142 bytes) |
+| v1.9 remediation lib.rs SHA-256 | F44AD56C7E556222BC8401F835BBA947066D84251A3062784F6906F70DAE8DE0 (2,691 bytes) |
+| v1.9 scaffold freeze commit | 40851a8d6ebb5579f6bf158db9b0c98f439c4ea9 |
+| v1.9 scaffold freeze SHA-256 | 60A2675E6207FE4726359394CC5A4A4AFAFAA15F31E8F760DE49DA394EEE23C3 |
+| v1.9 scaffold freeze size | 42,721 bytes |
+| v1.9 auditor extension commit | 7c90c3af4a99187ec0caae352936720f18aa0eb5 |
+| v1.9 auditor audit_corpus_overlap.ps1 SHA-256 | 6FB3FD92DF80F760BE64E3B6C575FC4A5DF25CC55BE9171475FEC8D88E8ABFBA (27,543 bytes) |
 
 ### 10.2 Role B Ruling
 
@@ -574,13 +581,13 @@ Corpus v2 (commit 11c0a07) is permanently consumed. It may be used as diagnostic
 
 ### 16.1 Prerequisites (all must be complete before attempt 3 begins)
 
-1. Reviewer approval of v1.9 -- including sign-off on S1 amendment as mechanism-decoupling (Section 14.8).
-2. Engine remediation committed -- changes per Section 14.7 (retrieval.rs + config.rs). New SHA-256 hashes of modified files recorded in Section 10.1.
-3. Synthetic pre-flight re-run -- phase3_synthetic_eval_tests.rs must pass 10/10 after Section 14 changes. Gap-independence unit test passes. Any regression blocks attempt 3.
-4. Scaffold updated -- bench line 849 updated (S1 re-scope); SCENARIOS cleared to placeholder; bench file frozen at new commit; identity (commit hash + SHA-256 + byte size) recorded in Section 10.1.
-5. Overlap auditor extended (Source 4) -- audit_corpus_overlap.ps1 extended with 43 hardcoded attempt-2 query strings (from commit 11c0a07), exact mechanism as Source 3. Self-test extended with at least one Source-4 live-fire positive. Commit identity recorded here after extension.
-6. Corpus v3 authored by Role B -- per Section 4.4, Section 16.2, and Section 13.2 cheat-sheet. Zero reuse from corpora v1 or v2.
-7. Role B explicit authorization -- sign-off that corpus v3 is ready for transcription.
+1. Reviewer approval of v1.9 -- including sign-off on S1 amendment as mechanism-decoupling (Section 14.8). [COMPLETE: Approved 2026-09-13, declared GOVERNING at commit 66e86bc]
+2. Engine remediation committed -- changes per Section 14.7 (retrieval.rs + config.rs). New SHA-256 hashes of modified files recorded in Section 10.1. [COMPLETE: Commit a1a933d, hashes recorded in Section 10.1]
+3. Synthetic pre-flight re-run -- phase3_synthetic_eval_tests.rs must pass 10/10 after Section 14 changes. Gap-independence unit test passes. Any regression blocks attempt 3. [COMPLETE: 10/10 synthetic tests pass, 3/3 gap-independence tests pass, retrieval_e2e 33 pass / 1 ignored / 0 fail]
+4. Scaffold updated -- bench line 849 updated (S1 re-scope); SCENARIOS cleared to placeholder; bench file frozen at new commit; identity (commit hash + SHA-256 + byte size) recorded in Section 10.1. [COMPLETE: Commit 40851a8, 42,721 bytes, SHA-256: 60A2675E6207FE4726359394CC5A4A4AFAFAA15F31E8F760DE49DA394EEE23C3]
+5. Overlap auditor extended (Source 4) -- audit_corpus_overlap.ps1 extended with 43 hardcoded attempt-2 query strings (from commit 11c0a07), exact mechanism as Source 3. Self-test extended with at least one Source-4 live-fire positive. Commit identity recorded here after extension. [COMPLETE: Commit 7c90c3a, 27,543 bytes, SHA-256: 6FB3FD92DF80F760BE64E3B6C575FC4A5DF25CC55BE9171475FEC8D88E8ABFBA, 8/8 synthetic self-tests pass]
+6. Corpus v3 authored by Role B -- per Section 4.4, Section 16.2, and Section 13.2 cheat-sheet. Zero reuse from corpora v1 or v2. [PENDING ROLE B AUTHORING]
+7. Role B explicit authorization -- sign-off that corpus v3 is ready for transcription. [PENDING ROLE B AUTHORIZATION]
 
 ### 16.2 Corpus v3 Requirements
 
@@ -636,4 +643,4 @@ Corpus v2 (commit 11c0a07) is permanently consumed. It may be used as diagnostic
 
 ---
 
-*End of Phase 3 Approval Protocol v1.9 (DRAFT -- amended per reviewer ruling 2026-09-13)*
+*End of Phase 3 Approval Protocol v1.9 (GOVERNING -- approved by reviewer 2026-09-13, commit 66e86bc)*
