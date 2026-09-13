@@ -102,27 +102,17 @@ pub struct Config {
     #[serde(default = "default_retrieval_recency_lambda")]
     pub retrieval_recency_lambda: f32,
 
-    /// Score gap below which two seed candidates are flagged as conflicting.
-    ///
-    /// When the top-2 scored candidates differ by less than this threshold AND
-    /// either their provenance strings differ (and are non-empty) OR
-    /// `|authority_A − authority_B| < 0.1`, the result sets
-    /// `RetrievalResult::conflict_detected = true` and populates `conflict_candidates`.
-    ///
-    /// The engine still selects the higher-scoring candidate as seed — it does not abstain.
-    /// The conflict signal is surfaced for callers (MCP clients) to handle.
-    ///
-    /// Default: 0.02. Set lower to surface fewer conflicts; higher to surface more.
+    /// Deprecated-in-place as of Protocol v1.9: score-gap proximity is deleted from
+    /// the conflict decision path. Retained for schema compatibility. Default: 0.0.
     #[serde(default = "default_conflict_detection_threshold")]
     pub conflict_detection_threshold: f32,
 
-    /// When `true` and `conflict_detected`, retrieval returns an empty causal chain
+    /// When `true` and `conflict_detected` (with `should_abstain`), retrieval returns an empty causal chain
     /// and `RetrievalResult::abstained = true` rather than returning the contested winner.
     /// `conflict_candidates` is still populated with the competing nodes.
     ///
-    /// Default: `false` (backward-compatible — return the higher-scoring winner even
-    /// when a conflict is detected).
-    #[serde(default)]
+    /// Default: `true` (Protocol v1.9 Section 14.6: fail-safe abstention on detected conflict).
+    #[serde(default = "default_abstain_on_conflict")]
     pub abstain_on_conflict: bool,
 
     /// If true, `engine::start()` will quarantine the incompatible snapshot and
@@ -175,8 +165,8 @@ impl Default for Config {
             retrieval_authority_weight:    0.8,
             retrieval_recency_weight:      0.0,
             retrieval_recency_lambda:      0.01,
-            conflict_detection_threshold:  0.02,
-            abstain_on_conflict:           false,
+            conflict_detection_threshold:  0.0,
+            abstain_on_conflict:           true,
             allow_incompatible_snapshot_reset: false,
         }
     }
@@ -188,7 +178,8 @@ fn default_retrieval_curiosity_threshold() -> f32  { 0.1 }
 fn default_retrieval_authority_weight()    -> f32  { 0.8 }
 fn default_retrieval_recency_weight()      -> f32  { 0.0 }
 fn default_retrieval_recency_lambda()      -> f32  { 0.01 }
-fn default_conflict_detection_threshold()  -> f32  { 0.02 }
+fn default_conflict_detection_threshold()  -> f32  { 0.0 }
+fn default_abstain_on_conflict()           -> bool { true }
 fn default_allow_incompatible_snapshot_reset() -> bool { false }
 
 

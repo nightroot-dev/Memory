@@ -57,7 +57,7 @@ pub mod migration;
 // Re-export the most commonly used types at crate root
 pub use config::Config;
 pub use engine::{start, EngineHandle, LearnResult, SchemaMismatchError, SupersessionError};
-pub use retrieval::{RetrievalResult, ChainStep, ConflictCandidate, ConflictType};
+pub use retrieval::{RetrievalResult, ChainStep, ConflictCandidate, ConflictType, TRUST_COMPROMISE_DELTA};
 
 pub use node::NodeType;
 pub use edge::{EdgeType, EvidenceType};

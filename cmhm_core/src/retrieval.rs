@@ -24,6 +24,10 @@ pub struct ChainStep {
     pub is_curious: bool,
 }
 
+/// Pre-declared authority-margin threshold for trust-compromised runner-up abstention.
+/// Derived from composite scoring mathematics under hash-128d in Protocol v1.9 Section 14.5.
+pub const TRUST_COMPROMISE_DELTA: f32 = 0.10;
+
 /// Machine-readable classification of why two candidates triggered conflict detection.
 ///
 /// Score proximity alone is not semantic contradiction — this enum lets callers
@@ -165,7 +169,9 @@ pub fn retrieve(
     // Uses node.authority (machine-readable trust level), NOT node.emotional_tag.
     authority_weight: f32,
     // Score gap below which two candidates trigger conflict_detected = true.
-    conflict_detection_threshold: f32,
+    // Deprecated-in-place as of Protocol v1.9: the score-gap proximity check has been
+    // deleted from the decision path. Retained for API/schema compatibility.
+    _conflict_detection_threshold: f32,
     // When true and conflict_detected, return empty chain + abstained=true instead of
     // returning the contested winner. Callers still receive conflict_candidates.
     abstain_on_conflict: bool,
@@ -273,104 +279,99 @@ pub fn retrieve(
 
     // Step 2d: Conflict detection with semantic classification.
     //
-    // Conflict requires BOTH:
-    //   (a) score gap < conflict_detection_threshold  (score proximity)
-    //   (b) at least one semantic incompatibility class applies
-    //
-    // Three machine-readable ConflictType classes:
-    //   SupersessionConflict — one candidate supersedes the other but still scores within threshold
-    //   AuthorityPolarity    — opposing provenance signals ("corrected" vs "contradicted")
-    //   ScoreAmbiguity       — provenance differs, authority close — engine cannot decide
-    //
-    // Score proximity alone (no class match) is NOT a conflict.
-    let (conflict_detected, conflict_candidates): (bool, Vec<ConflictCandidate>) = if scored.len() >= 2 {
+    // Protocol v1.9 Section 14: Per-signal metadata contract on post-filter SCORED top-2 candidates.
+    // The score-gap proximity check has been DELETED from the decision path.
+    // Precedence:
+    //   1. LogicalContradiction: identical non-empty assertion_key with opposing polarity (+1 vs -1)
+    //   2. SupersessionConflict: defensive check if superseded candidate reached scored top-2
+    //   3. ProvenancePair: HIGH_TRUST vs LOW_TRUST provenance match
+    //      - TrustCompromised sub-condition: |auth_a - auth_b| <= TRUST_COMPROMISE_DELTA -> should_abstain = true
+    //   4. AdversarialPair: both HIGH_TRUST, pos_prov == "corrected", neg_auth > pos_auth -> should_abstain = true
+    let (conflict_detected, conflict_candidates, should_abstain): (bool, Vec<ConflictCandidate>, bool) = if scored.len() >= 2 {
         let (id_a, score_a) = scored[0];
         let (id_b, score_b) = scored[1];
-        let gap = score_a - score_b;
 
-        if gap < conflict_detection_threshold {
-            let node_a = node_store.get(id_a);
-            let node_b = node_store.get(id_b);
-            let prov_a = node_a.map(|n| n.provenance.as_str()).unwrap_or("");
-            let prov_b = node_b.map(|n| n.provenance.as_str()).unwrap_or("");
-            let auth_a = node_a.map(|n| n.authority).unwrap_or(0.5);
-            let auth_b = node_b.map(|n| n.authority).unwrap_or(0.5);
-            let super_a = node_a.and_then(|n| n.superseded_by);
-            let super_b = node_b.and_then(|n| n.superseded_by);
-            let key_a = node_a.and_then(|n| n.assertion_key.as_deref());
-            let key_b = node_b.and_then(|n| n.assertion_key.as_deref());
-            let pol_a = node_a.and_then(|n| n.polarity);
-            let pol_b = node_b.and_then(|n| n.polarity);
+        let node_a = node_store.get(id_a);
+        let node_b = node_store.get(id_b);
+        let prov_a = node_a.map(|n| n.provenance.as_str()).unwrap_or("");
+        let prov_b = node_b.map(|n| n.provenance.as_str()).unwrap_or("");
+        let auth_a = node_a.map(|n| n.authority).unwrap_or(0.5);
+        let auth_b = node_b.map(|n| n.authority).unwrap_or(0.5);
+        let super_a = node_a.and_then(|n| n.superseded_by);
+        let super_b = node_b.and_then(|n| n.superseded_by);
+        let key_a = node_a.and_then(|n| n.assertion_key.as_deref());
+        let key_b = node_b.and_then(|n| n.assertion_key.as_deref());
+        let pol_a = node_a.and_then(|n| n.polarity);
+        let pol_b = node_b.and_then(|n| n.polarity);
 
-            // 1. Explicit logical contradiction: identical non-empty assertion_key with opposing polarity
-            let is_logical_contradiction = match (key_a, key_b, pol_a, pol_b) {
-                (Some(ka), Some(kb), Some(pa), Some(pb)) if ka == kb && pa * pb < 0 => true,
-                _ => false,
+        // 1. Explicit logical contradiction: identical non-empty assertion_key with opposing polarity
+        let is_logical_contradiction = match (key_a, key_b, pol_a, pol_b) {
+            (Some(ka), Some(kb), Some(pa), Some(pb)) if ka == kb && pa * pb < 0 => true,
+            _ => false,
+        };
+
+        const HIGH_TRUST: &[&str] = &["corrected", "user_explicit"];
+        const LOW_TRUST:  &[&str] = &["contradicted"];
+        let a_high = HIGH_TRUST.contains(&prov_a);
+        let b_low  = LOW_TRUST.contains(&prov_b);
+        let b_high = HIGH_TRUST.contains(&prov_b);
+        let a_low  = LOW_TRUST.contains(&prov_a);
+
+        let (conflict_type, abstain_flag): (Option<ConflictType>, bool) =
+            if is_logical_contradiction {
+                (Some(ConflictType::LogicalContradiction), true)
+            } else if super_a == Some(id_b) || super_b == Some(id_a) {
+                // A supersedes B or B supersedes A but both still in candidate pool (defensive).
+                (Some(ConflictType::SupersessionConflict), true)
+            } else if (a_high && b_low) || (b_high && a_low) {
+                // ProvenancePair: opposing trust signals.
+                // TrustCompromised sub-condition: authority margin <= TRUST_COMPROMISE_DELTA (0.10).
+                let auth_gap = (auth_a - auth_b).abs();
+                let trust_compromised = auth_gap <= TRUST_COMPROMISE_DELTA;
+                (Some(ConflictType::AuthorityPolarity), trust_compromised)
+            } else if a_high && b_high {
+                // AdversarialPair check:
+                // One candidate has provenance "corrected" and the other has "user_explicit",
+                // and the "user_explicit" candidate carries higher authority than "corrected".
+                let is_adversarial = (prov_a == "corrected" && prov_b == "user_explicit" && auth_b > auth_a)
+                    || (prov_b == "corrected" && prov_a == "user_explicit" && auth_a > auth_b);
+                if is_adversarial {
+                    (Some(ConflictType::AuthorityPolarity), true)
+                } else {
+                    (None, false)
+                }
+            } else {
+                (None, false)
             };
 
-            // Classify: logical contradiction takes highest semantic precedence.
-            let conflict_type: Option<ConflictType> =
-                if is_logical_contradiction {
-                    Some(ConflictType::LogicalContradiction)
-                } else if super_a == Some(id_b) || super_b == Some(id_a) {
-                    // A supersedes B or B supersedes A but both still in candidate pool.
-                    Some(ConflictType::SupersessionConflict)
-                } else {
-                    // Authority polarity: opposing trust signals.
-                    const HIGH_TRUST: &[&str] = &["corrected", "user_explicit"];
-                    const LOW_TRUST:  &[&str] = &["contradicted"];
-                    let a_high = HIGH_TRUST.contains(&prov_a);
-                    let b_low  = LOW_TRUST.contains(&prov_b);
-                    let b_high = HIGH_TRUST.contains(&prov_b);
-                    let a_low  = LOW_TRUST.contains(&prov_a);
-                    if (a_high && b_low) || (b_high && a_low) {
-                        Some(ConflictType::AuthorityPolarity)
-                    } else if !prov_a.is_empty() && !prov_b.is_empty()
-                        && prov_a != prov_b
-                        && (auth_a - auth_b).abs() < 0.1
-                    {
-                        // Provenance strings differ and authority is nearly equal —
-                        // the engine cannot determine which record is more reliable.
-                        Some(ConflictType::ScoreAmbiguity)
-                    } else {
-                        None // score proximity only, no semantic incompatibility — not a conflict
-                    }
-                };
-
-
-            if let Some(ctype) = conflict_type {
-                let candidates = vec![
-                    ConflictCandidate {
-                        node_id:      id_a,
-                        score:        score_a,
-                        authority:    auth_a,
-                        provenance:   node_a.map(|n| n.provenance.clone()).unwrap_or_default(),
-                        conflict_type: ctype.clone(),
-                    },
-                    ConflictCandidate {
-                        node_id:      id_b,
-                        score:        score_b,
-                        authority:    auth_b,
-                        provenance:   node_b.map(|n| n.provenance.clone()).unwrap_or_default(),
-                        conflict_type: ctype,
-                    },
-                ];
-                (true, candidates)
-            } else {
-                (false, vec![])
-            }
+        if let Some(ctype) = conflict_type {
+            let candidates = vec![
+                ConflictCandidate {
+                    node_id:      id_a,
+                    score:        score_a,
+                    authority:    auth_a,
+                    provenance:   node_a.map(|n| n.provenance.clone()).unwrap_or_default(),
+                    conflict_type: ctype.clone(),
+                },
+                ConflictCandidate {
+                    node_id:      id_b,
+                    score:        score_b,
+                    authority:    auth_b,
+                    provenance:   node_b.map(|n| n.provenance.clone()).unwrap_or_default(),
+                    conflict_type: ctype,
+                },
+            ];
+            (true, candidates, abstain_flag)
         } else {
-            (false, vec![])
+            (false, vec![], false)
         }
     } else {
-        (false, vec![])
+        (false, vec![], false)
     };
 
-
-
-    // Step 2e: Abstain if conflict_detected and abstain_on_conflict is set.
+    // Step 2e: Abstain if conflict_detected and abstain_on_conflict is set AND should_abstain holds.
     // Returns an empty chain with abstained=true and the structured conflict candidates.
-    if conflict_detected && abstain_on_conflict {
+    if conflict_detected && abstain_on_conflict && should_abstain {
         return RetrievalResult {
             causal_chain:        vec![],
             dense_context:       dense_ctx,

@@ -942,6 +942,7 @@ fn e5e_conflict_type_authority_polarity() {
 // =============================================================================
 
 #[test]
+#[ignore = "ScoreAmbiguity branch deleted per Protocol v1.9 Section 14.7"]
 fn e5f_conflict_type_score_ambiguity() {
     let (mut cfg, dir) = make_cfg("e5f");
     cfg.conflict_detection_threshold = 0.5;
