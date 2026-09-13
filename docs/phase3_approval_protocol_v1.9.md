@@ -444,7 +444,7 @@ The crossover: below what authority margin can a combined cosine-noise realizati
   0.8 * |auth_a - auth_b| < sigma_combined
   |auth_a - auth_b| < 0.0672 / 0.8 ~= 0.084
 
-Below this margin, the authority differential contributes less to composite score than a one-sigma combined cosine noise unit -- the winner cannot be confidently preferred on authority grounds alone within the typical noise band. Rounding to one decimal place conservatively: delta_authority = 0.10 (at gap=0.10, authority contributes 0.080, within one sigma of the 0.067 combined noise unit).
+Below this margin, the authority differential contributes less to composite score than a one-sigma combined cosine noise unit -- the winner cannot be confidently preferred on authority grounds alone within the typical noise band. Rounding to one decimal place conservatively: delta_authority = 0.10 (at gap=0.10, authority contributes 0.080, comparable to the 0.067 combined noise unit (≈ 1.19σ)).
 
 Relationship to Section 4.4 SafeAbstention constraint: Section 4.4 specifies |pos_auth - neg_auth| <= 0.10 for SafeAbstention. delta_authority = 0.10 coincides with this bound. The two are independently derived: Section 4.4's bound was set to express "near-equal authority" from a corpus-design perspective; delta_authority was derived from the scoring mathematics (at what gap does authority fail to exceed one-sigma combined cosine noise?). They converge at 0.10 because they model the same physical boundary from different angles. This coincidence is stated here and must not be cited as a tuning justification in any future protocol version.
 
@@ -522,7 +522,7 @@ Nothing in this section may be altered in any subsequent protocol revision.
 | Corpus size | 43 scenarios (IDs 201-243), 73,402 bytes |
 | Stage 0 audit | PASS -- Max Jaccard 0.2727 < 0.30; attempt-1 exact matches 0; zero violations |
 | Audit log commit | 551121ee58382f927c9e713f5372d653f02257a4 (phase3_overlap_audit_v2b.log) |
-| Stage 1.5 conformance | PASS -- CONFORMANCE_COUNTS|N=43|Contradiction:13,Supersession:6,AuthorityPolarity:6,AdversarialAuthority:6,SafeAbstention:6,UnresolvedConflict:6 |
+| Stage 1.5 conformance | PASS -- CONFORMANCE_COUNTS\|N=43\|Contradiction:13,Supersession:6,AuthorityPolarity:6,AdversarialAuthority:6,SafeAbstention:6,UnresolvedConflict:6 |
 | Stage 2 verdict | REJECTED |
 | Benchmark log commit | 551121ee58382f927c9e713f5372d653f02257a4 (phase3_attempt2_benchmark.log) |
 
