@@ -586,8 +586,8 @@ Corpus v2 (commit 11c0a07) is permanently consumed. It may be used as diagnostic
 3. Synthetic pre-flight re-run -- phase3_synthetic_eval_tests.rs must pass 10/10 after Section 14 changes. Gap-independence unit test passes. Any regression blocks attempt 3. [COMPLETE: 10/10 synthetic tests pass, 3/3 gap-independence tests pass, retrieval_e2e 33 pass / 1 ignored / 0 fail]
 4. Scaffold updated -- bench line 849 updated (S1 re-scope); SCENARIOS cleared to placeholder; bench file frozen at new commit; identity (commit hash + SHA-256 + byte size) recorded in Section 10.1. [COMPLETE: Commit 40851a8, 42,721 bytes, SHA-256: 60A2675E6207FE4726359394CC5A4A4AFAFAA15F31E8F760DE49DA394EEE23C3]
 5. Overlap auditor extended (Source 4) -- audit_corpus_overlap.ps1 extended with 43 hardcoded attempt-2 query strings (from commit 11c0a07), exact mechanism as Source 3. Self-test extended with at least one Source-4 live-fire positive. Commit identity recorded here after extension. [COMPLETE: Commit 7c90c3a, 27,543 bytes, SHA-256: 6FB3FD92DF80F760BE64E3B6C575FC4A5DF25CC55BE9171475FEC8D88E8ABFBA, 8/8 synthetic self-tests pass]
-6. Corpus v3 authored by Role B -- per Section 4.4, Section 16.2, and Section 13.2 cheat-sheet. Zero reuse from corpora v1 or v2. [PENDING ROLE B AUTHORING]
-7. Role B explicit authorization -- sign-off that corpus v3 is ready for transcription. [PENDING ROLE B AUTHORIZATION]
+6. Corpus v3 authored by Role B -- per Section 4.4, Section 16.2, and Section 13.2 cheat-sheet. Zero reuse from corpora v1 or v2. [COMPLETE: 43 scenarios, 8 domains, 6 classes; skeleton self-scan and three pre-transcription structural corrections applied before transcription; Stage 0 PASS max Jaccard 0.2308]
+7. Role B explicit authorization -- sign-off that corpus v3 is ready for transcription. [COMPLETE: Role B explicitly authorized corpus v3 transcription; two corpus fixes (ID 305 polarity, ID 322 domain relabel) applied pre-transcription; corpus commit a58bc0a]
 
 ### 16.2 Corpus v3 Requirements
 
@@ -612,7 +612,95 @@ Corpus v2 (commit 11c0a07) is permanently consumed. It may be used as diagnostic
 
 ---
 
-## 15.7 Change Log: v1.8 to v1.9
+## 15.7 Attempt 3 Record (2026-09-15) — PERMANENTLY CONSUMED: REJECTED
+
+### 15.7.1 Corpus v3 Identity
+
+| Field | Value |
+|---|---|
+| Commit | `a58bc0a` |
+| SHA-256 | `F8964AA738E9974860A69600C37FCC55D1776BBD7FEAC8EF76DDE7FE7C7F13E0` |
+| Bytes | 81,337 (LF-clean, no BOM) |
+| Scenarios | 43 across 8 domains; 6 classes (13/6/6/6/6/6) |
+| Role B authorization | Explicit; §16.1 prereqs 6-7 both complete |
+| Prohibited status | Corpus v3 permanently joins the prohibited list as of this filing. Diagnostic evidence only; zero reuse. |
+
+### 15.7.2 Stage Results
+
+| Stage | Result | Evidence |
+|---|---|---|
+| Stage 0 — Overlap Audit (4 sources) | PASS | 0 A1/A2 exact matches; max Jaccard = 0.2308 < 0.30; 0 verbatim violations |
+| Stage 1 — Synthetic Pre-flight | PASS | 10/10 phase3_synthetic_eval_tests; 3/3 phase3_gap_independence_tests |
+| Stage 1.5 — Conformance Check | PASS | N=43; all per-scenario checks ok; all domain caps ok |
+| Stage 2 — Approval Benchmark | REJECTED | exit 101; VERDICT=REJECTED; 3 gates failed: S1, G8b, G9 |
+
+### 15.7.3 Gate Results
+
+| Gate | Passed | Value | ci_lo | ci_hi | Note |
+|---|---|---|---|---|---|
+| G1 | PASS | 0.8605 | 0.7442 | 0.9535 | 37/43 |
+| G2 | PASS | 1.0000 | 1.0000 | 1.0000 | 43/43 |
+| G3 | PASS | 0.9302 | 0.8721 | 0.9767 | mrr=0.9302 |
+| G4 | PASS | 0.1395 | 0.0465 | 0.2558 | 6/43 (all 6 are AA scenarios 326-331 -- see §15.7.5) |
+| G5 | PASS | 0.0605 | 0.0326 | 0.0930 | 13/215 |
+| G6 | PASS | 0.4187 | 0.3004 | 0.5367 | mean_margin=0.4187 |
+| G7 | PASS | 0.0000 | 0.0000 | 0.0000 | 0 violations / 6 supersession |
+| S1 | FAIL | 0.0000 | 0.0000 | 0.0000 | 0/13 |
+| G8a | PASS | 0.0000 | 0.0000 | 0.0000 | 0/0 eligible (S1=0) |
+| G8b | FAIL | 0.0000 | 0.0000 | 0.0000 | 0/12 |
+| G8c | PASS | 1.0000 | 0.0000 | 0.0000 | 6/6 |
+| G9 | FAIL | 0.0000 | 0.0000 | 0.0000 | 0/6 |
+| G10 | PASS | 0.0000 | 0.0000 | 0.0000 | 0 violations / 37 non-supersession |
+
+Outcome decomposition: selected_d_plus=37, selected_d_minus=0, selected_other=0, correct_abstention=0, incorrect_abstention=6 (all AA scenarios).
+
+### 15.7.4 Ruling: REJECTED ON THE MERITS
+
+The corpus was conformant (Stage 1.5 PASS), fresh (Stage 0 PASS, max Jaccard 0.2308), and the benchmark ran cleanly (G2=43/43). Rejection is a genuine engine capability finding. Three gates failed (S1, G8b, G9) for two independent root causes. No gate is relaxed or reinterpreted. The attempt is permanently consumed.
+
+### 15.7.5 Root Cause (Corrected -- reviewed against frozen archive bc66340-lf)
+
+**Mechanism (verified):** `authority.rs:109` clamps any `contradicted` node to `[0.00, 0.30]`. Engine.rs:967/969 persists the effective (post-clamp) value. Retrieval.rs:252-254: `score = 0.7*cos_q + 0.3*cos_ctx + 0.8*node.authority`. Authority enters at the clamped persisted value. For contradicted D- (contribution <= 0.24) vs user_explicit D+ (auth 0.80-0.93, contribution 0.64-0.74), gap >= 0.40 deterministically. Rank-6 for all contradicted D- nodes is the expected outcome. G10=0 confirms D- is present in raw-NN; failure is at the composite-score boundary.
+
+**S1=0/13:** All 13 Contradiction D- nodes carry contradicted provenance; runtime clamp produces rank 6 in all 13 scenarios.
+
+**G8b=0/12:** AuthorityPolarity (320-325): D- at rank 6 (same clamp suppression); conflict never fires. AdversarialAuthority (326-331): D- is user_explicit (unclamped, auth 0.90-1.00); D+ is corrected (auth 0.75-0.85). D- outranks D+. Both reach top-2. Conflict fires -- but fires LogicalContradiction, not AuthorityPolarity. This is spec-conformant: Section 14.2 precedence puts LC first; Section 4.4 permits AA key rule "any" -- a conformant same-key opposite-polarity AA pair must fire LC under the governing contract. The defect is in the protocol's G8b derivation (Section 14.2), which did not check the LC-precedence interaction. This is a specification defect, recorded here; it is not remediable by touching engine code after observing failure.
+
+**G4=6/43 confirmed:** All six D- rank-1 contaminations are exactly AA scenarios 326-331. Benchmark detail:
+
+| ID | pos_rank | neg_rank | abstained | conflict | outcome |
+|---|---|---|---|---|---|
+| 326 | Some(2) | Some(1) | true | LogicalContradiction | incorrect_abstention |
+| 327 | Some(2) | Some(1) | true | LogicalContradiction | incorrect_abstention |
+| 328 | Some(2) | Some(1) | true | LogicalContradiction | incorrect_abstention |
+| 329 | Some(2) | Some(1) | true | LogicalContradiction | incorrect_abstention |
+| 330 | Some(2) | Some(1) | true | LogicalContradiction | incorrect_abstention |
+| 331 | Some(2) | Some(1) | true | LogicalContradiction | incorrect_abstention |
+
+Operational note: LC firing triggered abstain_on_conflict=true on all 6 AA scenarios. These were operationally SAFE (correct abstention on adversarial high-authority assertions); only the gate's type count fails.
+
+**G9=0/6 -- structural unpassability (major finding):** TrustCompromised requires abs(auth_rank1 - auth_rank2) <= 0.10 evaluated at runtime on persisted (clamped) authorities. For any contradicted (<=0.30) + user_explicit (>=0.75) pair, runtime gap >= 0.45. TrustCompromised can never fire on a contradicted pair, even with perfect top-2 co-presence. Section 14.2's SafeAbstention class-behavior row is unreachable for every conformant SafeAbstention scenario. Section 14.5's "coincidence" paragraph (delta_authority=0.10 coincides with Section 4.4 bound <=0.10) compared the authored bound against the runtime threshold -- but clamping guarantees the authored near-equality never survives to runtime. The coincidence is illusory; this masked the defect during v1.9 review.
+
+SafeAbstention benchmark detail (all 6 scenarios): pos_rank=Some(1), neg_rank=Some(6), abstained=false, conflict=None, outcome=selected_d_plus on IDs 332-337. G9 does not require the rank-6 observation to explain -- the failure is structural.
+
+S1 and G9 have two independent failure layers: (a) co-presence not delivered -- corpus-dependent clamp-driven, and (b) even with co-presence, TrustCompromised abstention unreachable for contradicted pairs. Remediation of (a) alone leaves G9 at 0.
+
+**The clamp signature was present in attempt 2:** Attempt-2 Section 15.4 records Contradiction score gaps 0.495-0.756. Decomposing: 0.8*(D+_auth - clamped_auth) with D+ at 0.80-0.93 and D- <=0.30 predicts 0.40-0.50 plus cosine draws -- the clamp signature was already present in attempt-2 numbers. Attempt-2 top-2 co-presence was an artifact of pool composition (thin pools under corpus v2), not a demonstrated capability.
+
+### 15.7.6 Protocol Gaps (Reviewer-Acknowledged, for v2.0 Amendment)
+
+1. `authority.rs` absent from Section 8 manifest. The clamp constant central to both attempts' failures lives in an untracked file.
+2. G8b derivation (Section 14.2) did not check LC-precedence interaction for conformant same-key opposite-polarity AA pairs.
+3. TrustCompromised structural impossibility: Section 14.2 SafeAbstention row and Section 14.5 coincidence paragraph did not account for runtime clamped-gap arithmetic.
+4. Class-table runtime consistency proof missing from review checklist: every Section 14.2 class-behavior row must be derived against runtime clamp semantics. This check was absent from the v1.9 review process.
+
+### 15.7.7 Corpus v3 Diagnostic Status
+
+Corpus v3 (commit a58bc0a) is permanently consumed. It may be used as diagnostic evidence only. It may never serve as an approval corpus, be partially reused in corpus v4, or be used to tune any gate threshold or detection parameter.
+
+---
+
+## 15.8 Change Log: v1.8 to v1.9
 
 ### What changed
 
