@@ -22,3 +22,6 @@ Thumbs.db
 # Archives
 *.zip
 
+# Model caches
+.fastembed_cache/
+

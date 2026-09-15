@@ -107,7 +107,7 @@ impl Embedder for HashEmbedder {
 /// The README must say this. We no longer claim "tiny footprint."
 #[cfg(feature = "onnx")]
 pub struct OnnxEmbedder {
-    model: fastembed::TextEmbedding,
+    model: std::sync::Mutex<fastembed::TextEmbedding>,
 }
 
 #[cfg(feature = "onnx")]
@@ -119,7 +119,7 @@ impl OnnxEmbedder {
             .with_show_download_progress(true);
         let model = fastembed::TextEmbedding::try_new(opts)
             .map_err(|e| anyhow::anyhow!("Failed to init MiniLM embedder: {e}"))?;
-        Ok(Self { model })
+        Ok(Self { model: std::sync::Mutex::new(model) })
     }
 }
 
@@ -133,8 +133,10 @@ impl Embedder for OnnxEmbedder {
         if texts.is_empty() {
             return Ok(vec![]);
         }
+        let mut guard = self.model.lock()
+            .map_err(|e| anyhow::anyhow!("OnnxEmbedder lock poisoned: {e}"))?;
         // fastembed returns f32 embeddings, already L2-normalised
-        self.model
+        guard
             .embed(texts.to_vec(), None)
             .map_err(|e| anyhow::anyhow!("embed_batch failed: {e}"))
     }
