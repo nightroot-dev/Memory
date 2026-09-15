@@ -286,6 +286,9 @@ HARNESS CONFIGURATION MANDATE (v1.9, unchanged): The benchmark harness must run 
 | v2.0 scaffold freeze size | 43,920 bytes |
 | v2.0 auditor Source 5 commit | 492edc252277d3aa057913364f9bfd5d7db9b47e |
 | v2.0 auditor audit_corpus_overlap.ps1 SHA-256 | 986C81A02BD9FDBC89C4FC80E63CE870CF8C16AA5BC8FB71623C45EF7D5A12A7 (34,592 bytes) |
+| v2.0 corpus v4 commit | 7d26c8c5d1ba6bb48b7e78d558e5fb4541b3f4d5 |
+| v2.0 corpus v4 SHA-256 | A3DFFF9B1DF6490521F6FAA9D271368AA7EA599A48F6608C5BFF37B66C6EECD3 |
+| v2.0 corpus v4 size | 82,880 bytes (43 scenarios) |
 
 ### 10.2 Role B Ruling
 
@@ -674,8 +677,10 @@ Section 16 from v1.9 is carried forward for historical reference. Attempt 3 has 
 3. Synthetic pre-flight re-run -- phase3_synthetic_eval_tests.rs passes 10/10. Gap-independence test passes. New pool-based-detection tests pass (Section 14.7 items 2-3). TrustCompromised-removed test passes. [COMPLETE -- 10/10 synthetic eval pass; 4/4 gap independence pass]
 4. Scaffold updated -- S1 eligibility measurement updated (pool-presence); Section 12.3 conformance check extended (expected_abstain validation, AA key rule). SCENARIOS cleared to placeholder; bench file frozen at new commit; identity recorded in Section 10.1. [COMPLETE -- commit 079262d, SHA-256 80E9DDA6...]
 5. Overlap auditor extended (Source 5) -- audit_corpus_overlap.ps1 extended with 43 hardcoded attempt-3 query strings (from commit a58bc0a), exact mechanism as Sources 3 and 4. Self-test extended with at least one Source-5 live-fire positive. Commit identity recorded in Section 10.1. [COMPLETE -- commit 492edc2, SHA-256 986C81A0..., 10/10 self-tests pass]
-6. Corpus v4 authored by Role B -- per Section 4.4 v2.0 (note amended AA key rule: neg_key must differ from pos_key for AA scenarios), Section 4.1-4.3, and Section 17.2. Zero reuse from corpora v1, v2, v3. [PENDING]
-7. Role B explicit authorization -- sign-off that corpus v4 is ready for transcription. [PENDING]
+6. Corpus v4 authored by Role B -- per Section 4.4 v2.0 (note amended AA key rule: neg_key must differ from pos_key for AA scenarios), Section 4.1-4.3, and Section 17.2. Zero reuse from corpora v1, v2, v3. [COMPLETE -- commit 7d26c8c, SHA-256 A3DFFF9B..., 82,880 bytes, 43 scenarios]
+7. Role B explicit authorization -- sign-off that corpus v4 is ready for transcription. [COMPLETE -- authorized 2026-09-15 by Role B / Charan]
+
+*(Note for Attempt 4 record: unit test test_provenance_pair_unconditional_abstention ran at gaps 0.01 and 0.60 vs declared 0.01 and 0.80, both confirming gap-independence across the deleted <= 0.10 TrustCompromised boundary.)*
 
 ### 17.2 Corpus v4 Requirements
 
