@@ -38,21 +38,23 @@ const MERGE_COSINE: f32 = 0.95;
 const BRIDGE_COSINE: f32 = 0.6;
 
 /// Cohort centroids for the superstition filter.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Cohorts {
-    /// NUM_COHORTS centroids, each 128-dim
-    #[serde(with = "crate::serde_helpers::vec_f32_128")]
-    pub centroids: Vec<[f32; COHORT_DIM]>,
+    /// NUM_COHORTS centroids, dimension matching active embedder (default 128)
+    pub centroids: Vec<Vec<f32>>,
 }
 
 impl Cohorts {
     pub fn new() -> Self {
-        // Initialize centroids to small random values
+        Self::with_dim(COHORT_DIM)
+    }
+
+    pub fn with_dim(dim: usize) -> Self {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let centroids = (0..NUM_COHORTS)
             .map(|_| {
-                let mut c = [0.0f32; COHORT_DIM];
+                let mut c = vec![0.0f32; dim];
                 for v in c.iter_mut() { *v = rng.gen::<f32>() * 0.01; }
                 c
             })
@@ -60,8 +62,23 @@ impl Cohorts {
         Self { centroids }
     }
 
+    /// Dimensionality of the centroids in this cohort bank.
+    pub fn dim(&self) -> usize {
+        self.centroids.first().map(|c| c.len()).unwrap_or(COHORT_DIM)
+    }
+
+    /// Ensure the cohort bank matches the target embedding dimension.
+    ///
+    /// If centroids are empty or dimension differs from target_dim (e.g. after an embedder
+    /// transition or when processing 384-dim ONNX nodes), reinitializes centroids to match.
+    pub fn ensure_dim(&mut self, target_dim: usize) {
+        if target_dim > 0 && (self.centroids.is_empty() || self.dim() != target_dim) {
+            *self = Self::with_dim(target_dim);
+        }
+    }
+
     /// Hard cluster label for an embedding (argmax of soft assignment).
-    pub fn label(&self, e: &[f32; COHORT_DIM]) -> usize {
+    pub fn label(&self, e: &[f32]) -> usize {
         self.centroids.iter().enumerate()
             .map(|(i, c)| (i, dist_sq(e, c)))
             .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
@@ -70,19 +87,21 @@ impl Cohorts {
     }
 
     /// Mini-batch k-means update step (momentum 0.8).
-    pub fn update(&mut self, samples: &[[f32; COHORT_DIM]]) {
+    pub fn update(&mut self, samples: &[&[f32]]) {
         if samples.is_empty() { return; }
+        let dim = self.dim();
         for sample in samples {
+            if sample.len() != dim { continue; }
             let closest = self.label(sample);
             let c = &mut self.centroids[closest];
-            for i in 0..COHORT_DIM {
+            for i in 0..dim {
                 c[i] = COHORT_MOMENTUM * c[i] + (1.0 - COHORT_MOMENTUM) * sample[i];
             }
         }
     }
 }
 
-fn dist_sq(a: &[f32; COHORT_DIM], b: &[f32; COHORT_DIM]) -> f32 {
+fn dist_sq(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum()
 }
 
@@ -114,29 +133,27 @@ pub fn run_consolidation(
 ) {
     // --- Step 1: Update cohort centroids ---
     //
-    // Guard: only include nodes whose embedding dim matches COHORT_DIM.
-    // During the hash→MiniLM transition, 384-dim nodes are skipped here;
-    // Stage 4 will resize the cohort centroids to match the active embedder.
+    // Determine active embedder dimension from node_store (or fall back to COHORT_DIM).
+    // Ensure cohort centroids match active dimension (handles hash 128-dim vs MiniLM 384-dim).
+    let target_dim = if node_store.embed_dim > 0 {
+        node_store.embed_dim
+    } else {
+        node_store.iter().next().map(|(_, n)| n.embedding.len()).unwrap_or(COHORT_DIM)
+    };
+    cohorts.ensure_dim(target_dim);
+
     let sample_count = (node_store.len()).min(2000);
-    let samples: Vec<[f32; COHORT_DIM]> = node_store.iter()
+    let samples: Vec<&[f32]> = node_store.iter()
         .take(sample_count)
-        .filter(|(_, n)| n.embedding.len() == COHORT_DIM)
-        .filter_map(|(_, n)| {
-            let mut arr = [0.0f32; COHORT_DIM];
-            arr.copy_from_slice(&n.embedding);
-            Some(arr)
-        })
+        .filter(|(_, n)| n.embedding.len() == target_dim)
+        .map(|(_, n)| n.embedding.as_slice())
         .collect();
     cohorts.update(&samples);
 
-    // Compute hard labels for all nodes (only for dim-compatible nodes)
+    // Compute hard labels for all nodes whose dim matches the cohort centroids
     let node_labels: std::collections::HashMap<u64, usize> = node_store.iter()
-        .filter(|(_, n)| n.embedding.len() == COHORT_DIM)
-        .map(|(&id, n)| {
-            let mut arr = [0.0f32; COHORT_DIM];
-            arr.copy_from_slice(&n.embedding);
-            (id, cohorts.label(&arr))
-        })
+        .filter(|(_, n)| n.embedding.len() == target_dim)
+        .map(|(&id, n)| (id, cohorts.label(&n.embedding)))
         .collect();
 
     // --- Step 2: Propagate episode log ---
@@ -425,5 +442,71 @@ fn compile_skills(node_store: &mut NodeStore, edge_store: &mut EdgeStore, now_ts
         // High-confidence edge from state to skill
         let skill_edge = Edge::new(50.0, 1.0, now_ts as f32, EdgeType::Sequence, EvidenceType::Exact, false);
         edge_store.upsert(state_id, skill_id, skill_edge);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::{Node, NodeType};
+
+    #[test]
+    fn test_cohorts_dynamic_dimension_384() {
+        let mut cohorts = Cohorts::with_dim(384);
+        assert_eq!(cohorts.dim(), 384);
+        assert_eq!(cohorts.centroids.len(), NUM_COHORTS);
+        assert_eq!(cohorts.centroids[0].len(), 384);
+
+        let sample1 = vec![0.5f32; 384];
+        let sample2 = vec![-0.5f32; 384];
+        let label1 = cohorts.label(&sample1);
+        let label2 = cohorts.label(&sample2);
+        assert!(label1 < NUM_COHORTS);
+        assert!(label2 < NUM_COHORTS);
+
+        let samples = [&sample1[..], &sample2[..]];
+        cohorts.update(&samples);
+        assert_eq!(cohorts.dim(), 384);
+    }
+
+    #[test]
+    fn test_cohorts_ensure_dim_transition() {
+        let mut cohorts = Cohorts::new();
+        assert_eq!(cohorts.dim(), 128);
+
+        cohorts.ensure_dim(384);
+        assert_eq!(cohorts.dim(), 384);
+        assert_eq!(cohorts.centroids.len(), NUM_COHORTS);
+        assert_eq!(cohorts.centroids[0].len(), 384);
+    }
+
+    #[test]
+    fn test_run_consolidation_updates_384d_nodes() {
+        let mut node_store = NodeStore::new();
+        let mut edge_store = EdgeStore::new();
+        let mut dense_core = DenseCore::new();
+        let mut episode_log = EpisodeLog::new();
+        let mut cohorts = Cohorts::new(); // starts at 128
+
+        let node1 = Node::new(vec![0.1f32; 384], "minilm-l6-v2-int8".to_string(), 1.0, 100, 0.0, NodeType::State, 0.8, String::new());
+        let node2 = Node::new(vec![0.2f32; 384], "minilm-l6-v2-int8".to_string(), 1.0, 100, 0.0, NodeType::State, 0.8, String::new());
+        node_store.insert(node1);
+        node_store.insert(node2);
+
+        let mut rng = rand::thread_rng();
+        run_consolidation(
+            &mut node_store,
+            &mut edge_store,
+            &mut dense_core,
+            &mut episode_log,
+            &mut cohorts,
+            200.0,
+            &mut rng,
+        );
+
+        // Verify cohorts resized to 384 and processed nodes
+        assert_eq!(cohorts.dim(), 384);
+        assert_eq!(cohorts.centroids.len(), NUM_COHORTS);
+        assert_eq!(cohorts.centroids[0].len(), 384);
     }
 }
