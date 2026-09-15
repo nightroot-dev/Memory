@@ -1,13 +1,9 @@
-//! Protocol v1.9 Section 14.3 & 14.7 — Conflict Detection Gap-Independence Unit Tests
+//! Protocol v2.0 Section 14.7 — Pool-Based Detection and ProvenancePair Gap-Independence Tests
 //!
-//! These tests verify that conflict detection and classification are strictly
-//! independent of score gap (score proximity) under hash-128d, following the deletion
-//! of the outer gap gate in Protocol v1.9.
-//!
-//! Specifically, two nodes that satisfy a conflict signal condition (such as identical
-//! assertion_key with opposing polarities, or ProvenancePair) must produce the exact
-//! same ConflictType and abstention decision regardless of whether the score gap is
-//! tiny (~0.001) or large (> 0.40).
+//! Verifies the v2.0 amended contract:
+//! - Detection operates on the post-filter pool (Step 2b), BEFORE composite scoring.
+//! - Contradicted D- at scored rank 6 is still detected (pool-present even if score-suppressed).
+//! - ProvenancePair fires unconditionally — abstained=true regardless of |auth_a - auth_b|.
 
 use cmhm_core::{
     Config, ContextRuntime, ContextType, ConflictType,
@@ -37,9 +33,9 @@ fn make_rt(label: &str) -> (ContextRuntime, std::path::PathBuf) {
     let mut cfg = Config::default();
     cfg.data_dir = dir.clone();
     cfg.projections_dir = dir.join("projections");
-    // Explicitly verify production defaults:
-    assert!(cfg.abstain_on_conflict, "Config::default().abstain_on_conflict must be true in v1.9");
-    assert_eq!(cfg.conflict_detection_threshold, 0.0, "Config::default().conflict_detection_threshold must be 0.0 in v1.9");
+    // Verify production defaults (v2.0 unchanged from v1.9):
+    assert!(cfg.abstain_on_conflict, "Config::default().abstain_on_conflict must be true");
+    assert_eq!(cfg.conflict_detection_threshold, 0.0, "Config::default().conflict_detection_threshold must be 0.0");
     let rt = ContextRuntime::new(cfg, format!("gap-{label}")).expect("runtime init");
     (rt, dir)
 }
@@ -79,7 +75,7 @@ fn learn_node(
 
 #[test]
 fn test_logical_contradiction_gap_independence() {
-    // Test Case A: Small score gap (gap = 0.000)
+    // Test Case A: Small score gap (gap ≈ 0.000)
     // Both nodes share identical embedding and authority, opposing polarities on same assertion_key
     {
         let (mut rt, _dir) = make_rt("lc_small");
@@ -103,8 +99,8 @@ fn test_logical_contradiction_gap_independence() {
     }
 
     // Test Case B: Large score gap (> 0.40)
-    // Both nodes are in top-2 (sharing query embedding), but Node 1 has auth 1.00 and Node 2 has auth 0.35
-    // Score gap is 0.8 * (1.00 - 0.35) = 0.52 > 0.40 >> 0.02
+    // Node 1 high authority, Node 2 low — LC still fires because pool-based detection
+    // sees both nodes before scoring suppresses D- by authority weight.
     {
         let (mut rt, _dir) = make_rt("lc_large");
         let ctx = make_ctx(&mut rt, "lc_large");
@@ -127,52 +123,115 @@ fn test_logical_contradiction_gap_independence() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// v2.0 §14.7 item 2: Pool-based detection — contradicted D- at SCORED rank 6
+//   still triggers ProvenancePair → abstained=true
+//   (Previously required D- in scored top-2; v2.0 requires D- in post-filter pool.)
+// ---------------------------------------------------------------------------
 #[test]
-fn test_provenance_pair_and_trust_compromised_gap_independence() {
-    // SafeAbstention: auth gap <= 0.10 -> TrustCompromised triggers abstention
-    // Node 1 (user_explicit, auth 0.35), Node 2 (contradicted, auth clamped to 0.30)
-    // |0.35 - 0.30| = 0.05 <= 0.10 -> TrustCompromised fires -> abstained = true
+fn test_pool_detection_fires_for_rank6_contradicted() {
+    let (mut rt, _dir) = make_rt("pool_rank6");
+    let ctx = make_ctx(&mut rt, "pool_rank6");
+
+    // Build a pool where one contradicted node is buried by 5 high-authority nodes.
+    // The contradicted node will be at scored rank 6 but is present in the post-filter pool.
+    // Under v2.0 pool-based detection, ProvenancePair fires → abstained=true.
+    // Under v1.9 scored-top-2 detection, ProvenancePair would NOT fire → abstained=false.
+    let q_emb = emb(77);
+
+    // 5 high-authority user_explicit nodes → push contradicted to rank 6 in scoring
+    for i in 0..5u32 {
+        let auth = 0.90 - (i as f32) * 0.01; // 0.90, 0.89, 0.88, 0.87, 0.86
+        learn_node(&mut rt, &ctx, q_emb.clone(), auth, "user_explicit", None, None);
+    }
+    // The contradicted node: authority clamped to <= 0.30 by authority.rs.
+    // Its composite score = 0.7*1.0 + 0.3*cos + 0.8*<=0.30 ≈ 0.70 + 0.24 + 0.24 ≈ 1.18
+    // vs top user_explicit: 0.7*1.0 + 0.3*cos + 0.8*0.90 ≈ 0.70 + 0.24 + 0.72 = 1.66
+    // → contradicted lands at rank 6 in scoring.
+    let neg_id = learn_node(&mut rt, &ctx, q_emb.clone(), 0.99, "contradicted", None, None);
+
+    let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
+        .expect("retrieve");
+
+    // G10 invariant: D- must be present in raw_nn
+    assert!(result.raw_nn_candidates.contains(&neg_id),
+        "D- must appear in raw_nn");
+
+    // Core assertion: pool-based detection must fire despite D- at scored rank 6
+    assert!(result.conflict_detected,
+        "ProvenancePair must fire: contradicted node in pool (pool-based detection)");
+    assert!(result.abstained,
+        "Engine must abstain: HIGH_TRUST + LOW_TRUST pair detected in pool");
+    assert_eq!(result.conflict_candidates.len(), 2,
+        "conflict_candidates must contain exactly the 2 competing nodes");
+    assert_eq!(result.conflict_candidates[0].conflict_type, ConflictType::AuthorityPolarity,
+        "conflict_type must be AuthorityPolarity (ProvenancePair signal)");
+
+    // Confirm D- was NOT in scored top-2 (this is the scenario v1.9 detection missed)
+    let contradicted_rank = result.scored_candidates.iter()
+        .position(|(id, _)| *id == neg_id);
+    if let Some(rank) = contradicted_rank {
+        println!("[POOL-TEST PASS] Contradicted D- at scored rank {} — pool-based detection fired correctly", rank + 1);
+        assert!(rank >= 2,
+            "Contradicted D- should be suppressed past rank 2 by authority weight; actual rank {}", rank + 1);
+    } else {
+        panic!("Contradicted D- not found in scored_candidates");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// v2.0 §14.7 item 3: TrustCompromised-removed — ProvenancePair fires and
+//   produces abstained=true regardless of abs(auth_a - auth_b).
+//   Test at gap=0.01 and gap=0.80.
+// ---------------------------------------------------------------------------
+#[test]
+fn test_provenance_pair_unconditional_abstention() {
+    // Case A: Small auth gap (≈ 0.01) — previously covered by TrustCompromised path, still abstains.
     {
-        let (mut rt, _dir) = make_rt("safe_abs");
-        let ctx = make_ctx(&mut rt, "safe_abs");
+        let (mut rt, _dir) = make_rt("pp_small_gap");
+        let ctx = make_ctx(&mut rt, "pp_small_gap");
 
         let q_emb = emb(40);
-        let _n1 = learn_node(&mut rt, &ctx, q_emb.clone(), 0.35, "user_explicit", None, None);
-        let _n2 = learn_node(&mut rt, &ctx, q_emb.clone(), 0.30, "contradicted", None, None);
+        // user_explicit auth 0.31; contradicted auth clamped ≤ 0.30 → gap ≈ 0.01
+        learn_node(&mut rt, &ctx, q_emb.clone(), 0.31, "user_explicit", None, None);
+        learn_node(&mut rt, &ctx, q_emb.clone(), 0.99, "contradicted", None, None);
 
         let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
             .expect("retrieve");
 
-        assert!(result.conflict_detected, "Conflict must be detected");
+        assert!(result.conflict_detected, "ProvenancePair must fire (small auth gap)");
+        assert_eq!(result.conflict_candidates.len(), 2);
         assert_eq!(result.conflict_candidates[0].conflict_type, ConflictType::AuthorityPolarity);
-        assert!(result.abstained, "TrustCompromised must trigger abstained=true when auth gap <= 0.10");
+        assert!(result.abstained,
+            "ProvenancePair must abstain unconditionally — TrustCompromised gap check is DELETED (v2.0)");
 
-        let gap = (result.scored_candidates[0].1 - result.scored_candidates[1].1).abs();
-        println!("[GAP-TEST PASS] SafeAbstention at gap ({gap:.4}) correctly classified AuthorityPolarity and abstained");
+        println!("[PP-TEST PASS] ProvenancePair abstains at small auth gap");
     }
 
-    // AuthorityPolarity (typical): auth gap > 0.10 -> conflict_detected=true, AuthorityPolarity, but abstained=false
-    // Node 1 (user_explicit, auth 0.85), Node 2 (contradicted, auth clamped to 0.30)
-    // |0.85 - 0.30| = 0.55 > 0.10 -> TrustCompromised does NOT fire -> abstained = false, winner returned
+    // Case B: Large auth gap (≈ 0.80) — previously NOT abstaining (TrustCompromised gap 0.55 > 0.10).
+    //   Under v2.0, ProvenancePair fires unconditionally → still abstains.
     {
-        let (mut rt, _dir) = make_rt("ap_typical");
-        let ctx = make_ctx(&mut rt, "ap_typical");
+        let (mut rt, _dir) = make_rt("pp_large_gap");
+        let ctx = make_ctx(&mut rt, "pp_large_gap");
 
         let q_emb = emb(50);
-        let n1 = learn_node(&mut rt, &ctx, q_emb.clone(), 0.85, "user_explicit", None, None);
-        let _n2 = learn_node(&mut rt, &ctx, q_emb.clone(), 0.30, "contradicted", None, None);
+        // user_explicit auth 0.90; contradicted clamped ≤ 0.30 → effective gap ≥ 0.60
+        learn_node(&mut rt, &ctx, q_emb.clone(), 0.90, "user_explicit", None, None);
+        learn_node(&mut rt, &ctx, q_emb.clone(), 0.99, "contradicted", None, None);
 
         let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
             .expect("retrieve");
 
-        assert!(result.conflict_detected, "Conflict must be detected");
+        assert!(result.conflict_detected, "ProvenancePair must fire (large auth gap)");
+        assert_eq!(result.conflict_candidates.len(), 2);
         assert_eq!(result.conflict_candidates[0].conflict_type, ConflictType::AuthorityPolarity);
-        assert!(!result.abstained, "AuthorityPolarity with gap > 0.10 must NOT abstain (winner returned)");
-        assert_eq!(result.seed_id, Some(n1), "Winner must be the higher-authority node");
+        assert!(result.abstained,
+            "ProvenancePair must abstain unconditionally — gap 0.80 does NOT exempt (v2.0)");
 
-        let gap = (result.scored_candidates[0].1 - result.scored_candidates[1].1).abs();
-        assert!(gap > 0.40, "Score gap should reflect auth margin: {gap}");
-        println!("[GAP-TEST PASS] Typical AuthorityPolarity at gap ({gap:.4}) classified AuthorityPolarity without abstaining");
+        let auth_gap = (result.conflict_candidates[0].authority - result.conflict_candidates[1].authority).abs();
+        assert!(auth_gap > 0.40,
+            "Auth gap should reflect clamp vs user_explicit: {auth_gap:.3}");
+        println!("[PP-TEST PASS] ProvenancePair abstains at large auth gap ({auth_gap:.3}) — TrustCompromised correctly absent");
     }
 }
 
@@ -192,6 +251,7 @@ fn test_adversarial_pair_gap_independence() {
         .expect("retrieve");
 
     assert!(result.conflict_detected, "AdversarialPair conflict must be detected");
+    assert_eq!(result.conflict_candidates.len(), 2);
     assert_eq!(result.conflict_candidates[0].conflict_type, ConflictType::AuthorityPolarity);
     assert!(result.abstained, "AdversarialPair must trigger abstention");
 
