@@ -1,0 +1,68 @@
+# CMHM Project State & Backlog Tracking
+
+**Document Version:** 1.0  
+**Last Updated:** 2026-09-15  
+**Governing Protocol:** Phase 3 Approval Protocol v2.0 (`FE72B68C...F4DE`)  
+**Production Stack:** `hash-128d` (`EMBED_DIM = 128`, `TEXT_MODEL_ID = "hash-128d"`)
+
+---
+
+## 1. Project Phase & Governance Status
+
+- **Phase 3 Approval Benchmark:** **CLOSED & CO-SIGNED** (Attempt 4, Corpus v4 `A3DFFF9B...EECD3`).
+- **Phase 3 Retrieval & Authority Invariants:** Locked. Zero unreviewed edits to `cmhm_core/src/retrieval.rs` and `cmhm_core/src/authority.rs`. All 318+ tests in workspace passing.
+- **Phase 4 Pre-requisite State:** ONNX embedder cost and benchmark analysis completed; adoption gated on §4.1 resolution.
+
+---
+
+## 2. Ingestion Gate & Epistemic Admission Policy (Option A)
+
+The system formally operates under **Option A (Fail-Closed Graph Boundary)**:
+
+$$\text{gate\_score} = \text{novelty} \times (1.0 + \kappa \cdot |\text{prediction\_error}|) \times \text{verifiability} \ge \text{GATE\_THRESHOLD} \quad (0.35)$$
+
+### Epistemic Invariants
+1. **Fail-Closed Boundary:** Low-trust, uncorroborated claims must not pollute active graph topology. Downstream retrieval authority scaling acts as a secondary defense, but unverified claims are quarantined pre-graph.
+2. **Zero Data Loss Guarantee:** Every `learn` attempt is appended immutably to Tier 0 (`learn_log.jsonl`) *before* the gate runs, preserving full raw event context (`state`, `action`, `outcome`, `prediction_error`, `emotional_tag`, `tags`).
+3. **Fail-Safe Shadow Default:** `enforce_gate = false` remains locked by default. Gate decisions are evaluated and recorded to `gate_shadow_log.jsonl` (Schema v=2) without dropping graph insertions until live calibration analysis authorizes enforcement.
+
+### Governing Boundary Constants (at $\tau = 0.35, \kappa = 2.0$)
+- **Hard Rejection Floor ($\text{authority} \le 0.116$):** An uncorroborated virgin memory ($N = 0$) from a caller with $\text{authority} \le 0.116$ cannot clear the gate even at maximal novelty ($1.0$) and maximal surprise ($|\text{pe}| = 1.0$).
+- **Routine Novelty Floor ($\text{authority} < 0.292$):** A virgin memory with routine surprise ($|\text{pe}| = 0.10$) requires $\text{authority} \ge 0.292$ to clear threshold at maximal novelty.
+- **Corroboration Escape Hatch:** For observations near established nodes ($N \gg 1$), sample-size shrinkage ($w = \frac{N}{N + 4.0}$) blends authority with the empirical Wilson Lower Confidence Bound (95% CI):
+  $$\text{verifiability} = (1 - w) \cdot \text{authority} + w \cdot \text{LCB}$$
+  This permits lower-trust callers to contribute into verified topic neighborhoods.
+
+---
+
+## 3. Active Backlog & Milestone Tracking
+
+### [ACTIVE] Item 1: Tier-0 Promotion Mechanism (`memory_promote`)
+- **Status:** In progress.
+- **Objective:** Provide a formal promotion pathway from Tier 0 (`learn_log.jsonl`) back into the active graph, preventing permanent dead-ends for quarantined observations.
+- **Architecture Requirements:**
+  - `memory_promote(event_id, target_authority, caller_role)` tool in `cmhm_mcp`.
+  - **Drift Audit Invariant:** Promotion computes `GateInspectionResult` against the live graph at promotion time. Audit records must log both original ingestion event context and promotion-time inspection metrics.
+  - **Epistemic Trust Escalation:** Promoted nodes receive `provenance: "promoted_from_archive"` and `supersedes: null`, maintaining origin transparency for Phase 3 `ProvenancePair` detection rather than laundering into organic user observations.
+
+### [OPEN / GATED] Item 2: §4.1 Cohort Dimensionality in Consolidation
+- **Status:** OPEN (deliberate deferral).
+- **Scope:** Ensure `Cohorts` in `cmhm_core/src/consolidation.rs` and `InspectGate` in `cmhm_core/src/engine.rs` dynamically re-align or project centroids during model transitions without Euclidean distance distortion.
+- **Invariance:** Inert under current `hash-128d` baseline. **Strictly blocks any activation of ONNX 384d embeddings (`MiniLM`) or multi-model runtime switches.**
+
+### [PENDING ACCUMULATION] Item 3: Operational Shadow Log Calibration
+- **Status:** Tool verified ([`tools/analyze_gate_shadow.py`](tools/analyze_gate_shadow.py)). Awaiting operational log accumulation.
+- **Scope:** Ingest dual-schema logs (v1 at $\tau=1.0$, v2 at $\tau=0.35$), evaluate empirical distributions, and verify threshold sensitivity before authorizing `enforce_gate = true`.
+
+---
+
+## 4. Integrity & Continuity Ledger
+
+| Component | Identifier / Hash | Status |
+|---|---|---|
+| Protocol v2.0 | `FE72B68C...F4DE` | GOVERNING |
+| Corpus v4 Benchmark | `A3DFFF9B...EECD3` | VERIFIED |
+| Core Engine (`retrieval.rs`) | `BE6CE9DA...97CA` | LOCKED |
+| Core Authority (`authority.rs`) | `A820C779...85C16` | LOCKED |
+| MCP & Gate Baseline | Commit `36d93cf` | OPERATIONAL |
+| Shadow Log Analyzer | `tools/analyze_gate_shadow.py` | VERIFIED |
