@@ -652,11 +652,15 @@ Corpus v2 (commit 11c0a07) is permanently consumed. It may be used as diagnostic
 | G9 | FAIL | 0.0000 | 0.0000 | 0.0000 | 0/6 |
 | G10 | PASS | 0.0000 | 0.0000 | 0.0000 | 0 violations / 37 non-supersession |
 
-Outcome decomposition: selected_d_plus=37, selected_d_minus=0, selected_other=0, correct_abstention=0, incorrect_abstention=6 (all AA scenarios).
+Outcome decomposition (harness labels as emitted): selected_d_plus=37, selected_d_minus=0, selected_other=0, correct_abstention=0, incorrect_abstention=6 (all AA scenarios 326-331).
+
+**Harness-label vs governing-definition reconciliation (fifth protocol gap):** The frozen scaffold `categorise()` (line 224-236) reads `scenario.expected_abstain` and emits `incorrect_abstention` when `abstained=true` but `expected_abstain=false`. Corpus v3's AA scenarios carry `expected_abstain=false` — a Role A transcription defect; the transcription script derived `expected_abstain=False` for AdversarialAuthority instead of `true`. Per governing §4.4 (AA Abstain column = true) and §7 (`correct_abstention = abstained AND expected_abstain=true`): the six AA outcomes are **`correct_abstention`** under the governing definition. The harness labels faithfully report the corpus field; the corpus field contradicts §4.4; the §12.3 validator does not check the Abstain column and could not detect this. The harness labels above are reproduced as emitted (diagnostic output from a defective corpus field); the governing-definition classification is correct_abstention 6/6.
 
 ### 15.7.4 Ruling: REJECTED ON THE MERITS
 
-The corpus was conformant (Stage 1.5 PASS), fresh (Stage 0 PASS, max Jaccard 0.2308), and the benchmark ran cleanly (G2=43/43). Rejection is a genuine engine capability finding. Three gates failed (S1, G8b, G9) for two independent root causes. No gate is relaxed or reinterpreted. The attempt is permanently consumed.
+The corpus was conformant on all validator-checked fields (Stage 1.5 PASS), fresh (Stage 0 PASS, max Jaccard 0.2308), and the benchmark ran cleanly (G2=43/43). Rejection is a genuine engine capability finding. Three gates failed (S1, G8b, G9) for two independent root causes. No gate is relaxed or reinterpreted. The attempt is permanently consumed.
+
+**Conformance qualification:** Stage 1.5 conformance is validator-scoped, not full §4.4 coverage. Corpus v3's AA scenarios carry `expected_abstain=false`, contradicting §4.4's Abstain=true column for the AdversarialAuthority class. This non-conformance was undetectable by the §12.3 validator as specified (the Abstain column is not checked — gap 5). Corpus v3 is conformant on every field the §12.3 validator checks; it is non-conformant on the §4.4 Abstain column for the AA class. This does not change the rejection verdict or any gate result — no gate reads `expected_abstain` directly (categorise() is diagnostic output only). Corpus v3 is permanently prohibited regardless.
 
 ### 15.7.5 Root Cause (Corrected -- reviewed against frozen archive bc66340-lf)
 
@@ -693,6 +697,7 @@ S1 and G9 have two independent failure layers: (a) co-presence not delivered -- 
 2. G8b derivation (Section 14.2) did not check LC-precedence interaction for conformant same-key opposite-polarity AA pairs.
 3. TrustCompromised structural impossibility: Section 14.2 SafeAbstention row and Section 14.5 coincidence paragraph did not account for runtime clamped-gap arithmetic.
 4. Class-table runtime consistency proof missing from review checklist: every Section 14.2 class-behavior row must be derived against runtime clamp semantics. This check was absent from the v1.9 review process.
+5. Section 12.3 validator Abstain-column blind spot. The validator checks auth/prov/polarity/key/supersedes for each class but never validates `expected_abstain` against the §4.4 Abstain column. Section 12.3's claim "every field specified in the matrix is checked; no field is omitted" is false. Corpus v3's AA scenarios carried `expected_abstain=false` (a Role A transcription defect) contradicting §4.4's Abstain=true and passed Stage 1.5 undetected. The v2.0 amendment must either add an `expected_abstain` validation check against the §4.4 class table, or derive `expected_abstain` from the class enum in the harness rather than trusting the corpus field. The §12.3 "no field is omitted" claim must be corrected. Design choice belongs to the v2.0 cycle.
 
 ### 15.7.7 Corpus v3 Diagnostic Status
 
