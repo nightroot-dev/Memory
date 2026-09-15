@@ -42,7 +42,7 @@ def parse_line(raw: str, default_threshold: float = 0.35) -> Optional[Dict[str, 
             "prediction_error": float(entry.get("prediction_error", 0.0)),
             "verifiability": 1.0,
             "gate_score": float(entry.get("gate_score", 0.0)),
-            "threshold": default_threshold,
+            "threshold": 1.0,  # Policy v1 ran with GATE_THRESHOLD = 1.0
             "would_index": bool(entry.get("would_index", True)),
             "enforced": False,
         }
@@ -145,7 +145,15 @@ def analyze_log(log_path: Path, default_threshold: float = 0.35) -> Dict[str, An
     passed_count = sum(1 for r in records if r["would_index"])
     pass_rate = passed_count / total
 
-    # Sensitivity curve across potential thresholds
+    v1_recs = [r for r in records if r["v"] == 1]
+    v2_recs = [r for r in records if r["v"] == 2]
+    v1_pass = sum(1 for r in v1_recs if r["would_index"])
+    v2_pass = sum(1 for r in v2_recs if r["would_index"])
+    v1_pass_rate = v1_pass / len(v1_recs) if v1_recs else 0.0
+    v2_pass_rate = v2_pass / len(v2_recs) if v2_recs else 0.0
+
+    # Uniform sensitivity curve: recompute simulated admission across candidate thresholds
+    # purely from gate_score (independent of historical policy threshold shifts)
     test_thresholds = [0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60]
     sweep = {}
     for t in test_thresholds:
@@ -156,7 +164,7 @@ def analyze_log(log_path: Path, default_threshold: float = 0.35) -> Dict[str, An
             "admission_rate": round(sim_pass / total, 4),
         }
 
-    # Breakdown by verifiability tiers
+    # Breakdown by verifiability tiers (uniformly recomputed at default_threshold)
     verif_tiers = [
         ("0.0 - 0.2", lambda v: v < 0.2),
         ("0.2 - 0.4", lambda v: 0.2 <= v < 0.4),
@@ -185,7 +193,11 @@ def analyze_log(log_path: Path, default_threshold: float = 0.35) -> Dict[str, An
         "v1_records": v1_count,
         "v2_records": v2_count,
         "unrecognized_lines": unrecognized,
-        "observed_admission_rate": round(pass_rate, 4),
+        "observed_admission": {
+            "overall_rate": round(pass_rate, 4),
+            "v1_historical_pass_rate_at_1_0": round(v1_pass_rate, 4) if v1_recs else None,
+            "v2_historical_pass_rate_at_0_35": round(v2_pass_rate, 4) if v2_recs else None,
+        },
         "distributions": {
             "gate_score": stats(scores),
             "novelty": stats(novelties),
@@ -202,7 +214,7 @@ def format_table(d: Dict[str, float]) -> str:
     return (
         f"n={d['n']} | min={d['min']:.3f} | p25={d['p25']:.3f} | p50={d['p50']:.3f} | "
         f"p75={d['p75']:.3f} | p90={d['p90']:.3f} | max={d['max']:.3f} | "
-        f"mean={d['mean']:.3f}±{d['std']:.3f}"
+        f"mean={d['mean']:.3f}+/-{d['std']:.3f}"
     )
 
 
@@ -210,14 +222,18 @@ def print_report(res: Dict[str, Any], path: str):
     print("=" * 80)
     print(f"GATE SHADOW LOG CALIBRATION ANALYSIS: {path}")
     print("=" * 80)
+    obs = res["observed_admission"]
     print(f"Total Records: {res['total_records']} (Schema v1: {res['v1_records']}, Schema v2: {res['v2_records']})")
-    print(f"Observed Admission Rate: {res['observed_admission_rate']*100:.1f}%")
+    v1_info = f"{obs['v1_historical_pass_rate_at_1_0']*100:.1f}%" if obs['v1_historical_pass_rate_at_1_0'] is not None else "N/A"
+    v2_info = f"{obs['v2_historical_pass_rate_at_0_35']*100:.1f}%" if obs['v2_historical_pass_rate_at_0_35'] is not None else "N/A"
+    print(f"Historical Logged Pass Rates: Schema v1 (tau=1.0): {v1_info} | Schema v2 (tau=0.35): {v2_info}")
+    print(f"Combined Historical would_index Rate: {obs['overall_rate']*100:.1f}%")
     print("-" * 80)
     print("EMPIRICAL DISTRIBUTIONS:")
     for metric, dist in res["distributions"].items():
         print(f"  {metric:<18}: {format_table(dist)}")
     print("-" * 80)
-    print("THRESHOLD SENSITIVITY SWEEP (Hypothetical Admission Rates):")
+    print("UNIFORM RECOMPUTED THRESHOLD SENSITIVITY SWEEP (Apples-to-Apples):")
     print("  Threshold | Admitted | Suppressed | Admission Rate")
     for t_str, sweep_res in res["threshold_sensitivity_sweep"].items():
         bar = "#" * int(sweep_res["admission_rate"] * 20)

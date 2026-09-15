@@ -136,6 +136,17 @@ pub struct Config {
     /// insertion of near-duplicate, low-information experiences when gate_score < gate_threshold.
     /// When false (default), the gate operates in shadow mode: decisions are evaluated and logged
     /// to gate_shadow_log.jsonl, but insertion always proceeds.
+    ///
+    /// Epistemic boundary properties in enforcement mode (Option A):
+    ///   - Hard floor: an uncorroborated virgin memory (N=0) from a caller with authority <= 0.116
+    ///     cannot achieve gate_score >= 0.35 even at maximal novelty (1.0) and surprise (|pe|=1.0).
+    ///   - Routine novelty floor: a virgin memory with routine surprise (|pe|=0.10) requires
+    ///     authority >= 0.292 to be admitted at maximal novelty.
+    ///   - Corroboration escape hatch: when content lands near an established node (N >> 1),
+    ///     sample-size shrinkage blends authority with empirical Wilson LCB (w = N / (N + 4.0)),
+    ///     permitting lower-authority callers to contribute to validated topic neighborhoods.
+    ///   - Zero data loss: suppressed experiences are unconditionally archived in Tier 0
+    ///     (`learn_log.jsonl`) pre-gate and can be promoted via subsequent high-authority review.
     #[serde(default = "default_enforce_gate")]
     pub enforce_gate: bool,
 

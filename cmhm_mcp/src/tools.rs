@@ -32,6 +32,11 @@ pub const GATE_KAPPA: f32 = 2.0;
 
 /// Default shadow gate threshold for "would_index" decision when not configured.
 /// Calibrated on hash-128d to separate near-duplicate clutter from informative experiences.
+///
+/// Option A boundary properties in enforcement mode:
+///   - 0.116 hard floor: virgin uncorroborated memories with authority <= 0.116 cannot clear threshold.
+///   - 0.292 routine floor: virgin memories with routine surprise (|pe|=0.10) require authority >= 0.292.
+///   - Corroboration: content near established nodes blends with empirical Wilson LCB (w = N / (N + 4)).
 pub const GATE_THRESHOLD: f32 = 0.35;
 
 // ─── Sidecar log writers ─────────────────────────────────────────────────────
