@@ -659,6 +659,74 @@ Attempt summary:
 - Attempt 1: INVALID ON ITS FACE (corpus non-conformant). Commit e989a91. Section 11.
 - Attempt 2: REJECTED (S1 fail: gap < 0.02 threshold under hash-128d; abstain_on_conflict=false). Commit 11c0a07. Section 15.1-15.6.
 - Attempt 3: REJECTED (S1=0/13, G8b=0/12, G9=0/6; clamp-suppression + TrustCompromised structural impossibility + LC-precedence/AA interaction). Commit a58bc0a. Section 15.7. Five gaps registered; all resolved in this v2.0 amendment.
+- Attempt 4: APPROVED (13/13 gates passed, 0 violations, 31 correct abstentions, 12 selected D+, 0 incorrect abstentions, 0 selected D-). Commit 6cbee76 / 7d26c8c. Section 15.8.
+
+## 15.8 Attempt 4 Record (2026-09-15) — PERMANENTLY CONSUMED: APPROVED
+
+### 15.8.1 Corpus v4 Identity
+
+| Field | Value |
+|---|---|
+| Commit | `7d26c8c` |
+| SHA-256 | `A3DFFF9B1DF6490521F6FAA9D271368AA7EA599A48F6608C5BFF37B66C6EECD3` |
+| Bytes | 82,880 (LF-clean, no BOM) |
+| Scenarios | 43 across 9 domains; 6 classes (13/6/6/6/6/6) |
+| Role B authorization | Explicit; §17.1 prereqs 6–7 both complete |
+| Prohibited status | Corpus v4 permanently joins the prohibited list as of this filing. Approval benchmark corpus; zero future reuse. |
+
+### 15.8.2 Stage Results
+
+| Stage | Result | Evidence |
+|---|---|---|
+| Stage 0 — Overlap Audit (5 sources) | PASS | 0 matches across all 5 sources (dprime=0, held-out=0, A1=0, A2=0, A3=0); max Jaccard = 0.1818 < 0.30; 0 verbatim violations |
+| Stage 1 — Synthetic Pre-flight | PASS | 10/10 phase3_synthetic_eval_tests; 4/4 phase3_gap_independence_tests; 50/50 MCP tool layer tests |
+| Stage 1.5 — Conformance Check | PASS | N=43; all per-scenario checks ok; all domain caps ok; expected_abstain matches Section 4.4 truth table; neg_key != pos_key enforced for AA |
+| Stage 2 — Approval Benchmark | PASS | Exit code: 0; VERDICT=APPROVED; all 13 gates evaluated to passed=true |
+| Stage 3 — Gate Verification | APPROVED | Reviewer confirms all gates satisfied with 95% bootstrap confidence bounds |
+
+### 15.8.3 Gate Results
+
+| Gate | Metric | Passed | Value | ci_lo | ci_hi | Note | Threshold |
+|---|---|---|---|---|---|---|---|
+| G1 | Recall@1 D+ | PASS | 0.930233 | 0.837209 | 1.000000 | 40/43 | >= 0.40 (CI >= 0.40) |
+| G2 | Recall@5 D+ | PASS | 1.000000 | 1.000000 | 1.000000 | 43/43 | >= 0.70 (CI >= 0.70) |
+| G3 | MRR D+ | PASS | 0.965116 | 0.918605 | 1.000000 | mrr=0.9651 | >= 0.50 (CI >= 0.50) |
+| G4 | Recall@1 D- | PASS | 0.069767 | 0.000000 | 0.162791 | 3/43 | <= 0.30 (CI <= 0.30) |
+| G5 | Occupancy@5 D- | PASS | 0.055814 | 0.027907 | 0.088372 | 12/215 | < 0.40 (CI < 0.40) |
+| G6 | Score Margin | PASS | 0.451591 | 0.350962 | 0.554246 | mean_margin=0.4516 | >= 0.15 (CI >= 0.15) |
+| G7 | Supersession Safety | PASS | 0.000000 | 0.000000 | 0.000000 | 0 violations / 6 supersession | == 0 |
+| S1 | Contradiction Pool Co-presence | PASS | 1.000000 | 0.000000 | 0.000000 | 13/13 | >= 0.60 |
+| G8a | Contradiction Abstention | PASS | 1.000000 | 0.000000 | 0.000000 | 13/13 eligible | == 1.00 |
+| G8b | AuthorityPolarity Abstention | PASS | 1.000000 | 0.000000 | 0.000000 | 12/12 | == 1.00 |
+| G8c | Unresolved Non-Conflict | PASS | 1.000000 | 0.000000 | 0.000000 | 6/6 | == 1.00 |
+| G9 | Safe Abstention | PASS | 1.000000 | 0.000000 | 0.000000 | 6/6 | == 1.00 |
+| G10 | Non-Supersession Pool Non-Leakage | PASS | 0.000000 | 0.000000 | 0.000000 | 0 violations / 37 non-supersession | == 0 |
+
+### 15.8.4 Outcome Decomposition
+
+| Category | Count | Scenarios |
+|---|---|---|
+| `selected_d_plus` | 12 | 6 Supersession (IDs 414–419) + 6 UnresolvedConflict (IDs 438–443) |
+| `selected_d_minus` | 0 | None |
+| `selected_other` | 0 | None |
+| `correct_abstention` | 31 | 13 Contradiction (IDs 401–413) + 6 AuthorityPolarity (IDs 420–425) + 6 AdversarialAuthority (IDs 426–431) + 6 SafeAbstention (IDs 432–437) |
+| `incorrect_abstention` | 0 | None |
+| **Total** | **43** | **100% exhaustive and mutually exclusive** |
+
+### 15.8.5 Ruling: APPROVED ON THE MERITS
+
+Attempt 4 satisfies all 13 acceptance gates under the governing Phase 3 Approval Protocol v2.0 without exception. The benchmark executed under production configuration defaults (`Config::default()`), with zero test overrides, using the unscoped retrieval pathway (`retrieve_unscoped`) and hash-128d embedding space.
+
+Every scenario class behaved exactly as derived in the Section 14.9 Runtime-Consistency Proof:
+1. **Contradiction (13/13):** Both nodes entered the post-filter pool (S1 = 13/13). Same assertion key and opposing polarity deterministically triggered `LogicalContradiction` (precedence 1). All 13 abstained correctly (`correct_abstention` 13/13; G8a = 1.00).
+2. **Supersession (6/6):** Step 2a supersession filter cleanly eliminated all 6 contradicted D- nodes prior to detection (G7 = 0 violations). Positive facts were retrieved cleanly at Rank 1 (`selected_d_plus` 6/6).
+3. **AuthorityPolarity (6/6):** Differing keys prevented LC false triggers; HIGH vs LOW trust in the candidate pool triggered `ProvenancePair` detection unconditionally. All 6 abstained correctly (`correct_abstention` 6/6; part of G8b = 12/12).
+4. **AdversarialAuthority (6/6):** D- possessed higher authority (0.90–1.00) than D+ (0.75–0.85). Amended key rule (`neg_key != pos_key`) prevented LC preemption. `AdversarialPair` fired cleanly as designed, triggering `AuthorityPolarity` abstention. All 6 abstained correctly (`correct_abstention` 6/6; completing G8b = 12/12).
+5. **SafeAbstention (6/6):** LOW trust contradicted node in the pool triggered unconditional `ProvenancePair` detection. All 6 abstained correctly (`correct_abstention` 6/6; G9 = 1.00).
+6. **UnresolvedConflict (6/6):** Both nodes held high authority with identical polarity and user_explicit provenance. No conflict fired (`conflict=None`). Highest authority node D+ selected cleanly at Rank 1 (`selected_d_plus` 6/6; G8c = 1.00).
+
+All five protocol gaps identified in Attempt 3 have been fully resolved and empirically verified. CMHM retrieval safety is formally APPROVED for production integration.
+
 
 ---
 
