@@ -144,6 +144,57 @@ $Attempt2Queries = @(
     "What init system should the container host use?"
 )
 
+# -- Attempt-3 Query Exclusion List (hardcoded, recoverable from scaffold commit a58bc0a) ------
+# These 43 queries were used in the attempt-3 corpus (ruled REJECTED on the merits).
+# Protocol v2.0 Section 4.3/17.1/17.2 requirement: zero verbatim or near-verbatim reuse permitted.
+# Hardcoded here so the exclusion is pinned and tamper-evident independent of any file on disk.
+$Attempt3Queries = @(
+    "Is the SSH daemon configured to allow root login?",
+    "Is the PostgreSQL autovacuum process enabled?",
+    "Is HSTS enabled for the public web endpoint?",
+    "Is the NetworkPolicy resource restricting ingress to the API pods?",
+    "Is the root account free of active access keys?",
+    "Are TLS certificates validated against a certificate revocation list?",
+    "Is the consensus cluster using pre-vote to prevent disruption from partitioned nodes?",
+    "Is the alerting pipeline routed through a dead-letter queue on failure?",
+    "Is the NFS export using root squash?",
+    "Is the MySQL binary log enabled for point-in-time recovery?",
+    "Is cipher suite order enforced by the server preference?",
+    "Is the audit daemon monitoring syscall execution on all processes?",
+    "Is CloudTrail logging enabled for all regions?",
+    "What is the current storage engine for the events table?",
+    "What cipher suite is currently preferred by the load balancer?",
+    "What is the current priority class for the critical workloads?",
+    "What is the current permissions boundary for the deployment role?",
+    "What is the current KDF algorithm for password hashing?",
+    "What is the current vote quorum size for the replication group?",
+    "Should the histogram buckets for API latency use exponential or linear spacing?",
+    "Which filesystem should be used for the high-IOPS cache volume?",
+    "Which replication topology should the MongoDB cluster adopt?",
+    "Which ALPN protocol should the ingress advertise to clients?",
+    "Which kernel scheduler should be used for the low-latency workload?",
+    "Which storage class should be used for the audit log bucket?",
+    "Should the CI/CD service principal be granted the AdministratorAccess policy?",
+    "Should the signing key be stored on the same host as the application?",
+    "Should containers be allowed to run with hostPID enabled?",
+    "Should the Raft transport layer use plaintext for internal traffic?",
+    "Should the profiling endpoint be exposed on a public port?",
+    "Should the read replica accept writes from clients?",
+    "Which filesystem should be used for the shared application volume?",
+    "What value should vm.dirty_ratio be set to on the build servers?",
+    "What read consistency level should the Cassandra client use?",
+    "What idle timeout should be set on the WebSocket gateway?",
+    "What session policy should apply to the SSO federation?",
+    "Which signature algorithm should the code-signing pipeline use?",
+    "Which admission controller should the cluster prioritize?",
+    "What should the log compaction strategy be for the consensus state?",
+    "What should the primary tracing backend be?",
+    "Which object storage interface should the data lake use?",
+    "What should the default time synchronization source be for the cluster?",
+    "Which partitioning strategy should the events table adopt?"
+)
+
+
 # -- Text Normalization and Tokenization ----------------------------------------
 
 function Normalize-Text {
@@ -376,7 +427,44 @@ if ($SyntheticSelfTest) {
     }
     Write-Host "  PASS  SelfTest 8b: Genuinely fresh query correctly NOT matched in either set (norm='$st_genuinely_fresh_norm')"
 
-    Write-Host "=== All 8 Overlap Auditor Synthetic Self-Tests PASSED ==="
+    # -- Source 5 live-fire tests (prove attempt-3 detection actually fires) ----
+
+    $st_attempt3NormSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($q in $Attempt3Queries) {
+        [void]$st_attempt3NormSet.Add((Normalize-Text $q))
+    }
+    if ($st_attempt3NormSet.Count -ne 43) {
+        throw "SelfTest 9/10 setup FAILED: expected 43 attempt-3 queries in norm-set, got $($st_attempt3NormSet.Count)"
+    }
+
+    # Test 9: Verbatim attempt-3 query MUST be caught by exact normalized match.
+    # Using "Is the SSH daemon configured to allow root login?" (attempt-3 ID 301).
+    $st9_query = "Is the SSH daemon configured to allow root login?"
+    $st9_norm  = Normalize-Text $st9_query
+    if (-not $st_attempt3NormSet.Contains($st9_norm)) {
+        throw "SelfTest 9 FAILED: verbatim attempt-3 query not caught by Source 5 check. Normalized form: '$st9_norm'"
+    }
+    Write-Host "  PASS  SelfTest 9: Verbatim attempt-3 query correctly caught by Source 5 (norm='$st9_norm')"
+
+    # Test 10: Same query with case and whitespace mangled MUST still be caught after normalization.
+    # "Is  THE  SSH  Daemon  Configured  To  Allow  Root  Login?" -- mixed case, double spaces.
+    $st10_query = "Is  THE  SSH  Daemon  Configured  To  Allow  Root  Login?"
+    $st10_norm  = Normalize-Text $st10_query
+    if ($st10_norm -ne $st9_norm) {
+        throw "SelfTest 10 FAILED: mangled query did not normalize to same form as verbatim. Got '$st10_norm', expected '$st9_norm'"
+    }
+    if (-not $st_attempt3NormSet.Contains($st10_norm)) {
+        throw "SelfTest 10 FAILED: case/whitespace-mangled attempt-3 query not caught by Source 5 check. Normalized form: '$st10_norm'"
+    }
+    Write-Host "  PASS  SelfTest 10: Case/whitespace-mangled attempt-3 query correctly caught by Source 5 (norm='$st10_norm')"
+
+    # Test 10b: Sanity check: a genuinely fresh query must NOT appear in any of the three norm-sets.
+    if ($st_attempt1NormSet.Contains($st_genuinely_fresh_norm) -or $st_attempt2NormSet.Contains($st_genuinely_fresh_norm) -or $st_attempt3NormSet.Contains($st_genuinely_fresh_norm)) {
+        throw "SelfTest 10b FAILED: genuinely fresh query incorrectly matched against attempt-1, 2, or 3 set"
+    }
+    Write-Host "  PASS  SelfTest 10b: Genuinely fresh query correctly NOT matched in any of the three sets (norm='$st_genuinely_fresh_norm')"
+
+    Write-Host "=== All 10 Overlap Auditor Synthetic Self-Tests PASSED ==="
     exit 0
 }
 
@@ -478,6 +566,28 @@ if ($attempt2Violations -gt 0) {
 }
 Write-Host "  Attempt-2 exclusion check PASSED (0 matches)."
 
+# -- Attempt-3 Exact-Match Check (Source 5: hardcoded exclusion list) ----------
+# Fails closed if any candidate query normalizes to an attempt-3 query.
+# Applied before Jaccard comparison so failure attribution is unambiguous.
+Write-Host "Running attempt-3 query exclusion check ($($Attempt3Queries.Count) hardcoded queries)..."
+$attempt3NormSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($q in $Attempt3Queries) {
+    [void]$attempt3NormSet.Add((Normalize-Text $q))
+}
+$attempt3Violations = 0
+foreach ($cq in $candidateQueries) {
+    $normCq = Normalize-Text $cq
+    if ($attempt3NormSet.Contains($normCq)) {
+        Write-Host "  ATTEMPT-3 VIOLATION: '$cq'"
+        $attempt3Violations++
+    }
+}
+if ($attempt3Violations -gt 0) {
+    Write-Error "FAIL CLOSED: $attempt3Violations candidate query/queries match attempt-3 corpus verbatim (case/whitespace-normalized). Zero attempt-3 query reuse is required."
+    exit 1
+}
+Write-Host "  Attempt-3 exclusion check PASSED (0 matches)."
+
 # Extract reference elements (sources 1 & 2)
 $refRejTexts  = Extract-StringsFromRustFile $AbsRefRej @("query", "positive_text", "hard_neg_text", "positive", "hard_negative", "negative")
 $refCompTexts = Extract-StringsFromRustFile $AbsRefComp @("query", "positive_text", "hard_neg_text")
@@ -488,9 +598,10 @@ $allRefTexts.AddRange($refRejTexts)
 $allRefTexts.AddRange($refCompTexts)
 foreach ($q in $Attempt1Queries) { $allRefTexts.Add($q) }
 foreach ($q in $Attempt2Queries) { $allRefTexts.Add($q) }
+foreach ($q in $Attempt3Queries) { $allRefTexts.Add($q) }
 
 Write-Host "Candidate strings to audit: $($candidateTexts.Count) (Queries: $($candidateQueries.Count))"
-Write-Host "Reference strings to compare: $($allRefTexts.Count) (dprime=$($refRejTexts.Count) held-out=$($refCompTexts.Count) attempt-1=$($Attempt1Queries.Count) attempt-2=$($Attempt2Queries.Count))"
+Write-Host "Reference strings to compare: $($allRefTexts.Count) (dprime=$($refRejTexts.Count) held-out=$($refCompTexts.Count) attempt-1=$($Attempt1Queries.Count) attempt-2=$($Attempt2Queries.Count) attempt-3=$($Attempt3Queries.Count))"
 
 # Audit comparisons (Jaccard + verbatim across all three sources)
 $maxJaccard = 0.0
@@ -505,8 +616,10 @@ $logLines.Add("Ref Rejection SHA:   $((Get-FileHash $AbsRefRej -Algorithm SHA256
 $logLines.Add("Ref Compromised SHA: $((Get-FileHash $AbsRefComp -Algorithm SHA256).Hash)")
 $logLines.Add("Ref Attempt-1:       40 queries hardcoded at audit-script commit (recoverable from e989a91)")
 $logLines.Add("Ref Attempt-2:       43 queries hardcoded at audit-script commit (recoverable from 11c0a07)")
+$logLines.Add("Ref Attempt-3:       43 queries hardcoded at audit-script commit (recoverable from a58bc0a)")
 $logLines.Add("Attempt-1 Exact Matches: $attempt1Violations (must be 0)")
 $logLines.Add("Attempt-2 Exact Matches: $attempt2Violations (must be 0)")
+$logLines.Add("Attempt-3 Exact Matches: $attempt3Violations (must be 0)")
 $logLines.Add("Candidate Queries:   $($candidateQueries.Count)")
 $logLines.Add("Threshold:           Jaccard < $MaxAllowedJaccard, Verbatim < $MinVerbatimWords words")
 
