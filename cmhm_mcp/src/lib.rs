@@ -22,6 +22,7 @@ pub fn dispatch(name: &str, rt: &tools::SharedRuntime, args: &Value) -> Option<s
         "context_route"        => Some(tools::handle_context_route(rt, args)),
         "memory_stats"         => Some(tools::handle_memory_stats(rt, args)),
         "project_detect"       => Some(tools::handle_project_detect(rt, args)),
+        "memory_promote"       => Some(tools::handle_memory_promote(rt, args)),
         _ => None,
     }
 }

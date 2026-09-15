@@ -37,13 +37,13 @@ $$\text{gate\_score} = \text{novelty} \times (1.0 + \kappa \cdot |\text{predicti
 
 ## 3. Active Backlog & Milestone Tracking
 
-### [ACTIVE] Item 1: Tier-0 Promotion Mechanism (`memory_promote`)
-- **Status:** In progress.
+### [COMPLETE] Item 1: Tier-0 Promotion Mechanism (`memory_promote`)
+- **Status:** COMPLETE (implemented and verified).
 - **Objective:** Provide a formal promotion pathway from Tier 0 (`learn_log.jsonl`) back into the active graph, preventing permanent dead-ends for quarantined observations.
-- **Architecture Requirements:**
-  - `memory_promote(event_id, target_authority, caller_role)` tool in `cmhm_mcp`.
-  - **Drift Audit Invariant:** Promotion computes `GateInspectionResult` against the live graph at promotion time. Audit records must log both original ingestion event context and promotion-time inspection metrics.
-  - **Epistemic Trust Escalation:** Promoted nodes receive `provenance: "promoted_from_archive"` and `supersedes: null`, maintaining origin transparency for Phase 3 `ProvenancePair` detection rather than laundering into organic user observations.
+- **Architecture Implementation (Option 1):**
+  - `memory_promote(event_id, authority, caller_role, context_id, auto_tag)` tool in `cmhm_mcp`.
+  - **Drift Audit Record:** `promotion_log.jsonl` records `promotion_id`, `event_id`, original event context, granted authority, and promotion-time `GateInspectionResult` (novelty, verifiability, gate_score, max_cosine).
+  - **Epistemic Trust Escalation:** Indexed with reviewer-authorized `provenance: "user_explicit"`, `supersedes: null`, and tags `["promoted_from_archive", "archive_event:<id>"]`, preserving Phase 3 protocol freeze while maintaining complete origin transparency.
 
 ### [OPEN / GATED] Item 2: §4.1 Cohort Dimensionality in Consolidation
 - **Status:** OPEN (deliberate deferral).

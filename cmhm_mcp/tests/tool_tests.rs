@@ -94,6 +94,12 @@ fn garbage_args_never_panic_memory_feedback() {
 }
 
 #[test]
+fn garbage_args_never_panic_memory_promote() {
+    let tmp = TempDir::new().unwrap();
+    assert_error_result("memory_promote", &make_runtime(&tmp));
+}
+
+#[test]
 fn garbage_args_never_panic_context_create() {
     let tmp = TempDir::new().unwrap();
     assert_error_result("context_create", &make_runtime(&tmp));
@@ -1620,6 +1626,138 @@ fn e1x_mcp_inf_in_embedding_is_rejected() {
     let msg = &r.content[0].text;
     assert!(msg.contains("non-finite") || msg.contains("Inf"),
         "E1x: error message must mention non-finite, got: {msg}");
+}
+
+// ── Promotion Tool Tests ──────────────────────────────────────────────────────
+
+#[test]
+fn promote_nonexistent_event_returns_error() {
+    let tmp = TempDir::new().unwrap();
+    let rt  = make_runtime(&tmp);
+
+    let promote_args = json!({
+        "event_id": "00000000-0000-0000-0000-000000000000",
+        "authority": 0.90,
+        "caller_role": "user"
+    });
+    let r = dispatch("memory_promote", &rt, &promote_args).unwrap();
+    assert_eq!(r.isError, Some(true), "Nonexistent event must return isError=true");
+    let msg = &r.content[0].text;
+    assert!(msg.contains("not found"), "Error must mention not found, got: {msg}");
+}
+
+#[test]
+fn promote_untrusted_caller_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let rt  = make_runtime(&tmp);
+
+    // 1. Learn an event to generate learn_log.jsonl
+    let learn_args = json!({
+        "state":  "untrusted sensor observation regarding memory pressure",
+        "action": "log memory warning",
+        "outcome":"process killed by oom killer",
+        "prediction_error": 0.7,
+        "authority": 0.20,
+        "auto_tag": false
+    });
+    let r_learn = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+    assert_ne!(r_learn.isError, Some(true));
+
+    // Extract event_id from learn_log.jsonl
+    let learn_log = tmp.path().join("learn_log.jsonl");
+    let content = std::fs::read_to_string(&learn_log).unwrap();
+    let entry: Value = serde_json::from_str(content.lines().next().unwrap()).unwrap();
+    let event_id = entry["event_id"].as_str().unwrap();
+
+    // 2. Attempt promotion with unauthenticated/agent role -> rejected
+    let promote_args = json!({
+        "event_id": event_id,
+        "authority": 0.90,
+        "caller_role": "agent"
+    });
+    let r_promote = dispatch("memory_promote", &rt, &promote_args).unwrap();
+    assert_eq!(r_promote.isError, Some(true), "Agent caller must not be authorized to promote");
+    let msg = &r_promote.content[0].text;
+    assert!(msg.contains("Permission denied"), "Error must state permission denied, got: {msg}");
+}
+
+#[test]
+fn promote_valid_event_indexes_node_with_audit_trail() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = Config {
+        data_dir: tmp.path().to_path_buf(),
+        enforce_gate: true,
+        ..Config::default()
+    };
+    let rt = ContextRuntime::new(cfg, "test-session".to_string()).expect("ContextRuntime::new failed");
+    let rt = Arc::new(Mutex::new(rt));
+
+    // 1. Learn an uncorroborated, low-authority assertion under enforcement mode -> suppressed
+    let learn_args = json!({
+        "state":  "postgresql max_connections set to 1000 causes thread exhaustion",
+        "action": "reduce max_connections to 200 with pgbouncer pool",
+        "outcome":"p99 latency dropped from 450ms to 12ms",
+        "prediction_error": 0.1,
+        "authority": 0.10,
+        "auto_tag": true
+    });
+    let r_learn = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+    assert_ne!(r_learn.isError, Some(true));
+    let learn_text = &r_learn.content[0].text;
+    assert!(learn_text.contains("Suppressed"), "Uncorroborated low-authority assertion must be suppressed");
+    let n_initial = rt.lock().node_count(None);
+    assert_eq!(n_initial, 0, "Suppressed assertion must not index any nodes in the active graph");
+
+    // Extract event_id from Tier 0 archive
+    let learn_log = tmp.path().join("learn_log.jsonl");
+    assert!(learn_log.exists(), "learn_log.jsonl must exist despite suppression");
+    let content = std::fs::read_to_string(&learn_log).unwrap();
+    let entry: Value = serde_json::from_str(content.lines().next().unwrap()).unwrap();
+    let event_id = entry["event_id"].as_str().unwrap();
+
+    // 2. Promote with user privilege and elevated authority
+    let promote_args = json!({
+        "event_id": event_id,
+        "authority": 0.95,
+        "caller_role": "user",
+        "auto_tag": true
+    });
+    let r_promote = dispatch("memory_promote", &rt, &promote_args).unwrap();
+    assert_ne!(r_promote.isError, Some(true), "Promotion should succeed");
+    let promote_text = &r_promote.content[0].text;
+    assert!(promote_text.contains("Successfully Promoted"), "Response must mention successfully promoted");
+    assert!(promote_text.contains("user_explicit [promoted]"));
+
+    // 3. Verify node count increased
+    let n_after = rt.lock().node_count(None);
+    assert!(n_after > n_initial, "Promotion must index new nodes: before={n_initial}, after={n_after}");
+
+    // 4. Verify promotion_log.jsonl was written
+    let promo_log = tmp.path().join("promotion_log.jsonl");
+    assert!(promo_log.exists(), "promotion_log.jsonl must exist");
+    let promo_content = std::fs::read_to_string(&promo_log).unwrap();
+    let p_entry: Value = serde_json::from_str(promo_content.lines().next().unwrap()).unwrap();
+
+    assert_eq!(p_entry["v"], 1);
+    assert_eq!(p_entry["event_id"], event_id);
+    assert_eq!(p_entry["caller_role"], "user");
+    assert!((p_entry["authority"].as_f64().unwrap() - 0.95).abs() < 1e-3);
+    assert!(p_entry["novelty"].is_number());
+    assert!(p_entry["verifiability"].is_number());
+    assert!(p_entry["gate_score"].is_number());
+    assert!(p_entry["max_cosine"].is_number());
+    assert!(p_entry["node_ids"]["state"].is_number());
+
+    // 5. Verify retrieve finds the promoted experience
+    let retrieve_args = json!({
+        "query": "postgresql pgbouncer max_connections latency",
+        "retrieval_intent": "state"
+    });
+    let r_retrieve = dispatch("memory_retrieve_text", &rt, &retrieve_args).unwrap();
+    assert_ne!(r_retrieve.isError, Some(true));
+    let ret_text = &r_retrieve.content[0].text;
+    assert!(ret_text.contains("Node("), "Retrieval must find active causal path: {ret_text}");
+    assert!(!ret_text.contains("No causal path found"), "Retrieval must not be empty: {ret_text}");
 }
 
 

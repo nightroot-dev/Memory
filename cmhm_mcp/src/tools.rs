@@ -9,7 +9,7 @@ use crate::schema::{
     RetrieveParams, LearnParams, LearnTextParams, RetrieveTextParams,
     CreateContextParams, ListContextsParams, DeleteContextParams,
     RouteParams, MemoryStatsParams, ContextTypeParam, ProjectDetectParams,
-    MemoryFeedbackParams,
+    MemoryFeedbackParams, PromoteParams,
     ToolCallResult, ContentItem, ToolDefinition,
 };
 
@@ -203,6 +203,44 @@ fn append_gate_shadow_log(
         gate_score, threshold, would_index, GATE_POLICY_V, enforced
     );
     best_effort_append(&path, &line, "gate_shadow_log");
+}
+
+/// Append one line to `promotion_log.jsonl`.
+///
+/// Records the Tier 0 promotion audit trail:
+/// - links the promotion_id with original event_id
+/// - records both original context/text and promotion-time live inspection (novelty drift)
+/// - records granted authority and resultant graph node IDs
+#[allow(clippy::too_many_arguments)]
+fn append_promotion_log(
+    data_dir:        &std::path::Path,
+    promotion_id:    &str,
+    event_id:        &str,
+    session_id:      &str,
+    ctx_id:          &str,
+    authority:       f32,
+    caller_role:     &str,
+    novelty:         f32,
+    verifiability:   f32,
+    gate_score:      f32,
+    max_cosine:      f32,
+    state_node_id:   u64,
+    action_node_id:  u64,
+    outcome_node_id: u64,
+) {
+    let path = data_dir.join("promotion_log.jsonl");
+    let ts = unix_ms();
+    let line = format!(
+        "{{\"v\":1,\"promotion_id\":\"{}\",\"event_id\":\"{}\",\"session_id\":\"{}\",\"ctx_id\":\"{}\",\
+         \"ts\":{},\"authority\":{:.4},\"caller_role\":\"{}\",\
+         \"novelty\":{:.4},\"verifiability\":{:.4},\"gate_score\":{:.4},\"max_cosine\":{:.4},\
+         \"node_ids\":{{\"state\":{},\"action\":{},\"outcome\":{}}}}}\n",
+        promotion_id, event_id, session_id, ctx_id,
+        ts, authority, caller_role,
+        novelty, verifiability, gate_score, max_cosine,
+        state_node_id, action_node_id, outcome_node_id
+    );
+    best_effort_append(&path, &line, "promotion_log");
 }
 
 /// Append `line` to `path`. Best-effort: log a warning on failure, never panic.
@@ -457,6 +495,15 @@ const TOOLS: &[ToolEntry] = &[
             Nodes that help succeed get longer memory; nodes that mislead get shorter memory. \
             This is the core learning loop: retrieve → act → observe → feedback.",
         schema: || schema_of::<MemoryFeedbackParams>(),
+    },
+    ToolEntry {
+        name: "memory_promote",
+        description: "Promote an unindexed or archived experience from Tier 0 (learn_log.jsonl) into the active graph. \
+            Under Option A, experiences with low authority or uncorroborated novelty are quarantined in Tier 0. \
+            This tool allows an authorized supervisor or human operator to review and promote an archived event \
+            by its event_id, granting elevated authority and indexing it into the active graph with explicit \
+            audit logging of novelty drift and promotion-time gate inspection.",
+        schema: || schema_of::<PromoteParams>(),
     },
 ];
 
@@ -1483,6 +1530,193 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
             ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
         }
         Err(e) => error_result(format!("Feedback failed: {e}")),
+    }
+}
+
+pub fn handle_memory_promote(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
+    let params: PromoteParams = match serde_json::from_value(args.clone()) {
+        Ok(p) => p,
+        Err(e) => return error_result(format!("Invalid arguments: {e}")),
+    };
+
+    let event_id = params.event_id.trim();
+    if event_id.is_empty() {
+        return error_result("event_id must not be empty");
+    }
+
+    if !params.authority.is_finite() || params.authority < 0.0 || params.authority > 1.0 {
+        return error_result("authority must be a finite number in [0.0, 1.0]");
+    }
+
+    // Role authentication: promotion is a trust escalation authorized by a supervisor or operator
+    let caller_role = match params.caller_role.as_deref().unwrap_or("user") {
+        "user" | "admin" => cmhm_core::CallerRole::User,
+        "system" => cmhm_core::CallerRole::System,
+        _ => cmhm_core::CallerRole::Agent,
+    };
+    if !caller_role.is_trusted() {
+        return error_result("Permission denied: promotion requires privileged role ('user' or 'system')");
+    }
+
+    let mut rt_lock = rt.lock();
+    let data_dir = rt_lock.data_dir().to_path_buf();
+    let session_id = rt_lock.session_id().to_string();
+
+    // 1. Scan Tier 0 learn_log.jsonl to locate the archived event
+    let learn_log_path = data_dir.join("learn_log.jsonl");
+    if !learn_log_path.exists() {
+        return error_result(format!(
+            "Tier 0 archive not found at {:?}. Cannot promote event '{event_id}'.",
+            learn_log_path
+        ));
+    }
+
+    let file = match std::fs::File::open(&learn_log_path) {
+        Ok(f) => f,
+        Err(e) => return error_result(format!("Failed to open learn_log.jsonl: {e}")),
+    };
+
+    let mut found_event: Option<Value> = None;
+    use std::io::BufRead;
+    let reader = std::io::BufReader::new(file);
+    for line in reader.lines() {
+        if let Ok(l) = line {
+            if let Ok(v) = serde_json::from_str::<Value>(&l) {
+                if v.get("event_id").and_then(|x| x.as_str()) == Some(event_id) {
+                    found_event = Some(v);
+                    break;
+                }
+            }
+        }
+    }
+
+    let event = match found_event {
+        Some(e) => e,
+        None => return error_result(format!("Event '{}' not found in Tier 0 learn_log.jsonl", event_id)),
+    };
+
+    let state = event.get("state").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let action = event.get("action").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let outcome = event.get("outcome").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let pe = event.get("prediction_error").and_then(|v| v.as_f64()).unwrap_or(0.5) as f32;
+    let eta = event.get("emotional_tag").and_then(|v| v.as_f64()).map(|v| v as f32).unwrap_or(0.5);
+    let original_ctx_id = event.get("ctx_id").and_then(|v| v.as_str()).unwrap_or("default").to_string();
+
+    // Target context: explicit parameter or original context
+    let target_ctx_str = params.context_id.as_deref().unwrap_or(&original_ctx_id);
+
+    // Resolve ctx_id string for logging
+    let ctx_id_str = rt_lock.list_contexts().iter()
+        .find(|c| c.id.to_string() == target_ctx_str || c.display_name == target_ctx_str)
+        .map(|c| c.id.to_string())
+        .unwrap_or_else(|| target_ctx_str.to_string());
+
+    // Generate embeddings (TEXT_MODEL_ID = "hash-128d")
+    let state_emb   = text_to_embedding(&state).to_vec();
+    let action_emb  = text_to_embedding(&action).to_vec();
+    let outcome_emb = text_to_embedding(&outcome).to_vec();
+
+    // 2. Promotion-time Gate Inspection (Novelty Drift Audit)
+    let inspection = rt_lock.inspect_gate_in_context(Some(target_ctx_str), &state_emb, TEXT_MODEL_ID, NodeType::State);
+    let max_cos = inspection.max_cosine;
+    let novelty = (1.0_f32 - max_cos).clamp(0.0, 2.0);
+    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, params.authority);
+    let kappa = rt_lock.config().gate_kappa;
+    let threshold = rt_lock.config().gate_threshold;
+    let enforce = rt_lock.config().enforce_gate;
+    let gate_score = novelty * (1.0 + kappa * pe.abs()) * verifiability;
+    let would_index = gate_score >= threshold;
+
+    // If gate is actively enforced and promotion STILL fails (e.g. identical text arrived in interim):
+    if enforce && !would_index {
+        let text = format!(
+            "## Memory Promotion Gated (Suppressed)\n\
+            **Event ID**: {}\n\
+            **Context**: {} ({})\n\
+            **Gate Inspection at Promotion Time**: max_cosine={:.3} novelty={:.3} verifiability={:.3} score={:.3} threshold={:.3}\n\n\
+            Promotion was suppressed by admission gate due to graph collision (near-duplicate memory already exists in active graph).",
+            event_id, target_ctx_str, ctx_id_str,
+            max_cos, novelty, verifiability, gate_score, threshold
+        );
+        return ToolCallResult { content: vec![ContentItem::text(text)], isError: None };
+    }
+
+    // 3. Ingest into active graph with elevated authority and Option 1 provenance
+    // Option 1: provenance is "user_explicit" (authorized by CallerRole::User),
+    // and supersedes is explicitly None.
+    let promotion_id = Uuid::new_v4().to_string();
+
+    match rt_lock.learn_with_context(
+        Some(target_ctx_str),
+        state_emb,
+        action_emb,
+        outcome_emb,
+        pe,
+        eta,
+        TEXT_MODEL_ID,
+        params.authority,
+        "user_explicit".to_string(),
+        None, // supersedes: null
+        caller_role,
+        None,
+        None,
+    ) {
+        Ok((result, ctx)) => {
+            // Auto-tagging: add promotion provenance to context routing tags if requested
+            if params.auto_tag {
+                let tags = vec![
+                    "promoted_from_archive".to_string(),
+                    format!("archive_event:{}", event_id),
+                ];
+                let _ = rt_lock.add_tags(Some(target_ctx_str), tags);
+            }
+
+            // Append to promotion audit log
+            append_promotion_log(
+                &data_dir,
+                &promotion_id,
+                event_id,
+                &session_id,
+                &ctx_id_str,
+                params.authority,
+                match caller_role {
+                    cmhm_core::CallerRole::User => "user",
+                    cmhm_core::CallerRole::System => "system",
+                    cmhm_core::CallerRole::Agent => "agent",
+                },
+                novelty,
+                verifiability,
+                gate_score,
+                max_cos,
+                result.state_node_id,
+                result.action_node_id,
+                result.outcome_node_id,
+            );
+
+            let text = format!(
+                "## Tier 0 Memory Successfully Promoted\n\
+                **Promotion ID**: {}\n\
+                **Original Event ID**: {}\n\
+                **Context**: {} ({})\n\
+                **Authority Granted**: {:.2} (Role: {:?})\n\
+                **Promotion Gate Inspection**: novelty={:.3} (max_cos={:.3}), verifiability={:.3}, score={:.3} (threshold={:.2})\n\n\
+                Node IDs created:\n\
+                - State:   {} (provenance: user_explicit [promoted])\n\
+                - Action:  {}\n\
+                - Outcome: {}\n\
+                - Context version: {}\n\n\
+                The quarantined experience is now indexed in the active causal graph.",
+                promotion_id, event_id,
+                ctx.display_name, ctx.id,
+                params.authority, caller_role,
+                novelty, max_cos, verifiability, gate_score, threshold,
+                result.state_node_id, result.action_node_id, result.outcome_node_id,
+                ctx.version
+            );
+
+            ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+        }
+        Err(e) => error_result(format!("Failed to index promoted memory: {e}")),
     }
 }
 

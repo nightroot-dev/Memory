@@ -310,6 +310,7 @@ pub fn default_authority()    -> f32    { 0.5 }
 pub fn default_context_type() -> ContextTypeParam { ContextTypeParam::Project }
 pub fn default_top_k()        -> usize  { 3 }
 pub fn default_true()         -> bool   { true }
+pub fn default_promote_authority() -> f32 { 0.85 }
 
 // --- Text-native Tool Schemas ------------------------------------------------
 //
@@ -457,4 +458,37 @@ pub struct MemoryFeedbackParams {
     /// **Enables join**: links this feedback to the retrieve log entry for offline analysis.
     /// Omit only if you cannot track retrieve IDs (no deduplication in that case).
     pub retrieve_id: Option<String>,
+}
+
+/// Promote an unindexed or archived experience from Tier 0 (`learn_log.jsonl`) into the active graph.
+///
+/// Under Option A (Fail-Closed Graph Boundary), experiences with low authority or uncorroborated
+/// novelty are preserved in Tier 0. This tool allows an authorized supervisor or human operator
+/// to review and promote an archived event by its `event_id`, elevating its authority and indexing
+/// it into the active graph with explicit provenance tracking.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PromoteParams {
+    /// The event_id of the archived experience in learn_log.jsonl to promote.
+    pub event_id: String,
+
+    /// Explicit target authority ∈ [0.1, 1.0] granted by the reviewing supervisor.
+    /// Default: 0.85 (elevated trust).
+    #[serde(default = "default_promote_authority")]
+    #[schemars(default = "default_promote_authority", range(min = 0.1, max = 1.0))]
+    pub authority: f32,
+
+    /// Caller role authorizing this promotion (e.g. "user" or "agent").
+    /// Defaults to "user" (privileged).
+    #[serde(default)]
+    pub caller_role: Option<String>,
+
+    /// Target context UUID or display name.
+    /// If omitted, uses the context specified in the original learn_log event (or default).
+    pub context_id: Option<String>,
+
+    /// Automatically append `"promoted_from_archive"` and `"archive_event:<id>"` tags.
+    /// Default: true.
+    #[serde(default = "default_true")]
+    #[schemars(default = "default_true")]
+    pub auto_tag: bool,
 }
