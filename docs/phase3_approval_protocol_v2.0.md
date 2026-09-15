@@ -2,7 +2,7 @@
 
 **Version:** 2.0
 **Supersedes:** v1.9 (SHA-256 F0736803B5E42F909E4FD89A7B7747FA2D9516CDD4085ECA0780E3DB51B22346, commit 7bcf24e)
-**Status:** DRAFT -- pending reviewer approval
+**Status:** GOVERNING -- approved by reviewer 2026-09-15, commit 9289c49
 
 ---
 
@@ -743,4 +743,4 @@ Section 16 from v1.9 is carried forward for historical reference. Attempt 3 has 
 
 ---
 
-*End of Phase 3 Approval Protocol v2.0 (DRAFT -- pending reviewer approval)*
+*End of Phase 3 Approval Protocol v2.0 (GOVERNING -- approved by reviewer 2026-09-15, commit 9289c49)*
