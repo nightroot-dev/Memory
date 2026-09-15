@@ -278,11 +278,14 @@ HARNESS CONFIGURATION MANDATE (v1.9, unchanged): The benchmark harness must run 
 | v1.9 scaffold freeze size | 42,721 bytes |
 | v1.9 auditor extension commit | 7c90c3af4a99187ec0caae352936720f18aa0eb5 |
 | v1.9 auditor audit_corpus_overlap.ps1 SHA-256 | 6FB3FD92DF80F760BE64E3B6C575FC4A5DF25CC55BE9171475FEC8D88E8ABFBA (27,543 bytes) |
-| v2.0 remediation retrieval.rs SHA-256 | [PENDING -- to be filled after v2.0 engine remediation] |
-| v2.0 remediation authority.rs SHA-256 | [PENDING -- to be filled if authority.rs changes] |
-| v2.0 scaffold freeze commit | [PENDING] |
-| v2.0 scaffold freeze SHA-256 | [PENDING] |
-| v2.0 auditor Source 5 commit | [PENDING] |
+| v2.0 remediation commit | e6ea363cb1fb60c3882f0dafa2629bca63f06929 |
+| v2.0 remediation retrieval.rs SHA-256 | BE6CE9DACA0D58ABAE6D56E378E6FE196DEF570ABF2D4825E747E1753CC397CA (23,253 bytes) |
+| v2.0 remediation authority.rs SHA-256 | A820C7791F85BBC6551C4BEA0DAEF4A6EC57DC94E810483422833ADB2FE85C16 (9,887 bytes, unchanged) |
+| v2.0 scaffold freeze commit | 079262da3ffcb0dfadfc65476a02dfbfca746816 |
+| v2.0 scaffold freeze SHA-256 | 80E9DDA6C0A78B2CEC0BFFA8F4B02E75D07E000F6470853E962BC855475144B5 |
+| v2.0 scaffold freeze size | 43,920 bytes |
+| v2.0 auditor Source 5 commit | 492edc252277d3aa057913364f9bfd5d7db9b47e |
+| v2.0 auditor audit_corpus_overlap.ps1 SHA-256 | 986C81A02BD9FDBC89C4FC80E63CE870CF8C16AA5BC8FB71623C45EF7D5A12A7 (34,592 bytes) |
 
 ### 10.2 Role B Ruling
 
@@ -666,11 +669,11 @@ Section 16 from v1.9 is carried forward for historical reference. Attempt 3 has 
 
 ### 17.1 Prerequisites (all must be complete before attempt 4 begins)
 
-1. Reviewer approval of v2.0 -- sign-off on all four disclosures in Section 14.8 (S1 pool-membership amendment, AA key rule amendment, TrustCompromised reformulation, runtime-consistency proof). [PENDING]
-2. Engine remediation committed -- changes per Section 14.7 v2.0 (retrieval.rs pool-based detection, TrustCompromised removed, authority.rs unchanged or updated if needed). New SHA-256 hashes of modified files recorded in Section 10.1. [PENDING]
-3. Synthetic pre-flight re-run -- phase3_synthetic_eval_tests.rs must pass 10/10. Gap-independence test passes. New pool-based-detection tests pass (Section 14.7 items 2-3). TrustCompromised-removed test passes. Any regression blocks attempt 4. [PENDING]
-4. Scaffold updated -- S1 eligibility measurement updated (pool-presence); Section 12.3 conformance check extended (expected_abstain validation, AA key rule). SCENARIOS cleared to placeholder; bench file frozen at new commit; identity recorded in Section 10.1. [PENDING]
-5. Overlap auditor extended (Source 5) -- audit_corpus_overlap.ps1 extended with 43 hardcoded attempt-3 query strings (from commit a58bc0a), exact mechanism as Sources 3 and 4. Self-test extended with at least one Source-5 live-fire positive. Commit identity recorded in Section 10.1. [PENDING]
+1. Reviewer approval of v2.0 -- sign-off on all four disclosures in Section 14.8 (S1 pool-membership amendment, AA key rule amendment, TrustCompromised reformulation, runtime-consistency proof). [COMPLETE -- reviewer approved 2026-09-15, commit 9289c49 / a455cbf]
+2. Engine remediation committed -- changes per Section 14.7 v2.0 (retrieval.rs pool-based detection, TrustCompromised removed, authority.rs unchanged). New SHA-256 hashes recorded in Section 10.1. [COMPLETE -- commit e6ea363]
+3. Synthetic pre-flight re-run -- phase3_synthetic_eval_tests.rs passes 10/10. Gap-independence test passes. New pool-based-detection tests pass (Section 14.7 items 2-3). TrustCompromised-removed test passes. [COMPLETE -- 10/10 synthetic eval pass; 4/4 gap independence pass]
+4. Scaffold updated -- S1 eligibility measurement updated (pool-presence); Section 12.3 conformance check extended (expected_abstain validation, AA key rule). SCENARIOS cleared to placeholder; bench file frozen at new commit; identity recorded in Section 10.1. [COMPLETE -- commit 079262d, SHA-256 80E9DDA6...]
+5. Overlap auditor extended (Source 5) -- audit_corpus_overlap.ps1 extended with 43 hardcoded attempt-3 query strings (from commit a58bc0a), exact mechanism as Sources 3 and 4. Self-test extended with at least one Source-5 live-fire positive. Commit identity recorded in Section 10.1. [COMPLETE -- commit 492edc2, SHA-256 986C81A0..., 10/10 self-tests pass]
 6. Corpus v4 authored by Role B -- per Section 4.4 v2.0 (note amended AA key rule: neg_key must differ from pos_key for AA scenarios), Section 4.1-4.3, and Section 17.2. Zero reuse from corpora v1, v2, v3. [PENDING]
 7. Role B explicit authorization -- sign-off that corpus v4 is ready for transcription. [PENDING]
 
