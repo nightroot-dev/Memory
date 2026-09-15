@@ -92,6 +92,13 @@ pub enum Command {
     GetBirthQ30 {
         tx: mpsc::SyncSender<f32>,
     },
+    /// Inspect neighborhood evidence for ingestion gating: max cosine, nearest node bandit, cohort distance.
+    InspectGate {
+        query_emb: Vec<f32>,
+        model_id: String,
+        node_type: NodeType,
+        tx: mpsc::SyncSender<GateInspectionResult>,
+    },
     Snapshot {
         path: PathBuf,
         tx: mpsc::SyncSender<Result<()>>,
@@ -198,6 +205,19 @@ pub struct LearnResult {
     pub effective_authority: f32,
     /// Effective provenance after role-based normalization — this is what was durably stored.
     pub effective_provenance: String,
+}
+
+/// Result of an InspectGate query for ingestion gating.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GateInspectionResult {
+    /// Maximum cosine similarity to any existing node of the requested NodeType.
+    pub max_cosine: f32,
+    /// ID of the nearest node (if any).
+    pub nearest_node_id: Option<u64>,
+    /// Bandit Beta posterior (alpha, beta) of the nearest node.
+    pub nearest_bandit: Option<(f32, f32)>,
+    /// Distance from the query embedding to its assigned cohort centroid.
+    pub cohort_dist: Option<f32>,
 }
 
 // ─── Engine Handle ─────────────────────────────────────────────────────────
@@ -340,6 +360,36 @@ impl EngineHandle {
             return 0.0; // engine shut down
         }
         resp_rx.recv().unwrap_or(0.0)
+    }
+
+    /// Read-only gate inspection: computes max cosine, nearest node metadata (bandit priors),
+    /// and cohort centroid distance without mutating graph state or writing to WAL.
+    pub fn inspect_gate(
+        &self,
+        query_emb: &[f32],
+        model_id: &str,
+        node_type: NodeType,
+    ) -> GateInspectionResult {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::InspectGate {
+            query_emb: query_emb.to_vec(),
+            model_id: model_id.to_string(),
+            node_type,
+            tx: resp_tx,
+        }).is_err() {
+            return GateInspectionResult {
+                max_cosine: 0.0,
+                nearest_node_id: None,
+                nearest_bandit: None,
+                cohort_dist: None,
+            };
+        }
+        resp_rx.recv().unwrap_or(GateInspectionResult {
+            max_cosine: 0.0,
+            nearest_node_id: None,
+            nearest_bandit: None,
+            cohort_dist: None,
+        })
     }
 
     /// Number of nodes currently in the node store. Read-only — no WAL write.
@@ -821,6 +871,27 @@ fn worker_loop(
                     None     => state.node_store.max_cosine_to_existing(&query_emb, &model_id),
                 };
                 let _ = tx.send(score);
+            }
+
+            Command::InspectGate { query_emb, model_id, node_type, tx } => {
+                // Read-only — no WAL, no state change.
+                let nearest = state.node_store.nearest_by_type(&query_emb, &model_id, 1, node_type);
+                let (max_cosine, nearest_node_id, nearest_bandit) = if let Some(&(id, sim)) = nearest.first() {
+                    let bandit = state.node_store.get(id).map(|n| (n.bandit_alpha, n.bandit_beta));
+                    (sim, Some(id), bandit)
+                } else {
+                    (0.0, None, None)
+                };
+                let c_idx = state.cohorts.label(&query_emb);
+                let cohort_dist = state.cohorts.centroids.get(c_idx).map(|c| {
+                    query_emb.iter().zip(c.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f32>().sqrt()
+                });
+                let _ = tx.send(GateInspectionResult {
+                    max_cosine,
+                    nearest_node_id,
+                    nearest_bandit,
+                    cohort_dist,
+                });
             }
 
             Command::NodeCount { tx } => {

@@ -131,6 +131,24 @@ pub struct Config {
     ///      "downgrade" — hence the name `incompatible_snapshot_reset`.
     #[serde(default = "default_allow_incompatible_snapshot_reset")]
     pub allow_incompatible_snapshot_reset: bool,
+
+    /// When true, memory ingestion enforces the admission gate and suppresses
+    /// insertion of near-duplicate, low-information experiences when gate_score < gate_threshold.
+    /// When false (default), the gate operates in shadow mode: decisions are evaluated and logged
+    /// to gate_shadow_log.jsonl, but insertion always proceeds.
+    #[serde(default = "default_enforce_gate")]
+    pub enforce_gate: bool,
+
+    /// Ingestion gate admission threshold.
+    /// gate_score = novelty * (1.0 + gate_kappa * |prediction_error|) * verifiability.
+    /// Default: 0.35 (aligned with edge_birth_threshold).
+    #[serde(default = "default_gate_threshold")]
+    pub gate_threshold: f32,
+
+    /// Weight on |prediction_error| in the gate score formula.
+    /// Default: 2.0.
+    #[serde(default = "default_gate_kappa")]
+    pub gate_kappa: f32,
 }
 
 impl Default for Config {
@@ -168,6 +186,9 @@ impl Default for Config {
             conflict_detection_threshold:  0.0,
             abstain_on_conflict:           true,
             allow_incompatible_snapshot_reset: false,
+            enforce_gate:                  false,
+            gate_threshold:                0.35,
+            gate_kappa:                    2.0,
         }
     }
 }
@@ -181,6 +202,9 @@ fn default_retrieval_recency_lambda()      -> f32  { 0.01 }
 fn default_conflict_detection_threshold()  -> f32  { 0.0 }
 fn default_abstain_on_conflict()           -> bool { true }
 fn default_allow_incompatible_snapshot_reset() -> bool { false }
+fn default_enforce_gate()                  -> bool { false }
+fn default_gate_threshold()                -> f32  { 0.35 }
+fn default_gate_kappa()                    -> f32  { 2.0 }
 
 
 impl Config {

@@ -527,6 +527,165 @@ fn shadow_gate_never_suppresses_insertion() {
     assert_ne!(r3.isError, Some(true), "Subsequent learn after low-novelty inserts must succeed");
 }
 
+// ── T-FIX3c: Gate Schema v2 Validation ────────────────────────────────────────
+
+#[test]
+fn gate_shadow_log_schema_v2_validation() {
+    let tmp = TempDir::new().unwrap();
+    let rt  = make_runtime(&tmp);
+
+    let args = json!({
+        "state":  "unique test state for schema validation",
+        "action": "unique test action",
+        "outcome":"unique test outcome",
+        "prediction_error": 0.45,
+        "auto_tag": false
+    });
+    let r = dispatch("memory_learn_text", &rt, &args).unwrap();
+    assert_ne!(r.isError, Some(true));
+
+    let gate_log = tmp.path().join("gate_shadow_log.jsonl");
+    assert!(gate_log.exists());
+    let log_content = std::fs::read_to_string(&gate_log).unwrap();
+    let line = log_content.lines().next().expect("Must have at least one line");
+    let v: Value = serde_json::from_str(line).expect("Must parse as JSON");
+
+    assert_eq!(v["v"], 2, "Schema version must be 2");
+    assert_eq!(v["policy_v"], 2, "Policy version must be 2");
+    assert!(v["verifiability"].as_f64().unwrap() > 0.0, "verifiability must be positive");
+    assert!(v["verifiability"].as_f64().unwrap() <= 1.0, "verifiability must be <= 1.0");
+    assert_eq!(v["enforced"], false, "enforced must be false under default shadow mode");
+    assert!(v["threshold"].as_f64().unwrap() > 0.0, "threshold must be positive");
+}
+
+// ── T-FIX3d: Gate Enforcement Mode Suppresses Redundant Ingestion ─────────────
+
+#[test]
+fn gate_enforcement_mode_suppresses_redundant_when_enabled() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = Config {
+        data_dir: tmp.path().to_path_buf(),
+        enforce_gate: true,
+        gate_threshold: 0.35,
+        ..Config::default()
+    };
+    let rt = Arc::new(Mutex::new(ContextRuntime::new(cfg, "test-session".to_string()).unwrap()));
+
+    // 1. First learn: virgin state -> novelty = 1.0 -> passes gate
+    let args1 = json!({
+        "state":  "cluster alpha baseline pattern",
+        "action": "execute baseline run",
+        "outcome":"normal operating behavior",
+        "prediction_error": 0.1,
+        "auto_tag": false
+    });
+    let r1 = dispatch("memory_learn_text", &rt, &args1).unwrap();
+    assert_ne!(r1.isError, Some(true), "First learn must succeed");
+    let text1 = &r1.content[0].text;
+    assert!(text1.contains("Memory Learned"), "First learn must insert nodes");
+    assert!(text1.contains("Gate (enforced)"), "Should show Gate (enforced)");
+
+    let n1 = rt.lock().node_count(None);
+    assert_eq!(n1, 3, "First learn must create exactly 3 nodes (State, Action, Outcome)");
+
+    // 2. Second learn: exact duplicate state with low prediction error (0.05)
+    // novelty ≈ 0 -> gate_score < 0.35 -> MUST BE SUPPRESSED
+    let r2 = dispatch("memory_learn_text", &rt, &args1).unwrap();
+    assert_ne!(r2.isError, Some(true), "Suppressed learn is a clean policy result, not an error");
+    let text2 = &r2.content[0].text;
+    assert!(
+        text2.contains("SUPPRESSED") || text2.contains("Suppressed"),
+        "Second learn must be suppressed by gate: {text2}"
+    );
+
+    let n2 = rt.lock().node_count(None);
+    assert_eq!(n2, n1, "Suppressed learn must NOT increase node count: n1={n1}, n2={n2}");
+
+    // Tier 0 invariant: learn_log.jsonl must still contain both attempts
+    let learn_log = tmp.path().join("learn_log.jsonl");
+    assert!(learn_log.exists(), "learn_log.jsonl must exist");
+    let learn_content = std::fs::read_to_string(&learn_log).unwrap();
+    let learn_entries = learn_content.lines().filter(|l| !l.trim().is_empty()).count();
+    assert_eq!(learn_entries, 2, "Tier 0 learn archive must record both attempts even when gated");
+
+    // gate_shadow_log must record would_index=false, enforced=true for second learn
+    let gate_log = tmp.path().join("gate_shadow_log.jsonl");
+    assert!(gate_log.exists());
+    let gate_content = std::fs::read_to_string(&gate_log).unwrap();
+    let gate_lines: Vec<&str> = gate_content.lines().filter(|l| !l.trim().is_empty()).collect();
+    assert_eq!(gate_lines.len(), 2);
+    let v2: Value = serde_json::from_str(gate_lines[1]).unwrap();
+    assert_eq!(v2["would_index"], false, "Second learn must have would_index=false");
+    assert_eq!(v2["enforced"], true, "enforced flag must be true");
+
+    // 3. Third learn: completely distinct state with high prediction error -> passes gate
+    let args3 = json!({
+        "state":  "completely different topic on security infrastructure",
+        "action": "revoke authentication token",
+        "outcome":"service returned unauthorized",
+        "prediction_error": 0.8,
+        "auto_tag": false
+    });
+    let r3 = dispatch("memory_learn_text", &rt, &args3).unwrap();
+    assert_ne!(r3.isError, Some(true));
+    let text3 = &r3.content[0].text;
+    assert!(text3.contains("Memory Learned"), "Novel learn must succeed");
+    let n3 = rt.lock().node_count(None);
+    assert!(n3 > n2, "Novel learn must add nodes to graph: n2={n2}, n3={n3}");
+}
+
+// ── T-FIX3e: Raw Vector memory_learn Gate Logging ─────────────────────────────
+
+#[test]
+fn raw_memory_learn_shadow_gate_logging() {
+    let tmp = TempDir::new().unwrap();
+    let rt  = make_runtime(&tmp);
+
+    let l = json!({
+        "state_embedding": dummy_embedding(5),
+        "action_embedding": dummy_embedding(6),
+        "outcome_embedding": dummy_embedding(7),
+        "prediction_error": 0.35,
+        "authority": 0.80,
+        "provenance": "user_explicit",
+    });
+    let r = dispatch("memory_learn", &rt, &l).unwrap();
+    assert_ne!(r.isError, Some(true));
+    let text = &r.content[0].text;
+    assert!(text.contains("Gate (shadow)"), "memory_learn response must contain Gate (shadow): {text}");
+
+    let gate_log = tmp.path().join("gate_shadow_log.jsonl");
+    assert!(gate_log.exists(), "gate_shadow_log must exist after memory_learn");
+    let learn_log = tmp.path().join("learn_log.jsonl");
+    assert!(learn_log.exists(), "learn_log must exist after memory_learn");
+}
+
+// ── T-FIX3f: LFA Verifiability Unit Computation ───────────────────────────────
+
+#[test]
+fn lfa_verifiability_unit_computation() {
+    // 1. Virgin state without feedback -> equals authority (clamped in [0.1, 1.0])
+    let v1 = tools::compute_lfa_verifiability(None, 0.85);
+    assert!((v1 - 0.85).abs() < 1e-4);
+
+    let v_floor = tools::compute_lfa_verifiability(None, 0.0);
+    assert!((v_floor - 0.1).abs() < 1e-4, "Floor must be 0.1 for zero authority");
+
+    // 2. State with high empirical success: alpha=11, beta=1 -> s=10, f=0, n=10
+    // LCB is high -> pulls verifiability up
+    let v_succ = tools::compute_lfa_verifiability(Some((11.0, 1.0)), 0.5);
+    assert!(v_succ > 0.5, "Positive feedback must pull verifiability above neutral 0.5: got {v_succ}");
+
+    // 3. State with high empirical failure: alpha=1, beta=11 -> s=0, f=10, n=10
+    // LCB is ~0 -> pulls verifiability down
+    let v_fail = tools::compute_lfa_verifiability(Some((1.0, 11.0)), 0.5);
+    assert!(v_fail < 0.5, "Negative feedback must pull verifiability below neutral 0.5: got {v_fail}");
+
+    // 4. Large sample dominance: as N grows, empirical feedback dominates source authority
+    let v_large_succ = tools::compute_lfa_verifiability(Some((101.0, 1.0)), 0.1);
+    assert!(v_large_succ > 0.8, "Large positive feedback must dominate low initial authority: got {v_large_succ}");
+}
+
 
 // ── Test 13: E1a–E1f — Explicit Retrieval Intent Enforcement ──────────────────
 

@@ -89,6 +89,11 @@ impl ContextRuntime {
         &self.cfg.data_dir
     }
 
+    /// Return reference to runtime Config.
+    pub fn config(&self) -> &crate::config::Config {
+        &self.cfg
+    }
+
     // ── Feedback idempotency ─────────────────────────────────────────────────
 
     /// Returns true if feedback for this retrieve_id has already been applied.
@@ -369,6 +374,39 @@ impl ContextRuntime {
         match self.cache.get(&id) {
             Some(handle) => handle.max_cosine_to_existing(query_emb, model_id, Some(node_type)),
             None => 0.0, // not loaded → treat as novel
+        }
+    }
+
+    /// Ingest-gate inspection: computes max cosine, nearest node metadata (bandit priors),
+    /// and cohort centroid distance without mutating graph state or writing to WAL.
+    ///
+    /// Pass `NodeType::State` for the standard state-novelty check (role-scoped).
+    /// Returns default (max_cos=0.0, none) on empty or unloaded context (treated as fully novel).
+    /// Does NOT load the context from disk if sleeping.
+    pub fn inspect_gate_in_context(
+        &mut self,
+        context_id: Option<&str>,
+        query_emb: &[f32],
+        model_id: &str,
+        node_type: NodeType,
+    ) -> crate::engine::GateInspectionResult {
+        let id = match self.resolve_context(context_id) {
+            Ok(id) => id,
+            Err(_) => return crate::engine::GateInspectionResult {
+                max_cosine: 0.0,
+                nearest_node_id: None,
+                nearest_bandit: None,
+                cohort_dist: None,
+            },
+        };
+        match self.cache.get(&id) {
+            Some(handle) => handle.inspect_gate(query_emb, model_id, node_type),
+            None => crate::engine::GateInspectionResult {
+                max_cosine: 0.0,
+                nearest_node_id: None,
+                nearest_bandit: None,
+                cohort_dist: None,
+            },
         }
     }
 

@@ -1,6 +1,3 @@
-mod schema;
-mod tools;
-
 use std::io::{self, BufRead, Write};
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -10,8 +7,8 @@ use tracing::info;
 
 use cmhm_core::{Config, ContextRuntime};
 use uuid::Uuid;
-use schema::{JsonRpcRequest, JsonRpcResponse, ToolCallParams, InitializeResult, ToolsListResult};
-use tools::SharedRuntime;
+use cmhm_mcp_lib::schema::{self, JsonRpcRequest, JsonRpcResponse, ToolCallParams, InitializeResult, ToolsListResult};
+use cmhm_mcp_lib::tools::{self, SharedRuntime};
 // dispatch() lives in lib.rs — single source of truth, testable
 use cmhm_mcp_lib::dispatch;
 

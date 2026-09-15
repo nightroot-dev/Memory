@@ -18,22 +18,21 @@ use crate::schema::{
 /// Must match `HashEmbedder::model_id()` so nodes stored by text tools are
 /// retrievable by embedding tools (and vice versa) when the same hash backend is active.
 /// When the `onnx` feature is enabled and adopted, update this to `"minilm-l6-v2-int8-384d"`.
-const TEXT_MODEL_ID: &str = "hash-128d";
+pub const TEXT_MODEL_ID: &str = "hash-128d";
 
 /// Shadow gate policy version — bump when the gate formula changes.
 /// All gate_shadow_log.jsonl entries are stamped with this so decisions
 /// can be compared across formula versions during retrospective analysis.
-const GATE_POLICY_V: u32 = 1;
+pub const GATE_POLICY_V: u32 = 2;
 
 /// Shadow gate κ (kappa): weight on prediction_error in the gate score formula.
-/// gate_score = novelty × (1 + κ × |prediction_error|)
+/// gate_score = novelty × (1 + κ × |prediction_error|) × verifiability
 /// κ=2.0 makes a fully-surprising event (pe=1.0) worth 3× a neutral event (pe=0.0).
-const GATE_KAPPA: f32 = 2.0;
+pub const GATE_KAPPA: f32 = 2.0;
 
-/// Shadow gate threshold for "would_index" decision.
-/// gate_score >= GATE_THRESHOLD → would be indexed if gate were hard.
-/// Currently shadow-only: insertion always proceeds regardless of this value.
-const GATE_THRESHOLD: f32 = 1.0;
+/// Default shadow gate threshold for "would_index" decision when not configured.
+/// Calibrated on hash-128d to separate near-duplicate clutter from informative experiences.
+pub const GATE_THRESHOLD: f32 = 0.35;
 
 // ─── Sidecar log writers ─────────────────────────────────────────────────────
 //
@@ -65,7 +64,6 @@ fn append_retrieve_log(
     query_repr:  &str,
     chain:       &[(u64, u64, f32)], // (from_node, to_node, mean_weight)
 ) {
-    use std::io::Write;
     let path = data_dir.join("retrieve_log.jsonl");
     let ts = unix_ms();
     // Build shown array: [{"fn":X,"tn":Y,"score":Z}]
@@ -108,7 +106,6 @@ fn append_learn_archive(
     emotional_tag:    Option<f32>,
     tags:             &[String],
 ) {
-    use std::io::Write;
     let path = data_dir.join("learn_log.jsonl");
     let ts = unix_ms();
     let eta_json = match emotional_tag {
@@ -135,36 +132,70 @@ fn append_learn_archive(
     best_effort_append(&path, &line, "learn_log");
 }
 
+/// Compute LFA verifiability V ∈ (0.0, 1.0] for ingestion gating.
+///
+/// Combines empirical evidence (Wilson score Lower Confidence Bound over nearest node's
+/// feedback track record) with caller-authorized source trust:
+/// - If empirical feedback is available (N = successes + failures > 0):
+///   computes Wilson LCB at 95% confidence on the observed success rate, blended with
+///   the authorized source trust via sample-size shrinkage:
+///     w = N / (N + 4.0)
+///     V = (1 - w) * authority + w * LCB
+/// - If no empirical feedback is available (virgin state region):
+///   V = max(0.1, authority).
+pub fn compute_lfa_verifiability(
+    nearest_bandit: Option<(f32, f32)>,
+    authority: f32,
+) -> f32 {
+    let base_auth = authority.clamp(0.0, 1.0);
+    if let Some((alpha, beta)) = nearest_bandit {
+        let s = (alpha - 1.0).max(0.0) as f64;
+        let f = (beta - 1.0).max(0.0) as f64;
+        let n = s + f;
+        if n > 0.0 {
+            let (lcb, _) = cmhm_core::consolidation::wilson_ci(s, n);
+            let w = (n / (n + 4.0)) as f32;
+            return ((1.0 - w) * base_auth + w * (lcb as f32)).clamp(0.01, 1.0);
+        }
+    }
+    base_auth.clamp(0.1, 1.0)
+}
+
 /// Append one line to `gate_shadow_log.jsonl`.
 ///
-/// Logs the shadow gate's per-event decision: all components, the score,
-/// and whether it "would have" been indexed if the gate were hard.
-/// The insertion always proceeds regardless (shadow = observe only).
+/// Logs the ingestion gate's per-event decision: all components, the score,
+/// and whether it would be indexed.
+/// In shadow mode (enforce=false), insertion always proceeds regardless.
 ///
-/// Schema v=1:
+/// Schema v=2:
 /// ```json
-/// { "v":1, "event_id":"<uuid>", "ts":<unix_ms>, "ctx_id":"<uuid>",
+/// { "v":2, "event_id":"<uuid>", "ts":<unix_ms>, "ctx_id":"<uuid>",
 ///   "novelty":<f32>, "prediction_error":<f32>, "verifiability":<f32>,
-///   "gate_score":<f32>, "threshold":<f32>, "would_index":<bool>, "policy_v":1 }
+///   "gate_score":<f32>, "threshold":<f32>, "would_index":<bool>,
+///   "policy_v":2, "enforced":<bool> }
 /// ```
+#[allow(clippy::too_many_arguments)]
 fn append_gate_shadow_log(
     data_dir:         &std::path::Path,
     event_id:         &str,
     ctx_id:           &str,
     novelty:          f32,
     prediction_error: f32,
+    verifiability:    f32,
     gate_score:       f32,
+    threshold:        f32,
+    enforced:         bool,
 ) {
     let path = data_dir.join("gate_shadow_log.jsonl");
     let ts = unix_ms();
-    let would_index = gate_score >= GATE_THRESHOLD;
+    let would_index = gate_score >= threshold;
     let line = format!(
-        "{{\"v\":1,\"event_id\":\"{}\",\"ts\":{},\"ctx_id\":\"{}\",\
-         \"novelty\":{:.4},\"prediction_error\":{:.4},\"verifiability\":1.0,\
-         \"gate_score\":{:.4},\"threshold\":{:.4},\"would_index\":{},\"policy_v\":{}}}\n",
+        "{{\"v\":2,\"event_id\":\"{}\",\"ts\":{},\"ctx_id\":\"{}\",\
+         \"novelty\":{:.4},\"prediction_error\":{:.4},\"verifiability\":{:.4},\
+         \"gate_score\":{:.4},\"threshold\":{:.4},\"would_index\":{},\"policy_v\":{},\"enforced\":{}}}\n",
         event_id, ts, ctx_id,
-        novelty, prediction_error,
-        gate_score, GATE_THRESHOLD, would_index, GATE_POLICY_V
+        novelty, prediction_error, verifiability,
+        gate_score, threshold, would_index, GATE_POLICY_V, enforced
     );
     best_effort_append(&path, &line, "gate_shadow_log");
 }
@@ -609,6 +640,56 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
+    let session_id = rt.session_id().to_string();
+    let data_dir = rt.data_dir().to_path_buf();
+
+    // Resolve ctx_id string for logging (best-effort — don't fail learn if this fails)
+    let ctx_id_str = rt.list_contexts().iter()
+        .find(|c| ctx_id.map_or(c.display_name == "default", |id| c.id.to_string() == id || c.display_name == id))
+        .map(|c| c.id.to_string())
+        .unwrap_or_else(|| ctx_id.unwrap_or("default").to_string());
+
+    let event_id = Uuid::new_v4().to_string();
+
+    // Tier 0 learn archive: archive BEFORE gate and BEFORE engine write
+    append_learn_archive(
+        &data_dir, &event_id, &session_id, &ctx_id_str,
+        "learn",
+        "<raw vector>", "<raw vector>", "<raw vector>",
+        params.prediction_error, Some(params.emotional_tag), &[],
+    );
+
+    // Ingestion Gate (Policy v2: Wilson LCB verifiability + configurable enforcement)
+    let inspection = rt.inspect_gate_in_context(ctx_id, &state_emb, &params.model_id, NodeType::State);
+    let max_cos = inspection.max_cosine;
+    let novelty = (1.0_f32 - max_cos).clamp(0.0, 2.0);
+    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, params.authority);
+    let kappa = rt.config().gate_kappa;
+    let threshold = rt.config().gate_threshold;
+    let enforce = rt.config().enforce_gate;
+    let gate_score = novelty * (1.0 + kappa * params.prediction_error.abs()) * verifiability;
+    let would_index = gate_score >= threshold;
+
+    append_gate_shadow_log(
+        &data_dir, &event_id, &ctx_id_str,
+        novelty, params.prediction_error, verifiability,
+        gate_score, threshold, enforce,
+    );
+
+    if enforce && !would_index {
+        let text = format!(
+            "## CMHM Learning Signal Gated (Suppressed)\n\
+            **Context**: {} ({})\n\
+            **Outcome**: SUPPRESSED (e = {:.3})\n\
+            **Gate (enforced)**: novelty={:.3} verifiability={:.3} score={:.3} threshold={:.3} would_index=false\n\n\
+            Experience suppressed by admission gate to prevent redundant node clutter.\n\
+            Raw event was durably archived to Tier 0 learn_log.",
+            ctx_id_str, ctx_id_str,
+            params.prediction_error,
+            novelty, verifiability, gate_score, threshold,
+        );
+        return ToolCallResult { content: vec![ContentItem::text(text)], isError: None };
+    }
 
     // Normalize provenance at the MCP ingestion boundary (same policy as handle_learn_text).
     let provenance = if KNOWN_PROVENANCE_CLASSES.contains(&params.provenance.as_str()) {
@@ -637,10 +718,12 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 
         Ok((result, ctx)) => {
             let outcome_label = if params.prediction_error <= 0.7 { "SUCCESS" } else { "FAILURE" };
+            let gate_label = if enforce { "Gate (enforced)" } else { "Gate (shadow)" };
             let text = format!(
                 "## CMHM Learning Signal Processed\n\
                 **Context**: {} ({})\n\
-                **Outcome**: {} (e = {:.3})\n\n\
+                **Outcome**: {} (e = {:.3})\n\
+                **{gate_label}**: novelty={:.3} score={:.3} would_index={}\n\n\
                 Node IDs created/found:\n\
                 - State:   {}\n\
                 - Action:  {}\n\
@@ -649,6 +732,7 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 The causal graph has been updated.",
                 ctx.display_name, ctx.id,
                 outcome_label, params.prediction_error,
+                novelty, gate_score, would_index,
                 result.state_node_id, result.action_node_id, result.outcome_node_id,
                 ctx.version,
             );
@@ -1040,16 +1124,36 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         pe, Some(eta), &tags_for_archive,
     );
 
-    // ── Fix 3: Shadow gate (observe only, never suppress insertion) ─────────
-    // novelty = 1 − max_cos(new_state_emb, existing STATE nodes in ctx)
-    // Role-scoped: only STATE nodes are relevant for state novelty.
-    // gate_score = novelty × (1 + κ × |prediction_error|)
-    // verifiability = 1.0 (placeholder; Wilson LCB not yet implemented)
-    // Insertion always proceeds regardless of gate_score.
-    let max_cos  = rt_lock.max_cosine_in_context(ctx_id, &state_emb, TEXT_MODEL_ID, NodeType::State);
-    let novelty  = 1.0_f32 - max_cos;
-    let gate_score = novelty * (1.0 + GATE_KAPPA * pe.abs());
-    append_gate_shadow_log(&data_dir, &event_id, &ctx_id_str, novelty, pe, gate_score);
+    // ── Fix 3: Ingestion Gate (Policy v2: Wilson LCB verifiability + configurable enforcement) ──
+    let inspection = rt_lock.inspect_gate_in_context(ctx_id, &state_emb, TEXT_MODEL_ID, NodeType::State);
+    let max_cos  = inspection.max_cosine;
+    let novelty  = (1.0_f32 - max_cos).clamp(0.0, 2.0);
+    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, params.authority);
+    let kappa = rt_lock.config().gate_kappa;
+    let threshold = rt_lock.config().gate_threshold;
+    let enforce = rt_lock.config().enforce_gate;
+    let gate_score = novelty * (1.0 + kappa * pe.abs()) * verifiability;
+    let would_index = gate_score >= threshold;
+
+    append_gate_shadow_log(
+        &data_dir, &event_id, &ctx_id_str,
+        novelty, pe, verifiability, gate_score, threshold, enforce,
+    );
+
+    if enforce && !would_index {
+        let text = format!(
+            "## Memory Ingestion Gated (Suppressed)\n\
+            **Context**: {} ({})\n\
+            **Outcome**: SUPPRESSED (prediction_error: {:.2})\n\
+            **Gate (enforced)**: novelty={:.3} verifiability={:.3} score={:.3} threshold={:.3} would_index=false\n\n\
+            Experience suppressed by admission gate to prevent redundant node clutter.\n\
+            Raw event was durably archived to Tier 0 learn_log.",
+            ctx_id_str, ctx_id_str,
+            pe,
+            novelty, verifiability, gate_score, threshold,
+        );
+        return ToolCallResult { content: vec![ContentItem::text(text)], isError: None };
+    }
 
     // Normalize provenance at the MCP ingestion boundary.
     // Only recognized classes pass through; unknown strings are demoted to "" (neutral)
@@ -1096,14 +1200,14 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             } else {
                 String::new()
             };
-            let would_index = gate_score >= GATE_THRESHOLD;
+            let gate_label = if enforce { "Gate (enforced)" } else { "Gate (shadow)" };
             let text = format!(
                 "## Memory Learned (text)\n\
                 **Context**: {} ({})\n\
                 **Outcome**: {} (prediction_error: {:.2})\n\
                 **Node IDs**: state={} action={} outcome={}\n\
                 **Auto-tagged**: {}{}\n\
-                **Gate (shadow)**: novelty={:.3} score={:.3} would_index={}\n\n\
+                **{gate_label}**: novelty={:.3} score={:.3} would_index={}\n\n\
                 State → Action → Outcome stored as causal graph nodes.\n\
                 Use `memory_retrieve_text` with a similar query to recall this experience.",
                 ctx.display_name, ctx.id,
