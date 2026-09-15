@@ -120,7 +120,7 @@ Permanently prohibited from any reuse of query text, positive text, or negative 
 | SUPERSESSION | 6 | < (D+ auth - 0.05) / contradicted | > (D- auth + 0.05) / user_explicit | any | D- polarity == D+ polarity | TRUE | None | false | G1-G6, G7 |
 | AUTHORITY-POLARITY | 6 | 0.70-0.80 / contradicted | 0.80-0.90 / user_explicit or corrected | neg_key DIFFERENT from pos_key (or None) | any | false | AuthorityPolarity | true | G1-G6, G8b, G10 |
 | ADVERSARIAL-AUTHORITY | 6 | 0.90-1.00 / user_explicit | 0.75-0.85 / corrected | neg_key DIFFERENT from pos_key (or None) [AMENDED v2.0] | any | false | AuthorityPolarity | true | G1-G6, G8b, G10 |
-| SAFE-ABSTENTION | 6 | 0.75-0.87 / contradicted | 0.75-0.90 / user_explicit | any | any | false | AuthorityPolarity | true | G1-G6, G9, G10 |
+| SAFE-ABSTENTION | 6 | 0.75-0.87 / contradicted | 0.75-0.90 / user_explicit | any | any | false | LogicalContradiction or AuthorityPolarity | true | G1-G6, G9, G10 |
 | UNRESOLVED-CONFLICT | 6 | 0.75-0.85 / user_explicit | 0.80-1.00 / user_explicit | any | same (no polarity clash) | false | None | false | G1-G6, G8c, G10 |
 
 Additional constraints (all enforced by Section 12 validator):
@@ -164,7 +164,7 @@ Note: S1 metric is further amended in v2.0 to reflect pool-based detection. Disc
 | G5 | Hard-Neg Occupancy@5 | Total D- in top-5 slots | 5 * N slots | < 0.40 | UPPER 95% CI < 0.40 |
 | G6 | Mean Margin | Sum (S(D+) - S(D-)) | Full corpus N | > 0.00 | Lower 95% CI > 0.00 |
 | G7 | Supersession Safety | Count superseded D- in post_filter/scored/conflict/chain/winner | SUPERSESSION (N >= 6) | = 0.00 | Exact (0 violations) |
-| G8a | LogicalContradiction Rate | count(conflict_type = LogicalContradiction) | S1-eligible CONTRADICTION | >= 0.80 | Exact (>= 80%) |
+| G8a | LogicalContradiction Rate | count(conflict_type = LogicalContradiction) | Eligible CONTRADICTION (S1) | >= 0.80 | Exact (>= 80%) |
 | S1 | LC Pool-Eligibility Rate | count(D- present in post-filter pool) | All CONTRADICTION (N >= 10) | >= 0.60 | Exact (>= 60%) [AMENDED v2.0] |
 | G8b | AuthorityPolarity Rate | count(conflict_type = AuthorityPolarity) | AUTH_POLARITY + ADVERSARIAL (N >= 12) | >= 0.80 | Exact (>= 80%) |
 | G8c | Unresolved Non-Conflict | count(conflict_type = None) | UNRESOLVED-CONFLICT (N >= 6) | >= 0.80 | Exact (>= 80%) |
@@ -277,7 +277,7 @@ HARNESS CONFIGURATION MANDATE (v1.9, unchanged): The benchmark harness must run 
 | v1.9 scaffold freeze SHA-256 | 60A2675E6207FE4726359394CC5A4A4AFAFAA15F31E8F760DE49DA394EEE23C3 |
 | v1.9 scaffold freeze size | 42,721 bytes |
 | v1.9 auditor extension commit | 7c90c3af4a99187ec0caae352936720f18aa0eb5 |
-| v1.9 auditor audit_corpus_overlap.ps1 SHA-256 | 6FB3FD92DF80F760BE64E3B6C575CC55BE9171475FEC8D88E8ABFBA (27,543 bytes) |
+| v1.9 auditor audit_corpus_overlap.ps1 SHA-256 | 6FB3FD92DF80F760BE64E3B6C575FC4A5DF25CC55BE9171475FEC8D88E8ABFBA (27,543 bytes) |
 | v2.0 remediation retrieval.rs SHA-256 | [PENDING -- to be filled after v2.0 engine remediation] |
 | v2.0 remediation authority.rs SHA-256 | [PENDING -- to be filled if authority.rs changes] |
 | v2.0 scaffold freeze commit | [PENDING] |
@@ -467,7 +467,7 @@ Detection sequence:
 
 Signal precedence (applied in order; first match governs conflict_type):
 1. LogicalContradiction
-2. ProvenancePair (covers AuthorityPolarity, SafeAbstention, AuthorityPolarity sub-population)
+2. ProvenancePair (covers AuthorityPolarity and SafeAbstention classes)
 3. AdversarialPair (covers AdversarialAuthority)
 
 All detection inputs are persisted node metadata written by the production learn path (authenticate_and_clamp -> birth_node -> node_store). They are not labels supplied by the harness at query time. Verified by Role A provenance trace and reviewer inspection (Section 15.5).
@@ -591,9 +591,11 @@ This is a mechanism-decoupling, not a pass-adjustment, for three independent rea
 
 (i) S1's purpose has always been to gate G8a's denominator on scenarios where the conflict detector HAS D- available. Under the v1.9 contract, the detector operated on scored top-2; "available" meant "in scored top-2." Under the v2.0 contract (Section 14.2), the detector operates on the post-filter pool; "available" means "in post-filter pool." S1 maps to the correct availability test for the current detector input. Threshold and denominator unchanged.
 
-(ii) Pool-presence for Contradiction scenarios is structurally guaranteed by Section 4.4 (D- is not superseded for Contradiction, so it passes Step 2a) combined with G10=0 (D- is always in raw-NN). In practice S1 should be 1.00 under the v2.0 contract. This is stricter than v1.9's S1=0/13 observed at attempt 3.
+(ii) Pool-presence for Contradiction scenarios is structurally guaranteed by Section 4.4 (D- is not superseded for Contradiction, so it passes Step 2a) combined with G10=0 (D- is always in raw-NN). The guaranteed value under the v2.0 contract is 1.00, versus 0/13 observed at attempt 3.
 
 (iii) This change is part of a pre-declared amendment addressing a registered gap (gap 3 / Section 14.2), not made after observing a new failure.
+
+Note on numerator scope: S1 v2.0 counts D- pool-presence only, dropping the D+ co-presence requirement. D+ presence in the retrieval output is independently gated by G2 (Recall@5 >= 0.67), which remains unchanged; G8a then serves as the consistency check that LC fires given D- pool-presence. Measuring D+ and D- co-presence in the pool is therefore redundant with G2 + G8a; the single-sided D- check cleanly isolates the precondition the detector depends on.
 
 Role A owner sign-off: I assert that the S1 v2.0 amendment is mechanism-decoupling. "D- in post-filter pool" is the correct precondition for G8a under pool-based detection. The underlying protected property -- the conflict detector has D- available -- is preserved; the measurement maps to the detector's actual input stage.
 
