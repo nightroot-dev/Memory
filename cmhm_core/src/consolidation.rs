@@ -4,6 +4,7 @@ use crate::edge_store::EdgeStore;
 use crate::dense_core::DenseCore;
 use crate::edge::{Edge, EdgeType, EvidenceType};
 use crate::episode_log::EpisodeLog;
+use crate::projection::ProjectionRegistry;
 
 /// Consolidation Engine — periodic global maintenance on the graph.
 ///
@@ -133,6 +134,7 @@ pub fn run_consolidation(
     episode_log: &mut EpisodeLog,
     cohorts: &mut Cohorts,
     bm25_index: &mut crate::bm25::Bm25Index,
+    projections: &ProjectionRegistry,
     now_secs: f64,
     _rng: &mut impl rand::Rng,
 ) {
@@ -171,21 +173,37 @@ pub fn run_consolidation(
             } else {
                 edge.beta += delta;
             }
-            // Update dense core for this edge
-            if let (Some(src_node), Some(tgt_node)) = (
-                node_store.get(entry.state_id),
-                node_store.get(entry.action_id)
-            ) {
+            // Update dense core for this edge.
+            // Capture node data into owned values so the immutable borrow of
+            // node_store does not conflict with the mutable borrow of dense_core.
+            let src_info = node_store.get(entry.state_id)
+                .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+            let tgt_info = node_store.get(entry.action_id)
+                .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+
+            if let (Some((s_emb, s_mid, s_type)), Some((t_emb, t_mid, t_type))) = (src_info, tgt_info) {
                 let slice = DenseCore::slice_index(
                     EdgeType::Sequence as u8,
-                    src_node.node_type as u8,
-                    tgt_node.node_type as u8,
+                    s_type,
+                    t_type,
                 );
                 let w = edge.alpha / (edge.alpha + edge.beta);
-                // Project to EMBED_DIM for dense core (fixed 128-dim until Stage 4)
-                let mut sp = [0.0f32; COHORT_DIM]; let sl = src_node.embedding.len().min(COHORT_DIM); sp[..sl].copy_from_slice(&src_node.embedding[..sl]);
-                let mut tp = [0.0f32; COHORT_DIM]; let tl = tgt_node.embedding.len().min(COHORT_DIM); tp[..tl].copy_from_slice(&tgt_node.embedding[..tl]);
-                dense_core.update(slice, &sp, &tp, w);
+                match (projections.project(&s_mid, &s_emb),
+                       projections.project(&t_mid, &t_emb))
+                {
+                    (Ok(sp), Ok(tp)) => {
+                        dense_core.update(slice, &sp, &tp, w);
+                    }
+                    (s_res, t_res) => {
+                        tracing::warn!(
+                            "consolidation: credit-propagation dense update skipped; \
+                             src_mid={} src_dim={} src_ok={} \
+                             tgt_mid={} tgt_dim={} tgt_ok={}",
+                            s_mid, s_emb.len(), s_res.is_ok(),
+                            t_mid, t_emb.len(), t_res.is_ok()
+                        );
+                    }
+                }
             }
         }
     }
@@ -244,16 +262,34 @@ pub fn run_consolidation(
         .collect();
 
     for (src, tgt) in dead_edges.into_iter().chain(to_prune.into_iter()) {
-        // Remove dense core influence before deleting
-        if let (Some(sn), Some(tn)) = (node_store.get(src), node_store.get(tgt)) {
-            if let Some(edge) = edge_store.get(src, tgt) {
-                let slice = DenseCore::slice_index(
-                    edge.edge_type as u8, sn.node_type as u8, tn.node_type as u8
-                );
-                // Project to EMBED_DIM for dense core
-                let mut sp = [0.0f32; COHORT_DIM]; let sl = sn.embedding.len().min(COHORT_DIM); sp[..sl].copy_from_slice(&sn.embedding[..sl]);
-                let mut tp = [0.0f32; COHORT_DIM]; let tl = tn.embedding.len().min(COHORT_DIM); tp[..tl].copy_from_slice(&tn.embedding[..tl]);
-                dense_core.remove_edge(slice, &sp, &tp);
+        // Remove dense core influence before deleting.
+        // Capture node data into owned values so any borrowed references
+        // don't outlive the mutable dense_core borrow.
+        let src_info = node_store.get(src)
+            .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+        let tgt_info = node_store.get(tgt)
+            .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+        let edge_type_byte = edge_store.get(src, tgt).map(|e| e.edge_type as u8);
+
+        if let (Some((s_emb, s_mid, s_type)), Some((t_emb, t_mid, t_type)), Some(et)) =
+            (src_info, tgt_info, edge_type_byte)
+        {
+            let slice = DenseCore::slice_index(et, s_type, t_type);
+            match (projections.project(&s_mid, &s_emb),
+                   projections.project(&t_mid, &t_emb))
+            {
+                (Ok(sp), Ok(tp)) => {
+                    dense_core.remove_edge(slice, &sp, &tp);
+                }
+                (s_res, t_res) => {
+                    tracing::warn!(
+                        "consolidation: dead-edge dense cleanup skipped; \
+                         src_mid={} src_dim={} src_ok={} \
+                         tgt_mid={} tgt_dim={} tgt_ok={}",
+                        s_mid, s_emb.len(), s_res.is_ok(),
+                        t_mid, t_emb.len(), t_res.is_ok()
+                    );
+                }
             }
         }
         edge_store.remove_edge(src, tgt);
@@ -517,6 +553,7 @@ mod tests {
 
         let mut rng = rand::thread_rng();
         let mut bm25_index = crate::bm25::Bm25Index::new();
+        let projections = ProjectionRegistry::new();
         run_consolidation(
             &mut node_store,
             &mut edge_store,
@@ -524,6 +561,7 @@ mod tests {
             &mut episode_log,
             &mut cohorts,
             &mut bm25_index,
+            &projections,
             200.0,
             &mut rng,
         );

@@ -1061,6 +1061,7 @@ fn worker_loop(
                 &mut state.episode_log,
                 &mut state.cohorts,
                 &mut state.bm25_index,
+                &state.projections,
                 now,
                 &mut rng,
             );
