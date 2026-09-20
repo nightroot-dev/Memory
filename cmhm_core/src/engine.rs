@@ -1321,10 +1321,19 @@ fn trigger_edge_birth(state: &mut CoreState, new_id: u64, new_ts: i64, new_emb: 
 
                 // Dense core update uses projected 128-dim vectors
                 let slice = DenseCore::slice_index(edge_type as u8, src_node.node_type as u8, new_node_type as u8);
-                let mut src_proj = [0.0f32; EMBED_DIM];
-                let copy_len = src_node.embedding.len().min(EMBED_DIM);
-                src_proj[..copy_len].copy_from_slice(&src_node.embedding[..copy_len]);
-                state.dense_core.update(slice, &src_proj, new_emb, 0.5);
+                // Project src_node embedding to EMBED_DIM. Fail-closed on missing projection.
+                let src_projected = state.projections.project(&src_node.model_id, &src_node.embedding);
+                match src_projected {
+                    Ok(src_proj) => {
+                        state.dense_core.update(slice, &src_proj, new_emb, 0.5);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "trigger_edge_birth: src model_id={} native_dim={} — no projection: {e}; skipping dense update",
+                            src_node.model_id, src_node.embedding.len()
+                        );
+                    }
+                }
 
                 state.edge_store.upsert(src_id, new_id, edge);
             }
