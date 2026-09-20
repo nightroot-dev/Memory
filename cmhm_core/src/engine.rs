@@ -1243,12 +1243,20 @@ fn birth_node(
         state.node_store.update_global_ema(&full_emb);
         // Blend embedding — result is Vec<f32> at the same dim as full_emb
         let blended = state.node_store.blend_with_ema(&full_emb);
-        let blended_proj: [f32; EMBED_DIM] = {
-            let mut arr = [0.0f32; EMBED_DIM];
-            let len = blended.len().min(EMBED_DIM);
-            arr[..len].copy_from_slice(&blended[..len]);
-            arr
-        };
+        // Project blended embedding to EMBED_DIM. Fail-closed: if no projection
+        // exists and blended isn't already EMBED_DIM, skip edge birth rather than
+        // silently truncating a native-dim vector (e.g. 384 -> 128).
+        let blended_projected: Option<[f32; EMBED_DIM]> =
+            match state.projections.project(model_id, &blended) {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    tracing::warn!(
+                        "birth_node: model_id={} native_dim={} — no projection: {e}; skipping edge birth",
+                        model_id, blended.len()
+                    );
+                    None
+                }
+            };
 
          let node = Node::new(blended, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
              .with_assertion(assertion_key, polarity)
@@ -1261,7 +1269,9 @@ fn birth_node(
          }
 
         // Edge birth: connect to each node in working memory
-        trigger_edge_birth(state, id, timestamp, &blended_proj);
+        if let Some(ref proj) = blended_projected {
+            trigger_edge_birth(state, id, timestamp, proj);
+        }
 
         // Push to working memory
         state.working_memory.push(id);
