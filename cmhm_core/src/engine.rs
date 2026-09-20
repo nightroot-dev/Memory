@@ -1520,19 +1520,61 @@ fn process_explicit_edge(
     state.working_memory.push(outcome_id);
 
     // Update dense core for both edges
-    if let (Some(sn), Some(an)) = (state.node_store.get(state_id), state.node_store.get(action_id)) {
-        let slice = DenseCore::slice_index(EdgeType::Sequence as u8, sn.node_type as u8, an.node_type as u8);
+    // Capture node data into owned values so the immutable borrow of
+    // state.node_store does not conflict with the mutable borrow of
+    // state.dense_core below.
+    let state_info = state.node_store.get(state_id)
+        .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+    let action_info = state.node_store.get(action_id)
+        .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+
+    if let (Some((s_emb, s_mid, s_type)), Some((a_emb, a_mid, a_type))) = (state_info, action_info) {
+        let slice = DenseCore::slice_index(EdgeType::Sequence as u8, s_type, a_type);
         let w = alpha / (alpha + beta);
-        let mut sp = [0.0f32; EMBED_DIM]; let sl = sn.embedding.len().min(EMBED_DIM); sp[..sl].copy_from_slice(&sn.embedding[..sl]);
-        let mut ap = [0.0f32; EMBED_DIM]; let al = an.embedding.len().min(EMBED_DIM); ap[..al].copy_from_slice(&an.embedding[..al]);
-        state.dense_core.update(slice, &sp, &ap, w);
+        match (state.projections.project(&s_mid, &s_emb),
+               state.projections.project(&a_mid, &a_emb))
+        {
+            (Ok(sp), Ok(ap)) => {
+                state.dense_core.update(slice, &sp, &ap, w);
+            }
+            (s_res, a_res) => {
+                tracing::warn!(
+                    "process_explicit_edge: state->action dense update skipped; \
+                     state_mid={} state_dim={} state_ok={} \
+                     action_mid={} action_dim={} action_ok={}",
+                    s_mid, s_emb.len(), s_res.is_ok(),
+                    a_mid, a_emb.len(), a_res.is_ok()
+                );
+            }
+        }
     }
-    if let (Some(an), Some(on)) = (state.node_store.get(action_id), state.node_store.get(outcome_id)) {
-        let slice = DenseCore::slice_index(EdgeType::CausalHypothesis as u8, an.node_type as u8, on.node_type as u8);
+    // Capture node data into owned values so the immutable borrow of
+    // state.node_store does not conflict with the mutable borrow of
+    // state.dense_core below.
+    let action_info_b = state.node_store.get(action_id)
+        .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+    let outcome_info = state.node_store.get(outcome_id)
+        .map(|n| (n.embedding.clone(), n.model_id.clone(), n.node_type as u8));
+
+    if let (Some((a_emb_b, a_mid_b, a_type_b)), Some((o_emb, o_mid, o_type))) = (action_info_b, outcome_info) {
+        let slice = DenseCore::slice_index(EdgeType::CausalHypothesis as u8, a_type_b, o_type);
         let w = alpha / (alpha + beta);
-        let mut ap = [0.0f32; EMBED_DIM]; let al = an.embedding.len().min(EMBED_DIM); ap[..al].copy_from_slice(&an.embedding[..al]);
-        let mut op = [0.0f32; EMBED_DIM]; let ol = on.embedding.len().min(EMBED_DIM); op[..ol].copy_from_slice(&on.embedding[..ol]);
-        state.dense_core.update(slice, &ap, &op, w);
+        match (state.projections.project(&a_mid_b, &a_emb_b),
+               state.projections.project(&o_mid, &o_emb))
+        {
+            (Ok(ap), Ok(op)) => {
+                state.dense_core.update(slice, &ap, &op, w);
+            }
+            (a_res, o_res) => {
+                tracing::warn!(
+                    "process_explicit_edge: action->outcome dense update skipped; \
+                     action_mid={} action_dim={} action_ok={} \
+                     outcome_mid={} outcome_dim={} outcome_ok={}",
+                    a_mid_b, a_emb_b.len(), a_res.is_ok(),
+                    o_mid, o_emb.len(), o_res.is_ok()
+                );
+            }
+        }
     }
 
     Ok(())
