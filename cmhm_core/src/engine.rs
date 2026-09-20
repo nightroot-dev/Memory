@@ -1043,8 +1043,9 @@ fn worker_loop(
         state.cmd_seq += 1;
         cmd_count += 1;
 
-        // Periodic snapshot every 1000 commands
-        if cmd_count % 1000 == 0 {
+        // Periodic snapshot every `snapshot_interval_cmds` commands (default 1000).
+        // `.max(1)` guards a zero value in user-supplied config (modulo-by-zero panics).
+        if cmd_count % cfg.snapshot_interval_cmds.max(1) == 0 {
             let _ = write_snapshot(&state, &snapshot_path);
         }
 
