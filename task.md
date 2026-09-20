@@ -66,3 +66,8 @@ $$\text{gate\_score} = \text{novelty} \times (1.0 + \kappa \cdot |\text{predicti
 | Core Authority (`authority.rs`) | `A820C779...85C16` | LOCKED |
 | MCP & Gate Baseline | Commit `36d93cf` | OPERATIONAL |
 | Shadow Log Analyzer | `tools/analyze_gate_shadow.py` | VERIFIED |
+| Approval Bench Harness (`cmhm_mcp/tests/phase3_approval_bench.rs`) | `19C50907...90A90C` | MODIFIED — new identity from commit `07b8573`. Reason: `retrieve()` signature now takes `query_text + bm25`; the 2 bench call sites pass `""` (fusion skipped, behavior identical). Corpus v4 data hash `A3DFFF9B...EECD3` UNCHANGED (scenario text untouched). |
+
+Scoping note: BM25 indexes state text only. Action/outcome text is in WAL V4
+but not in the lexical index. Queries phrased as "how did I fix X" will not
+benefit from BM25 until this is extended. Extension requires its own measurement.

@@ -170,3 +170,83 @@ fn bm25_index_survives_restart_via_snapshot_and_rebuild() {
         "after restart, BM25-fused pool MUST still contain the target"
     );
 }
+
+/// WAL V4 crash-replay: text must survive a kill *without* checkpoint.
+///
+/// `drop(handle)` closes the command channel; the worker breaks WITHOUT
+/// writing a final snapshot (only `Command::Shutdown` snapshots). The WAL
+/// is the sole survivor — this test proves the `0x04` replay arm restores
+/// `Node.text` and the startup rebuild re-indexes it for BM25.
+#[test]
+fn wal_v4_replay_preserves_text_for_bm25() {
+    use cmhm_core::start;
+
+    let (cfg, _dir) = make_cfg("walv4");
+    let marker_state = "zqx_rare_marker_7734 database pool size";
+    let marker_query = "zqx_rare_marker_7734";
+    let query_emb = emb(7);
+    let target_state: u64;
+    {
+        let handle = start(cfg.clone()).expect("engine start #1 (no snapshot yet)");
+        // Target: anti-aligned to the query (dense-last) but lexically unique.
+        let target_emb: Vec<f32> = query_emb.iter().map(|f| -f).collect();
+        let res = handle
+            .learn_with_text_context(
+                target_emb,
+                emb(1001),
+                emb(1002),
+                0.9,
+                0.5,
+                MODEL,
+                0.5,
+                String::new(),
+                None,
+                CallerRole::Agent,
+                None,
+                None,
+                Some((
+                    marker_state.to_string(),
+                    "set pool size to 32".to_string(),
+                    "connection errors stopped".to_string(),
+                )),
+            )
+            .expect("text learn");
+        target_state = res.state_node_id;
+        // Distractors: dense-near the query, no text.
+        for i in 0..9u32 {
+            let d = noisy(&query_emb, 500 + i);
+            handle
+                .learn(
+                    d,
+                    emb(2000 + i * 3),
+                    emb(2001 + i * 3),
+                    0.9,
+                    0.5,
+                    MODEL,
+                    0.5,
+                    String::new(),
+                    None,
+                )
+                .expect("distractor learn");
+        }
+        drop(handle); // simulates crash: no Shutdown, no final snapshot
+    }
+    // Reopen: snapshot (empty, from start #1 compaction) + WAL V4 replay + rebuild.
+    let handle2 = start(cfg).expect("engine start #2 must not fail (no SchemaMismatch)");
+    // Fused: the V4-replayed text must surface the target via BM25.
+    let fused = handle2
+        .retrieve_unscoped(query_emb.clone(), MODEL, marker_query)
+        .expect("fused retrieve");
+    assert!(
+        fused.post_filter_candidates.contains(&target_state),
+        "after crash-replay, BM25-fused pool MUST contain the V4-restored target"
+    );
+    // Dense-only control: proves BM25 (not dense) was the reason it surfaced.
+    let dense = handle2
+        .retrieve_unscoped(query_emb, MODEL, "")
+        .expect("dense retrieve");
+    assert!(
+        !dense.post_filter_candidates.contains(&target_state),
+        "dense-only pool must NOT contain the anti-aligned target"
+    );
+}
