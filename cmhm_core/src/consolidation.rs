@@ -122,12 +122,17 @@ pub fn wilson_ci(successes: f64, total: f64) -> (f64, f64) {
 }
 
 /// Run the full consolidation procedure on the core state.
+///
+/// `bm25_index` is kept in sync: culled/merged node IDs are removed so
+/// lexical retrieval never returns dead IDs (retrieval also filters
+/// missing IDs defensively, but the index stays small this way).
 pub fn run_consolidation(
     node_store: &mut NodeStore,
     edge_store: &mut EdgeStore,
     dense_core: &mut DenseCore,
     episode_log: &mut EpisodeLog,
     cohorts: &mut Cohorts,
+    bm25_index: &mut crate::bm25::Bm25Index,
     now_secs: f64,
     _rng: &mut impl rand::Rng,
 ) {
@@ -327,6 +332,8 @@ pub fn run_consolidation(
         // Remove all edges and node
         edge_store.remove_node(node_id);
         node_store.remove(node_id);
+        // Keep the lexical index in sync — no stale BM25 candidates.
+        bm25_index.remove(node_id);
     }
 
     // --- Step 6: Merge near-identical nodes ---
@@ -378,7 +385,22 @@ pub fn run_consolidation(
                     }
                 }
                 edge_store.remove_node(ids[j]);
+                // Adopt the loser's text if the survivor has none (keeps BM25 coverage).
+                let loser_text = node_store.get(ids[j]).map(|n| n.text.clone()).unwrap_or_default();
                 node_store.remove(ids[j]);
+                bm25_index.remove(ids[j]);
+                if !loser_text.is_empty() {
+                    if let Some(survivor) = node_store.get_mut(ids[i]) {
+                        if survivor.text.is_empty() {
+                            survivor.text = loser_text.clone();
+                        }
+                    }
+                    if let Some(survivor) = node_store.get(ids[i]) {
+                        if !survivor.text.is_empty() {
+                            bm25_index.insert(ids[i], &survivor.text.clone());
+                        }
+                    }
+                }
                 merged.insert(ids[j]);
             }
         }
@@ -494,12 +516,14 @@ mod tests {
         node_store.insert(node2);
 
         let mut rng = rand::thread_rng();
+        let mut bm25_index = crate::bm25::Bm25Index::new();
         run_consolidation(
             &mut node_store,
             &mut edge_store,
             &mut dense_core,
             &mut episode_log,
             &mut cohorts,
+            &mut bm25_index,
             200.0,
             &mut rng,
         );

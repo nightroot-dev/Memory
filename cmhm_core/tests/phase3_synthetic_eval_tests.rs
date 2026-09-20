@@ -105,7 +105,7 @@ fn synth_01_unscoped_path_is_externally_reachable() {
     learn_emb(&mut rt, &ctx, 42, 0.9, 0.85, "user_explicit", None, None, None);
 
     // retrieve_unscoped = handle_retrieve_text with absent retrieval_intent
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(42), "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(42), "hash-128d", "")
         .expect("retrieve_unscoped");
 
     assert!(
@@ -130,7 +130,7 @@ fn synth_02_pool_stage_supersession_filter() {
     // Positive: same seed → same embedding bucket, explicitly supersedes negative
     let pos_id = learn_emb(&mut rt, &ctx, 100, 0.9, 0.85, "user_explicit", Some(neg_id), None, None);
 
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(100), "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(100), "hash-128d", "")
         .expect("retrieve_unscoped");
 
     assert_eq!(
@@ -164,7 +164,7 @@ fn synth_03_logical_contradiction_classification_is_correct() {
     // Hard negative: seed 201 (close embedding), -1 polarity, same key
     learn_emb(&mut rt, &ctx, 201, 0.9, 0.80, "contradicted", None, Some(key), Some(-1));
 
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(200), "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(200), "hash-128d", "")
         .expect("retrieve");
 
     if result.conflict_detected {
@@ -272,7 +272,7 @@ fn synth_07_score_proximity_alone_is_not_conflict() {
     learn_emb(&mut rt, &ctx, 300, 0.85, 0.70, "user_explicit", None, None, None);
     learn_emb(&mut rt, &ctx, 301, 0.85, 0.70, "user_explicit", None, None, None);
 
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(300), "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(300), "hash-128d", "")
         .expect("retrieve");
 
     if result.conflict_detected {
@@ -406,7 +406,7 @@ fn synth_10_passive_diagnostic_equivalence() {
     // Node 4: Distractor
     let n4 = learn_emb(&mut rt, &ctx, 30, 0.9, 0.50, "distractor", None, None, None);
 
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(20), "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), emb(20), "hash-128d", "")
         .expect("retrieve_unscoped");
 
     // Diagnostic validation:

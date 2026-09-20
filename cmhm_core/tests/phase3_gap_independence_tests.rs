@@ -85,7 +85,7 @@ fn test_logical_contradiction_gap_independence() {
         let _n1 = learn_node(&mut rt, &ctx, base_emb.clone(), 0.85, "user_explicit", Some("port_cfg"), Some(1));
         let _n2 = learn_node(&mut rt, &ctx, base_emb.clone(), 0.85, "user_explicit", Some("port_cfg"), Some(-1));
 
-        let (result, _) = rt.retrieve_unscoped(Some(&ctx), base_emb, "hash-128d")
+         let (result, _) = rt.retrieve_unscoped(Some(&ctx), base_emb, "hash-128d", "")
             .expect("retrieve");
 
         assert!(result.conflict_detected, "Conflict must be detected at tiny gap");
@@ -109,7 +109,7 @@ fn test_logical_contradiction_gap_independence() {
         let _n1 = learn_node(&mut rt, &ctx, q_emb.clone(), 1.00, "user_explicit", Some("port_cfg"), Some(1));
         let _n2 = learn_node(&mut rt, &ctx, q_emb.clone(), 0.35, "user_explicit", Some("port_cfg"), Some(-1));
 
-        let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
+         let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d", "")
             .expect("retrieve");
 
         assert!(result.conflict_detected, "Conflict must be detected at large gap");
@@ -150,7 +150,7 @@ fn test_pool_detection_fires_for_rank6_contradicted() {
     // → contradicted lands at rank 6 in scoring.
     let neg_id = learn_node(&mut rt, &ctx, q_emb.clone(), 0.99, "contradicted", None, None);
 
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d", "")
         .expect("retrieve");
 
     // G10 invariant: D- must be present in raw_nn
@@ -196,7 +196,7 @@ fn test_provenance_pair_unconditional_abstention() {
         learn_node(&mut rt, &ctx, q_emb.clone(), 0.31, "user_explicit", None, None);
         learn_node(&mut rt, &ctx, q_emb.clone(), 0.99, "contradicted", None, None);
 
-        let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
+         let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d", "")
             .expect("retrieve");
 
         assert!(result.conflict_detected, "ProvenancePair must fire (small auth gap)");
@@ -219,7 +219,7 @@ fn test_provenance_pair_unconditional_abstention() {
         learn_node(&mut rt, &ctx, q_emb.clone(), 0.90, "user_explicit", None, None);
         learn_node(&mut rt, &ctx, q_emb.clone(), 0.99, "contradicted", None, None);
 
-        let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
+         let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d", "")
             .expect("retrieve");
 
         assert!(result.conflict_detected, "ProvenancePair must fire (large auth gap)");
@@ -247,7 +247,7 @@ fn test_adversarial_pair_gap_independence() {
     // Adversarial entry has authority 0.95 (inversion: user_explicit > corrected)
     let _n_neg = learn_node(&mut rt, &ctx, q_emb.clone(), 0.95, "user_explicit", None, None);
 
-    let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d")
+     let (result, _) = rt.retrieve_unscoped(Some(&ctx), q_emb, "hash-128d", "")
         .expect("retrieve");
 
     assert!(result.conflict_detected, "AdversarialPair conflict must be detected");

@@ -126,9 +126,9 @@ fn test_cross_role_seed_isolation() {
     let state_id   = lr.state_node_id;
     let outcome_id = lr.outcome_node_id;
 
-    let result = handle
-        .retrieve(unit_vec(0), "hash-128d", NodeType::State)
-        .expect("retrieve failed");
+     let result = handle
+         .retrieve(unit_vec(0), "hash-128d", NodeType::State, "")
+         .expect("retrieve failed");
 
     // ── Assertion: seed must be a State node ───────────────────────────────
     assert_eq!(
@@ -213,9 +213,9 @@ fn test_contradictory_same_role_resolution() {
     let contra_state_id = lr_contra.state_node_id;
 
     let q = unit_vec(3); // [0, 0, 0, 1, 0, ...] — maximally aligned with contradiction
-    let result = handle
-        .retrieve(q, "hash-128d", NodeType::State) // declared intent: state query
-        .expect("retrieve failed");
+     let result = handle
+         .retrieve(q, "hash-128d", NodeType::State, "") // declared intent: state query
+         .expect("retrieve failed");
 
     // ── Assertion: authoritative node must win despite lower cosine ─────────
     assert_eq!(
@@ -327,10 +327,12 @@ fn test_stale_state_does_not_override_authoritative() {
         0.3,   // context_weight
         0.1,   // curiosity_threshold
         None,  // seed_type — not testing role-scoping here
-        0.8,   // authority_weight (production default)
-        0.02,  // conflict_detection_threshold (production default)
-        false, // abstain_on_conflict — deterministic test must not abstain
-    );
+         0.8,   // authority_weight (production default)
+         0.02,  // conflict_detection_threshold (production default)
+         false, // abstain_on_conflict — deterministic test must not abstain
+         "",    // query_text — vector-only contract test, dense path
+         &cmhm_core::bm25::Bm25Index::new(),
+     );
 
 
     // ── Assertion: auth node must be selected; stale node filtered out ─────

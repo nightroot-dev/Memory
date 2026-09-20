@@ -177,8 +177,10 @@ pub fn retrieve(
     _conflict_detection_threshold: f32,
     // When true and conflict_detected, return empty chain + abstained=true instead of
     // returning the contested winner. Callers still receive conflict_candidates.
-    abstain_on_conflict: bool,
-) -> RetrievalResult {
+     abstain_on_conflict: bool,
+     query_text: &str,
+     bm25: &crate::bm25::Bm25Index,
+ ) -> RetrievalResult {
     // Step 1: Dense context
     let dense_ctx = dense_core.query(query);
 
@@ -209,7 +211,19 @@ pub fn retrieve(
     let raw_candidates = match seed_type {
         Some(t) => node_store.nearest_by_type(query, model_id, 8, t),
         None    => node_store.nearest(query, model_id, 8),
-    };
+     };
+     // BM25 lexical candidates fused via RRF when query_text is provided.
+     // Empty query_text (legacy/vector paths) skips fusion — dense-only behavior unchanged.
+     let raw_candidates = if query_text.is_empty() {
+         raw_candidates
+     } else {
+         let bm25_candidates = bm25.query(query_text, 50);
+         if bm25_candidates.is_empty() {
+             raw_candidates
+         } else {
+             crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, 20)
+         }
+     };
     if raw_candidates.is_empty() {
         return empty_result!("No memories yet.");
     }

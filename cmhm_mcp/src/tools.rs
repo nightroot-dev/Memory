@@ -559,7 +559,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
 
-    match rt.retrieve(ctx_id, emb, &params.model_id, seed_type) {
+     match rt.retrieve(ctx_id, emb, &params.model_id, seed_type, "") {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
@@ -1010,10 +1010,10 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
     // Dispatch: unscoped when retrieval_intent absent, scoped when present.
-    let retrieve_result = match seed_type {
-        None    => rt.retrieve_unscoped(ctx_id, emb, TEXT_MODEL_ID),
-        Some(t) => rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, t),
-    };
+     let retrieve_result = match seed_type {
+         None    => rt.retrieve_unscoped(ctx_id, emb, TEXT_MODEL_ID, &params.query),
+         Some(t) => rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, t, &params.query),
+     };
     match retrieve_result {
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
@@ -1229,10 +1229,14 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 
     // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
 
-    match rt_lock.learn_with_context(
+    // Text path: pass scrubbed raw text for BM25 lexical indexing.
+    // state_clean/action_clean/outcome_clean were scrubbed above — secrets
+    // never enter the BM25 index, WAL, snapshot, or archive.
+    match rt_lock.learn_text_with_context(
         ctx_id, state_emb, action_emb, outcome_emb, pe, eta, TEXT_MODEL_ID,
         params.authority, provenance, params.supersedes,
         caller_role, params.assertion_key, params.polarity,
+        Some((state_clean, action_clean, outcome_clean)),
     ) {
 
 

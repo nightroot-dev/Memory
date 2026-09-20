@@ -1232,9 +1232,9 @@ fn phase3_approval_benchmark() {
         // ── Retrieve via production unscoped path ──────────────────────────
         use cmhm_core::text_to_embedding;
         let query_emb = text_to_embedding(scenario.query).to_vec();
-        let (result, _) = rt
-            .retrieve_unscoped(Some(&ctx_id), query_emb, "hash-128d")
-            .expect("retrieve_unscoped");
+         let (result, _) = rt
+             .retrieve_unscoped(Some(&ctx_id), query_emb, "hash-128d", "")
+             .expect("retrieve_unscoped");
 
         // ── Pool stage membership ──────────────────────────────────────────
         let pos_in_raw_nn      = result.raw_nn_candidates.contains(&pos_id);

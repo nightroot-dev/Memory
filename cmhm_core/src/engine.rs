@@ -26,8 +26,10 @@ pub enum Command {
         /// Role-scoped seed selection passed through to retrieval::retrieve.
         /// Some(State) restricts seed candidates to State nodes.
         /// None = backward-compat unscoped scan.
-        seed_type: Option<NodeType>,
-        tx: mpsc::SyncSender<Result<RetrievalResult>>,
+         seed_type: Option<NodeType>,
+         /// Raw query text for BM25 lexical candidates. Empty = dense-only (legacy/tests).
+         query_text: String,
+         tx: mpsc::SyncSender<Result<RetrievalResult>>,
     },
     Learn {
         state_emb: Vec<f32>,
@@ -47,7 +49,9 @@ pub enum Command {
         /// Optional semantic assertion / entity key.
         assertion_key: Option<String>,
         /// Optional epistemic polarity (+1 or -1).
-        polarity: Option<i8>,
+         polarity: Option<i8>,
+         /// Optional scrubbed raw text (state/action/outcome) for BM25 indexing.
+         raw_text: Option<(String, String, String)>,
         tx: mpsc::SyncSender<Result<LearnResult>>,
     },
     ExplicitEdge {
@@ -159,6 +163,30 @@ struct WalLearnEntryV2 {
     polarity:         Option<i8>,
 }
 
+/// Serialisable record for text-path learns (WAL type byte `0x04`).
+///
+/// Same as `WalLearnEntryV2` plus scrubbed `raw_text` for BM25 indexing.
+/// Vector-path learns keep writing `WalLearnEntryV2` / `0x03` (bytes unchanged).
+/// Old `0x00`–`0x03` records replay with `raw_text = None` (dense-only, as before).
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct WalLearnEntryV3 {
+    state_emb:        Vec<f32>,
+    action_emb:       Vec<f32>,
+    outcome_emb:      Vec<f32>,
+    prediction_error: f32,
+    emotional_tag:    f32,
+    model_id:         String,
+    authority:        f32,
+    provenance:       String,
+    supersedes:       Option<u64>,
+    #[serde(default)]
+    assertion_key:    Option<String>,
+    #[serde(default)]
+    polarity:         Option<i8>,
+    #[serde(default)]
+    raw_text:         Option<(String, String, String)>,
+}
+
 
 /// Serialisable record written to WAL for every applied feedback node.
 ///
@@ -194,6 +222,9 @@ const WAL_TYPE_LEARN_V2: u8 = 0x02;
 /// v3-hardened: verified effective authority + provenance fields.
 /// Replayed with CallerRole::System since values were normalized and clamped at write time.
 const WAL_TYPE_LEARN_V3: u8 = 0x03;
+/// v4: text-path learn — V3 fields plus scrubbed raw_text for BM25 indexing.
+/// Replayed with CallerRole::System (same trust basis as V3).
+const WAL_TYPE_LEARN_V4: u8 = 0x04;
 
 /// Result of a Learn command.
 #[derive(Debug, Clone)]
@@ -234,13 +265,49 @@ impl EngineHandle {
     ///
     /// `seed_type`: restricts seed candidate selection to nodes of that role.
     /// This is the scoped path — candidate pool is limited to one NodeType.
-    pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: NodeType) -> Result<RetrievalResult> {
+     pub fn retrieve(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: NodeType, query_text: impl Into<String>) -> Result<RetrievalResult> {
+         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+         self.tx.send(Command::Retrieve {
+             query_emb,
+             model_id: model_id.into(),
+             seed_type: Some(seed_type),
+             query_text: query_text.into(),
+             tx: resp_tx,
+        })?;
+        resp_rx.recv()?
+    }
+
+    /// Learn with scrubbed raw text for BM25 lexical indexing.
+    ///
+    /// Identical to [`learn_with_context`] except it carries
+    /// `raw_text = Some((state, action, outcome))` through to `birth_node`,
+    /// which stores `Node.text` and inserts into the BM25 index.
+    /// Vector-path callers keep using `learn_with_context` (raw_text = None).
+    pub fn learn_with_text_context(
+        &self,
+        state_emb: Vec<f32>,
+        action_emb: Vec<f32>,
+        outcome_emb: Vec<f32>,
+        prediction_error: f32,
+        emotional_tag: f32,
+        model_id: impl Into<String>,
+        authority: f32,
+        provenance: String,
+        supersedes: Option<u64>,
+        caller_role: crate::authority::CallerRole,
+        assertion_key: Option<String>,
+        polarity: Option<i8>,
+        raw_text: Option<(String, String, String)>,
+    ) -> Result<LearnResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
-        self.tx.send(Command::Retrieve {
-            query_emb,
+        self.tx.send(Command::Learn {
+            state_emb, action_emb, outcome_emb,
+            prediction_error, emotional_tag,
             model_id: model_id.into(),
-            seed_type: Some(seed_type),
-            tx: resp_tx,
+             authority, provenance, supersedes,
+             caller_role, assertion_key, polarity,
+             raw_text,
+             tx: resp_tx,
         })?;
         resp_rx.recv()?
     }
@@ -249,17 +316,17 @@ impl EngineHandle {
     ///
     /// Use when the caller cannot assert node type intent, or when cross-type
     /// contradiction safety must be verified (e.g., Phase 3 approval benchmark).
-    /// Passes `seed_type = None` to the retrieval engine.
-    pub fn retrieve_unscoped(&self, query_emb: Vec<f32>, model_id: impl Into<String>) -> Result<RetrievalResult> {
-        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
-        self.tx.send(Command::Retrieve {
-            query_emb,
-            model_id: model_id.into(),
-            seed_type: None,
-            tx: resp_tx,
-        })?;
-        resp_rx.recv()?
-    }
+     pub fn retrieve_unscoped(&self, query_emb: Vec<f32>, model_id: impl Into<String>, query_text: impl Into<String>) -> Result<RetrievalResult> {
+         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+         self.tx.send(Command::Retrieve {
+             query_emb,
+             model_id: model_id.into(),
+             seed_type: None,
+             query_text: query_text.into(),
+             tx: resp_tx,
+         })?;
+         resp_rx.recv()?
+     }
 
 
     /// Feed a (state, action, outcome) learning signal to the engine with default trusted user context.
@@ -306,9 +373,10 @@ impl EngineHandle {
             state_emb, action_emb, outcome_emb,
             prediction_error, emotional_tag,
             model_id: model_id.into(),
-            authority, provenance, supersedes,
-            caller_role, assertion_key, polarity,
-            tx: resp_tx,
+             authority, provenance, supersedes,
+             caller_role, assertion_key, polarity,
+             raw_text: None,
+             tx: resp_tx,
         })?;
         resp_rx.recv()?
     }
@@ -623,6 +691,26 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         continue;
                     }
                     match payload[0] {
+                        WAL_TYPE_LEARN_V4 => {
+                            // v4 text-path Learn: V3 fields plus scrubbed raw_text.
+                            // Same trust basis as V3 (effective values, System replay).
+                            match bincode::deserialize::<WalLearnEntryV3>(&payload[1..]) {
+                                Ok(cmd) => {
+                                    let _ = process_learn(
+                                        &mut state,
+                                        &cmd.state_emb, &cmd.action_emb, &cmd.outcome_emb,
+                                        cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
+                                        cmd.authority, cmd.provenance, cmd.supersedes,
+                                        crate::authority::CallerRole::System,
+                                         cmd.assertion_key, cmd.polarity,
+                                         cmd.raw_text.as_ref().map(|(s, _, _)| s.as_str()),
+                                         &cfg,
+                                    );
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL LearnV4 decode error: {e}"),
+                            }
+                        }
                         WAL_TYPE_LEARN_V3 => {
                             // v3-hardened Learn: full effective authority + provenance + supersedes.
                             // SECURITY: WAL stores the EFFECTIVE (post-clamping) values.
@@ -636,8 +724,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
                                         cmd.authority, cmd.provenance, cmd.supersedes,
                                         crate::authority::CallerRole::System,
-                                        cmd.assertion_key, cmd.polarity,
-                                        &cfg,
+                                         cmd.assertion_key, cmd.polarity, None,
+                                         &cfg,
                                     );
                                     replayed += 1;
                                 }
@@ -656,8 +744,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
                                         cmd.authority, cmd.provenance, cmd.supersedes,
                                         crate::authority::CallerRole::Agent,
-                                        cmd.assertion_key, cmd.polarity,
-                                        &cfg,
+                                         cmd.assertion_key, cmd.polarity, None,
+                                         &cfg,
                                     );
                                     replayed += 1;
                                 }
@@ -675,8 +763,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
                                         0.5, String::new(), None,
                                         crate::authority::CallerRole::User,
-                                        None, None,
-                                        &cfg,
+                                         None, None, None,
+                                         &cfg,
                                     );
                                     replayed += 1;
                                 }
@@ -709,8 +797,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         cmd.prediction_error, cmd.emotional_tag, &cmd.model_id,
                                         0.5, String::new(), None,
                                         crate::authority::CallerRole::User,
-                                        None, None,
-                                        &cfg,
+                                         None, None, None,
+                                         &cfg,
                                     );
                                     replayed += 1;
                                 }
@@ -731,6 +819,13 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     if replay_failed && !cfg.allow_incompatible_snapshot_reset {
         anyhow::bail!("WAL replay failed — refusing to start engine in inconsistent state");
     }
+
+    // ── Step 2b: Rebuild BM25 lexical index ───────────────────────────────
+    // The index is `serde(skip)` — never in the snapshot file. Rebuild from
+    // persisted Node.text (text-path learns) so lexical retrieval works
+    // immediately after restart. Vector-path / legacy nodes have empty text
+    // and are skipped (dense-only, unchanged behavior).
+    state.rebuild_bm25_index();
 
     // ── Step 3: Compaction point ──────────────────────────────────────────
     write_snapshot(&state, &snapshot_path)?;
@@ -777,18 +872,19 @@ fn worker_loop(
         };
 
         match cmd {
-            Command::Retrieve { query_emb, model_id, seed_type, tx } => {
-                let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &mut rng, &cfg);
+             Command::Retrieve { query_emb, model_id, seed_type, query_text, tx } => {
+                 let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &query_text, &mut rng, &cfg);
                 let _ = tx.send(result);
             }
 
-            Command::Learn { state_emb, action_emb, outcome_emb, prediction_error, emotional_tag, model_id, authority, provenance, supersedes, caller_role, assertion_key, polarity, tx } => {
+             Command::Learn { state_emb, action_emb, outcome_emb, prediction_error, emotional_tag, model_id, authority, provenance, supersedes, caller_role, assertion_key, polarity, raw_text, tx } => {
                 let result = process_learn(
                     &mut state, &state_emb, &action_emb, &outcome_emb,
                     prediction_error, emotional_tag, &model_id,
                     authority, provenance.clone(), supersedes,
-                    caller_role, assertion_key.clone(), polarity,
-                    &cfg,
+                     caller_role, assertion_key.clone(), polarity,
+                     raw_text.as_ref().map(|(s, _, _)| s.as_str()),
+                     &cfg,
                 );
                 // Atomic WAL append: ONLY write to WAL if process_learn succeeded!
                 // SECURITY: Write the EFFECTIVE (post-clamping) authority and provenance,
@@ -796,6 +892,30 @@ fn worker_loop(
                 // restore a higher privilege level than was actually granted at learn time.
                 if let Ok(ref lr) = result {
                     if let Some(wal) = &mut wal {
+                        // V4 when this learn carried scrubbed text (BM25 must survive
+                        // restart); V3 otherwise (bytes identical to before).
+                        if let Some((s, a, o)) = raw_text.as_ref() {
+                            let entry = WalLearnEntryV3 {
+                                state_emb:        state_emb.clone(),
+                                action_emb:       action_emb.clone(),
+                                outcome_emb:      outcome_emb.clone(),
+                                prediction_error,
+                                emotional_tag,
+                                model_id:         model_id.clone(),
+                                authority:        lr.effective_authority,
+                                provenance:       lr.effective_provenance.clone(),
+                                supersedes,
+                                assertion_key:    assertion_key.clone(),
+                                polarity,
+                                raw_text:         Some((s.clone(), a.clone(), o.clone())),
+                            };
+                            if let Ok(payload) = bincode::serialize(&entry) {
+                                let mut tagged = Vec::with_capacity(1 + payload.len());
+                                tagged.push(WAL_TYPE_LEARN_V4);
+                                tagged.extend_from_slice(&payload);
+                                let _ = wal.append(&tagged);
+                            }
+                        } else {
                         let entry = WalLearnEntryV2 {
                             state_emb:        state_emb.clone(),
                             action_emb:       action_emb.clone(),
@@ -814,6 +934,7 @@ fn worker_loop(
                             tagged.push(WAL_TYPE_LEARN_V3);
                             tagged.extend_from_slice(&payload);
                             let _ = wal.append(&tagged);
+                        }
                         }
                     }
                 }
@@ -938,6 +1059,7 @@ fn worker_loop(
                 &mut state.dense_core,
                 &mut state.episode_log,
                 &mut state.cohorts,
+                &mut state.bm25_index,
                 now,
                 &mut rng,
             );
@@ -953,8 +1075,9 @@ fn process_retrieve(
     state: &CoreState,
     raw_emb: &[f32],
     model_id: &str,
-    seed_type: Option<NodeType>,
-    rng: &mut impl rand::Rng,
+     seed_type: Option<NodeType>,
+     query_text: &str,
+     rng: &mut impl rand::Rng,
     cfg: &Config,
 ) -> Result<RetrievalResult> {
     let projected = state.projections.project(model_id, raw_emb)
@@ -971,12 +1094,14 @@ fn process_retrieve(
         cfg.retrieval_query_weight,
         cfg.retrieval_context_weight,
         cfg.retrieval_curiosity_threshold,
-        seed_type,
-        cfg.retrieval_authority_weight,
-        cfg.conflict_detection_threshold,
-        cfg.abstain_on_conflict,
-    ))
-}
+         seed_type,
+         cfg.retrieval_authority_weight,
+         cfg.conflict_detection_threshold,
+         cfg.abstain_on_conflict,
+         query_text,
+         &state.bm25_index,
+      ))
+ }
 
 
 fn process_learn(
@@ -991,9 +1116,10 @@ fn process_learn(
     provenance: String,
     supersedes: Option<u64>,
     caller_role: crate::authority::CallerRole,
-    assertion_key: Option<String>,
-    polarity: Option<i8>,
-    cfg: &Config,
+     assertion_key: Option<String>,
+     polarity: Option<i8>,
+     text: Option<&str>,
+     cfg: &Config,
 ) -> Result<LearnResult> {
     // Fail-safe validation for non-finite values and out-of-range inputs
     if !epsilon.is_finite() || !(0.0..=1.0).contains(&epsilon) {
@@ -1042,9 +1168,9 @@ fn process_learn(
     let effective_provenance = provenance.clone();
 
     // Birth nodes
-    let state_id  = birth_node(&mut *state, raw_state.to_vec(),  &state_proj,  model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity);
-    let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None);
-    let outcome_id= birth_node(&mut *state, raw_outcome.to_vec(),&outcome_proj,model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None);
+      let state_id  = birth_node(&mut *state, raw_state.to_vec(),  &state_proj,  model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text);
+     let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, None);
+     let outcome_id= birth_node(&mut *state, raw_outcome.to_vec(),&outcome_proj,model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, None);
 
     // B6: Apply supersession link to old node
     if let Some(old_id) = supersedes {
@@ -1093,9 +1219,10 @@ fn birth_node(
     timestamp: i64,
     authority: f32,
     provenance: String,
-    assertion_key: Option<String>,
-    polarity: Option<i8>,
-) -> u64 {
+     assertion_key: Option<String>,
+     polarity: Option<i8>,
+     text: Option<&str>,
+ ) -> u64 {
     // Salience calculation
     let salience = state.salience_engine.update_and_calc(epsilon, eta) as f32;
 
@@ -1122,9 +1249,15 @@ fn birth_node(
             arr
         };
 
-        let node = Node::new(blended, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
-            .with_assertion(assertion_key, polarity);
-        let id = state.node_store.insert(node);
+         let node = Node::new(blended, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
+             .with_assertion(assertion_key, polarity)
+             .with_text(text.unwrap_or_default());
+         let id = state.node_store.insert(node);
+         if let Some(t) = text {
+             if !t.is_empty() {
+                 state.bm25_index.insert(id, t);
+             }
+         }
 
         // Edge birth: connect to each node in working memory
         trigger_edge_birth(state, id, timestamp, &blended_proj);

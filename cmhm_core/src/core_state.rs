@@ -19,10 +19,13 @@ pub struct CoreState {
     pub edge_store: EdgeStore,
     pub working_memory: WorkingMemory,
     pub episode_log: EpisodeLog,
-    pub salience_engine: SalienceEngine,
-    pub dense_core: DenseCore,
-    pub cohorts: Cohorts,
-    pub projections: ProjectionRegistry,
+     pub salience_engine: SalienceEngine,
+     pub dense_core: DenseCore,
+     pub cohorts: Cohorts,
+     pub projections: ProjectionRegistry,
+     /// BM25 lexical index over scrubbed node text (rebuilt from Node.text on load).
+     #[serde(skip)]
+     pub bm25_index: crate::bm25::Bm25Index,
 
     /// Monotonically increasing command sequence number.
     pub cmd_seq: u64,
@@ -72,7 +75,8 @@ impl CoreState {
             salience_engine: SalienceEngine::new(),
             dense_core: DenseCore::new(),
             cohorts: Cohorts::new(),
-            projections: ProjectionRegistry::new(),
+             projections: ProjectionRegistry::new(),
+             bm25_index: crate::bm25::Bm25Index::new(),
             cmd_seq: 0,
             last_consolidation_secs: 0.0,
             cumulative_reinforce: 0.0,
@@ -81,7 +85,20 @@ impl CoreState {
             birth_q30: default_birth_q30(),
         }
     }
-
+ 
+     /// Rebuild the BM25 lexical index from stored node text.
+     ///
+     /// Called after snapshot load / migration (index is `serde(skip)`).
+     /// Nodes with empty text are skipped (vector-path learns, legacy nodes).
+     pub fn rebuild_bm25_index(&mut self) {
+         let mut index = crate::bm25::Bm25Index::new();
+         for (&id, node) in self.node_store.iter() {
+             if !node.text.is_empty() {
+                 index.insert(id, &node.text);
+             }
+         }
+         self.bm25_index = index;
+     }
     /// Check if any consolidation trigger is met.
     pub fn should_consolidate(&self, cfg: &crate::config::Config) -> bool {
         let now = now_secs();

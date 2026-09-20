@@ -603,12 +603,13 @@ fn test_phase3_fresh_held_out_operational_benchmark() {
 
     for scn in FRESH_32_SCENARIOS {
         let q_emb = text_to_embedding(scn.query).to_vec();
-        let (retrieval, _) = rt.retrieve(
-            Some(ctx_id),
-            q_emb,
-            "hash-128d",
-            NodeType::State,
-        ).expect("retrieve query");
+         let (retrieval, _) = rt.retrieve(
+             Some(ctx_id),
+             q_emb,
+             "hash-128d",
+             NodeType::State,
+             scn.query,
+         ).expect("retrieve query");
 
         let pos_id = pos_node_ids[scn.id];
         let neg_id = neg_node_ids[scn.id];
@@ -751,12 +752,13 @@ fn test_phase3_conflict_detection_and_safe_abstention() {
         Some("redis_fsync".into()), Some(-1),
     ).expect("learn neg");
 
-    let (result, _) = rt.retrieve(
-        Some(ctx_id),
-        q_emb,
-        "hash-128d",
-        NodeType::State,
-    ).expect("retrieve");
+     let (result, _) = rt.retrieve(
+         Some(ctx_id),
+         q_emb,
+         "hash-128d",
+         NodeType::State,
+         q_text,
+     ).expect("retrieve");
 
     println!("Conflict test result: seed_id={:?}, conflict_detected={}, abstained={}, candidates={:?}",
              result.seed_id, result.conflict_detected, result.abstained, result.conflict_candidates);

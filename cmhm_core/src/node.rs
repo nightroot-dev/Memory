@@ -187,59 +187,70 @@ pub struct Node {
     /// Opposite polarities on the same `assertion_key` trigger a `LogicalContradiction` conflict.
     #[serde(default)]
     pub polarity: Option<i8>,
+    /// Raw scrubbed text backing BM25 lexical indexing.
+    ///
+    /// Empty for vector-path learns and pre-v4 migrated nodes (no BM25 coverage).
+    #[serde(default)]
+    pub text: String,
 }
 
-// Serde default helpers (functions, not closures — required by serde's default attribute)
-fn default_half_life() -> f32 { 180.0 }
-fn default_bandit_prior() -> f32 { 1.0 }
-fn default_model_id() -> String { "hash-128d".to_string() }
-/// Default authority: 0.5 = neutral / unknown. Applies to all pre-v3 nodes recovered from WAL.
-fn default_authority() -> f32 { 0.5 }
+ // Serde default helpers (functions, not closures — required by serde's default attribute)
+ fn default_half_life() -> f32 { 180.0 }
+ fn default_bandit_prior() -> f32 { 1.0 }
+ fn default_model_id() -> String { "hash-128d".to_string() }
+ /// Default authority: 0.5 = neutral / unknown. Applies to all pre-v3 nodes recovered from WAL.
+ fn default_authority() -> f32 { 0.5 }
 
-impl Node {
-    pub fn new(
-        embedding: Vec<f32>,
-        model_id: String,
-        salience: f32,
-        timestamp: i64,
-        emotional_tag: f32,
-        node_type: NodeType,
-        authority: f32,
-        provenance: String,
-    ) -> Self {
-        Self {
-            embedding,
-            model_id,
-            salience,
-            timestamp,
-            emotional_tag,
-            node_type,
-            // Stage 3 defaults
-            n_retrievals:         0,
-            last_retrieved:       0,
-            half_life_days:       180.0,
-            max_prediction_error: 0.0,
-            bandit_alpha:         1.0,
-            bandit_beta:          1.0,
-            // Phase 2 provenance/supersession
-            authority,
-            provenance,
-            superseded_by:        None,
-            assertion_key:        None,
-            polarity:             None,
-        }
-    }
+ impl Node {
+     pub fn new(
+         embedding: Vec<f32>,
+         model_id: String,
+         salience: f32,
+         timestamp: i64,
+         emotional_tag: f32,
+         node_type: NodeType,
+         authority: f32,
+         provenance: String,
+     ) -> Self {
+         Self {
+             embedding,
+             model_id,
+             salience,
+             timestamp,
+             emotional_tag,
+             node_type,
+             // Stage 3 defaults
+             n_retrievals:         0,
+             last_retrieved:       0,
+             half_life_days:       180.0,
+             max_prediction_error: 0.0,
+             bandit_alpha:         1.0,
+             bandit_beta:          1.0,
+             // Phase 2 provenance/supersession
+             authority,
+             provenance,
+             superseded_by:        None,
+             assertion_key:        None,
+             polarity:             None,
+             text:                 String::new(),
+         }
+     }
 
-    pub fn with_assertion(mut self, assertion_key: Option<String>, polarity: Option<i8>) -> Self {
-        self.assertion_key = assertion_key;
-        self.polarity = polarity;
-        self
-    }
+     pub fn with_text(mut self, text: impl Into<String>) -> Self {
+         self.text = text.into();
+         self
+     }
 
+     pub fn with_assertion(mut self, assertion_key: Option<String>, polarity: Option<i8>) -> Self {
+         self.assertion_key = assertion_key;
+         self.polarity = polarity;
+         self
+     }
+ }
 
-    /// Effective salience after power-law temporal decay.
-    ///
-    /// Formula: `S_eff = salience · (1 + Δt/τ)^(-0.35)`
+ impl Node {
+     /// Effective salience after power-law temporal decay.
+     ///
     /// where `τ = half_life_days × 86400` (converted to seconds).
     ///
     /// Properties:

@@ -1167,7 +1167,7 @@ fn e1l_direct_internal_rust_runtime_preserves_user_explicit() {
     ).unwrap();
     assert!(learn_res.state_node_id > 0);
 
-    let (ret_res, _) = rt.retrieve(None, s_emb, "hash-128d", cmhm_core::NodeType::State).unwrap();
+     let (ret_res, _) = rt.retrieve(None, s_emb, "hash-128d", cmhm_core::NodeType::State, "").unwrap();
     assert_eq!(ret_res.seed_provenance, "user_explicit");
     assert!((ret_res.seed_authority - 1.00).abs() < 1e-4);
 }

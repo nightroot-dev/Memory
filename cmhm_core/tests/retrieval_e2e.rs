@@ -71,7 +71,7 @@ fn e2_cross_role_exclusion_production_defaults() {
     // State emb(1) will be less similar. But seed_type=State must still pick State.
     rt.learn(ctx, emb(1), emb(0), emb(2), 0.5, 0.5, "hash-128d", 0.5, String::new(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(
         result.seed_node_type, Some(NodeType::State),
         "E2: seed must be a State node even when Action is more cosine-similar"
@@ -108,7 +108,7 @@ fn e3_contradiction_resolved_by_authority_production_defaults() {
         "E3: two learns with orthogonal embeddings must produce distinct nodes");
 
     // Query near unit_vec(4) — high-authority node has both cosine AND authority advantage.
-    let (result, _) = rt.retrieve(ctx, unit_vec(4), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, unit_vec(4), "hash-128d", NodeType::State, "").unwrap();
 
     assert!(
         result.seed_authority > 0.5,
@@ -138,7 +138,7 @@ fn e4a_empty_provenance_clamps_to_neutral_ceiling() {
     rt.learn(ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
              1.0_f32, String::new(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert!(
         (result.seed_authority - 0.70).abs() < 1e-4,
         "E4a: authority=1.0 with provenance='' must be clamped to 0.70, got {}",
@@ -164,7 +164,7 @@ fn e4b_corrected_provenance_clamps_to_floor() {
     rt.learn(ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
              0.0_f32, "corrected".into(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert!(
         (result.seed_authority - 0.70).abs() < 1e-4,
         "E4b: authority=0.0 with provenance='corrected' must be floored to 0.70, got {}",
@@ -190,7 +190,7 @@ fn e4c_user_explicit_allows_full_authority() {
     rt.learn(ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
              1.0_f32, "user_explicit".into(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert!(
         (result.seed_authority - 1.0).abs() < 1e-4,
         "E4c: authority=1.0 with user_explicit must be stored as 1.0, got {}",
@@ -217,7 +217,7 @@ fn e4d_unknown_provenance_treated_as_empty() {
     rt.learn(ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
              1.0_f32, "forge_class".into(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert!(
         result.seed_authority <= 0.70 + 1e-4,
         "E4d: unknown provenance class must be clamped to neutral ceiling 0.70, got {}",
@@ -256,7 +256,7 @@ fn e4e_forged_authority_loses_to_legitimate() {
         "E4e: forged and legit nodes must be distinct (orthogonal embeddings)");
 
     // Query near unit_vec(6) so legitimate node has both cosine AND authority advantage.
-    let (result, _) = rt.retrieve(ctx, unit_vec(6), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, unit_vec(6), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(
         result.seed_provenance, "user_explicit",
         "E4e: legitimate authority=1.0/user_explicit must beat forged authority=1.0/empty (clamped to 0.70). \
@@ -295,7 +295,7 @@ fn e5a_conflict_detected_no_abstain_by_default() {
     rt.learn(ctx, emb(0), emb(3), emb(4), 0.5, 0.5, "hash-128d",
              0.5_f32, "external_feed".into(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
 
     // Whether conflict fires depends on score proximity — assert abstained=false regardless
     assert!(!result.abstained, "E5a: abstain_on_conflict=false must never abstain");
@@ -331,7 +331,7 @@ fn e5b_abstain_on_conflict_returns_empty_chain() {
     rt.learn(ctx, emb(0), emb(3), emb(4), 0.5, 0.5, "hash-128d",
              0.5_f32, "external_feed".into(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
 
     if result.conflict_detected {
         assert!(result.abstained, "E5b: abstain_on_conflict=true must set abstained=true when conflict fires");
@@ -367,7 +367,7 @@ fn e5c_conflict_candidates_have_structured_fields() {
     rt.learn(ctx, emb(0), emb(3), emb(4), 0.5, 0.5, "hash-128d",
              0.5_f32, "external_feed".into(), None).unwrap();
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     if result.conflict_detected {
         for c in &result.conflict_candidates {
             // All structured fields must be present and sane
@@ -462,7 +462,7 @@ fn e6c_supersession_chain_a_b_c() {
     assert_ne!(b.state_node_id, c.state_node_id, "E6c: B and C must be distinct nodes");
 
     // Retrieval near C's embedding must return C (the only non-superseded state node)
-    let (result, _) = rt.retrieve(ctx, unit_vec(9), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, unit_vec(9), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(
         result.seed_id, Some(c.state_node_id),
         "E6c: chain A→B→C — only C must be seed; got {:?}", result.seed_id
@@ -510,7 +510,7 @@ fn e6d_supersession_idempotent_after_restart() {
         assert_ne!(a.state_node_id, b.state_node_id, "E6d: A and B must be distinct");
 
         // Pre-restart verification
-        let (pre, _) = rt.retrieve(Some(ctx_s), unit_vec(11), "hash-128d", NodeType::State).unwrap();
+         let (pre, _) = rt.retrieve(Some(ctx_s), unit_vec(11), "hash-128d", NodeType::State, "").unwrap();
         assert_eq!(pre.seed_id, Some(b.state_node_id),
             "E6d pre-restart: B must be selected seed near unit_vec(11)");
         assert_eq!(pre.seed_provenance, "corrected",
@@ -529,7 +529,7 @@ fn e6d_supersession_idempotent_after_restart() {
         let ctx_s = ctx_uuid.as_str(); // UUID from session 1 — stable across restart
 
         // Query near unit_vec(11) — B's exact node ID and properties must survive restart.
-        let (result, _) = rt.retrieve(Some(ctx_s), unit_vec(11), "hash-128d", NodeType::State).unwrap();
+         let (result, _) = rt.retrieve(Some(ctx_s), unit_vec(11), "hash-128d", NodeType::State, "").unwrap();
         assert_eq!(result.seed_id, Some(b_node_id),
             "E6d: after restart, B (id={b_node_id}) must remain the selected seed — operational identity preserved");
         assert_eq!(result.seed_provenance, "corrected",
@@ -540,7 +540,7 @@ fn e6d_supersession_idempotent_after_restart() {
             "E6d: non-conflicting retrieve must not abstain after restart");
 
         // Query near unit_vec(10) — A's embedding region — superseded A must not appear.
-        let (near_a, _) = rt.retrieve(Some(ctx_s), unit_vec(10), "hash-128d", NodeType::State).unwrap();
+         let (near_a, _) = rt.retrieve(Some(ctx_s), unit_vec(10), "hash-128d", NodeType::State, "").unwrap();
         if near_a.seed_id.is_some() {
             assert!(
                 near_a.seed_authority >= 0.70 || near_a.seed_provenance != "inferred",
@@ -592,7 +592,7 @@ fn e6e_competing_successors_last_writer_wins() {
     assert_ne!(c.state_node_id, d.state_node_id);
 
     // B and C are superseded; D is the only active seed
-    let (result, _) = rt.retrieve(ctx, unit_vec(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, unit_vec(0), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(result.seed_id, Some(d.state_node_id),
         "E6e: D must be selected as seed following B->C->D chain");
 
@@ -657,7 +657,7 @@ fn e7_v2_snapshot_quarantine_wal_recovery() {
 
         // Retrieval must work (data recovered from WAL)
         let ctx_id_str = ctx_uuid.as_str();
-        let (result, _) = rt.retrieve(Some(ctx_id_str), emb(0), "hash-128d", NodeType::State).unwrap();
+         let (result, _) = rt.retrieve(Some(ctx_id_str), emb(0), "hash-128d", NodeType::State, "").unwrap();
         assert!(
             result.seed_id.is_some(),
             "E7: data must be recovered from WAL after snapshot quarantine"
@@ -721,7 +721,7 @@ fn e8_authority_weight_active_after_restart() {
     {
         let mut rt = ContextRuntime::new(cfg, "e8".into()).unwrap();
         let ctx_s = ctx_uuid.as_str();
-        let (result, _) = rt.retrieve(Some(ctx_s), emb(0), "hash-128d", NodeType::State).unwrap();
+         let (result, _) = rt.retrieve(Some(ctx_s), emb(0), "hash-128d", NodeType::State, "").unwrap();
 
         assert_eq!(
             result.seed_id, Some(high_auth_id),
@@ -759,7 +759,7 @@ fn e9_authoritative_beats_higher_cosine() {
 
     // Query is closer to unit_vec(0) than unit_vec(1), so pure cosine would pick cosine_winner.
     // But authority_weight=0.8 × (1.0 - 0.10) = 0.72 advantage for auth_winner must overcome it.
-    let (result, _) = rt.retrieve(ctx, unit_vec(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, unit_vec(0), "hash-128d", NodeType::State, "").unwrap();
 
     // The authority winner may or may not beat the cosine winner depending on exact score math.
     // We assert the minimum: if authority won, provenance must match.
@@ -797,7 +797,7 @@ fn e10_superseded_node_excluded_even_if_cosine_1() {
                            0.5_f32, "user_explicit".into(), Some(a.state_node_id)).unwrap();
 
     // Query = unit_vec(0): A would win on cosine=1.0 but is superseded → must pick B
-    let (result, _) = rt.retrieve(ctx, unit_vec(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, unit_vec(0), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(
         result.seed_id, Some(b.state_node_id),
         "E10: superseded node A (id={}) must be excluded even with cosine=1.0 — \
@@ -828,7 +828,7 @@ fn e4f_ordinary_caller_claims_user_explicit_is_downgraded() {
     ).unwrap();
     assert!(res.state_node_id > 0);
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(result.seed_provenance, "inferred", "Agent caller must be downgraded from user_explicit to inferred");
     assert!((result.seed_authority - 0.60).abs() < 1e-4, "Agent authority must be clamped to inferred ceiling 0.60, got {}", result.seed_authority);
 
@@ -855,7 +855,7 @@ fn e4g_trusted_caller_preserves_user_explicit() {
     ).unwrap();
     assert!(res.state_node_id > 0);
 
-    let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert_eq!(result.seed_provenance, "user_explicit", "User caller must preserve user_explicit");
     assert!((result.seed_authority - 1.00).abs() < 1e-4, "User authority must be 1.00, got {}", result.seed_authority);
 
@@ -894,7 +894,7 @@ fn e5d_conflict_type_logical_contradiction_opposing_polarities() {
     q[0] = 1.0 / 2.0_f32.sqrt();
     q[1] = 1.0 / 2.0_f32.sqrt();
 
-    let (result, _) = rt.retrieve(ctx, q, "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, q, "hash-128d", NodeType::State, "").unwrap();
     assert!(result.conflict_detected, "E5d: opposing polarities on same assertion_key must detect conflict");
     assert!(result.abstained, "E5d: abstain_on_conflict=true must cause abstention on contradiction");
     assert!(result.causal_chain.is_empty(), "E5d: causal chain must be empty on abstention");
@@ -927,7 +927,7 @@ fn e5e_conflict_type_authority_polarity() {
     q[0] = 1.0 / 2.0_f32.sqrt();
     q[1] = 1.0 / 2.0_f32.sqrt();
 
-    let (result, _) = rt.retrieve(ctx, q, "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, q, "hash-128d", NodeType::State, "").unwrap();
     assert!(result.conflict_detected);
     let has_polarity = result.conflict_candidates.iter()
         .any(|c| c.conflict_type == ConflictType::AuthorityPolarity);
@@ -960,7 +960,7 @@ fn e5f_conflict_type_score_ambiguity() {
     q[0] = 1.0 / 2.0_f32.sqrt();
     q[1] = 1.0 / 2.0_f32.sqrt();
 
-    let (result, _) = rt.retrieve(ctx, q, "hash-128d", NodeType::State).unwrap();
+     let (result, _) = rt.retrieve(ctx, q, "hash-128d", NodeType::State, "").unwrap();
     assert!(result.conflict_detected);
     let has_ambiguity = result.conflict_candidates.iter()
         .any(|c| c.conflict_type == ConflictType::ScoreAmbiguity);
@@ -1158,7 +1158,7 @@ fn e7_immutable_v2_snapshot_migration() {
         let ctx_s = ctx_uuid.as_str();
 
         // 1. Exact node identity, type, and content preservation
-        let (result, _) = rt.retrieve(Some(ctx_s), unit_vec(0), "hash-128d", NodeType::State).unwrap();
+         let (result, _) = rt.retrieve(Some(ctx_s), unit_vec(0), "hash-128d", NodeType::State, "").unwrap();
         assert_eq!(result.seed_id, Some(101), "E7: exact node ID 101 from v2 snapshot must be preserved");
         assert_eq!(result.seed_node_type, Some(NodeType::State), "E7: NodeType::State must be preserved");
         assert_eq!(result.seed_provenance, "", "E7: migrated node must have empty provenance (unpromoted)");
@@ -1175,7 +1175,7 @@ fn e7_immutable_v2_snapshot_migration() {
         let mut mid_q1 = vec![0.0f32; 128];
         mid_q1[0] = 1.0 / 2.0_f32.sqrt();
         mid_q1[1] = 1.0 / 2.0_f32.sqrt();
-        let (res_compete1, _) = rt.retrieve(Some(ctx_s), mid_q1, "hash-128d", NodeType::State).unwrap();
+         let (res_compete1, _) = rt.retrieve(Some(ctx_s), mid_q1, "hash-128d", NodeType::State, "").unwrap();
         assert_eq!(res_compete1.seed_id, Some(node_high.state_node_id),
             "E7 fail-safe: authoritative (0.85) must beat migrated neutral (0.50) at equal cosine distance");
 
@@ -1188,7 +1188,7 @@ fn e7_immutable_v2_snapshot_migration() {
         let mut mid_q2 = vec![0.0f32; 128];
         mid_q2[0] = 1.0 / 2.0_f32.sqrt();
         mid_q2[2] = 1.0 / 2.0_f32.sqrt();
-        let (res_compete2, _) = rt.retrieve(Some(ctx_s), mid_q2, "hash-128d", NodeType::State).unwrap();
+         let (res_compete2, _) = rt.retrieve(Some(ctx_s), mid_q2, "hash-128d", NodeType::State, "").unwrap();
         assert_eq!(res_compete2.seed_id, Some(101),
             "E7 fail-safe: migrated neutral (0.50) must beat low-authority/refuted (0.10) at equal cosine distance");
 
@@ -1198,7 +1198,7 @@ fn e7_immutable_v2_snapshot_migration() {
             0.80_f32, "user_explicit".into(), Some(101),
         ).unwrap();
 
-        let (res_after_super, _) = rt.retrieve(Some(ctx_s), unit_vec(0), "hash-128d", NodeType::State).unwrap();
+         let (res_after_super, _) = rt.retrieve(Some(ctx_s), unit_vec(0), "hash-128d", NodeType::State, "").unwrap();
         assert_ne!(res_after_super.seed_id, Some(101),
             "E7 supersession: migrated node 101 must be excluded once superseded");
 
@@ -1240,7 +1240,7 @@ fn e7b_immutable_legacy_wal_recovery() {
         let mut rt = ContextRuntime::new(cfg, "e7b_s2".into()).unwrap();
         let ctx_s = ctx_uuid.as_str();
 
-        let (result, _) = rt.retrieve(Some(ctx_s), unit_vec(0), "hash-128d", NodeType::State).unwrap();
+         let (result, _) = rt.retrieve(Some(ctx_s), unit_vec(0), "hash-128d", NodeType::State, "").unwrap();
         assert!(result.seed_id.is_some(), "E7b: legacy WAL replay must recover State node");
         assert_eq!(result.seed_provenance, "");
         assert!((result.seed_authority - 0.50).abs() < 0.05);
@@ -1286,7 +1286,7 @@ fn e8_wal_recovery_preserves_authority_ceiling() {
             "E8 live: Agent authority must be clamped to 0.60, got {}", res.effective_authority);
 
         // Verify live retrieval reflects the ceiling
-        let (ret, _) = rt.retrieve(Some(uuid.as_str()), emb(0), "hash-128d", NodeType::State).unwrap();
+         let (ret, _) = rt.retrieve(Some(uuid.as_str()), emb(0), "hash-128d", NodeType::State, "").unwrap();
         assert_eq!(ret.seed_provenance, "inferred", "E8 live retrieval: must show inferred");
         assert!((ret.seed_authority - 0.60).abs() < 1e-4,
             "E8 live retrieval: authority must be 0.60, got {}", ret.seed_authority);
@@ -1302,9 +1302,9 @@ fn e8_wal_recovery_preserves_authority_ceiling() {
 
     {
         let mut rt = ContextRuntime::new(cfg, "e8_s2".into()).unwrap();
-        let (ret, _) = rt.retrieve(
-            Some(ctx_uuid.as_str()), emb(0), "hash-128d", NodeType::State,
-        ).unwrap();
+         let (ret, _) = rt.retrieve(
+             Some(ctx_uuid.as_str()), emb(0), "hash-128d", NodeType::State, "",
+         ).unwrap();
 
         // The WAL must have stored clamped values — recovery must NOT elevate authority
         assert_eq!(ret.seed_provenance, "inferred",
@@ -1341,7 +1341,7 @@ fn e9_non_finite_authority_is_sanitized_not_propagated() {
     assert!(res_nan.state_node_id > 0, "E9: learn with NaN authority must not crash");
     assert!(res_nan.effective_authority.is_finite(), "E9: effective authority must be finite after NaN input");
 
-    let (ret_nan, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State).unwrap();
+     let (ret_nan, _) = rt.retrieve(ctx, emb(0), "hash-128d", NodeType::State, "").unwrap();
     assert!(ret_nan.seed_authority.is_finite(), "E9: retrieved authority must be finite, got {}", ret_nan.seed_authority);
     assert!(ret_nan.seed_authority >= 0.0 && ret_nan.seed_authority <= 1.0,
         "E9: retrieved authority must be in [0,1], got {}", ret_nan.seed_authority);
@@ -1456,7 +1456,7 @@ fn e11_v2_wal_adversarial_record_clamped_on_recovery() {
     // Session 2: start runtime and recover from WAL
     {
         let mut rt = ContextRuntime::new(cfg, "e11_s2".into()).unwrap();
-        let (res, _) = rt.retrieve(Some(ctx_uuid.as_str()), unit_vec(6), "hash-128d", NodeType::State).unwrap();
+         let (res, _) = rt.retrieve(Some(ctx_uuid.as_str()), unit_vec(6), "hash-128d", NodeType::State, "").unwrap();
 
         // The adversarial record must have been clamped to <= 0.60 and "inferred"!
         // Therefore, the legitimate candidate (authority 0.75, user_explicit) must WIN the retrieval!

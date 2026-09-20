@@ -311,21 +311,61 @@ impl ContextRuntime {
         Ok((result, desc))
     }
 
+    /// Learn with scrubbed raw text for BM25 lexical indexing.
+    ///
+    /// Text-path entry point: `raw_text = Some((state, action, outcome))`
+    /// flows to `EngineHandle::learn_with_text_context` → `birth_node` →
+    /// `Node.text` + BM25 insert. All other callers use `learn_with_context`
+    /// (no text, dense-only, behavior unchanged).
+    pub fn learn_text_with_context(
+        &mut self,
+        context_id: Option<&str>,
+        state_emb:   Vec<f32>,
+        action_emb:  Vec<f32>,
+        outcome_emb: Vec<f32>,
+        prediction_error: f32,
+        emotional_tag:    f32,
+        model_id: &str,
+        authority:  f32,
+        provenance: String,
+        supersedes: Option<u64>,
+        caller_role: crate::authority::CallerRole,
+        assertion_key: Option<String>,
+        polarity: Option<i8>,
+        raw_text: Option<(String, String, String)>,
+    ) -> Result<(LearnResult, ContextDescriptor)> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        let result = handle.learn_with_text_context(
+            state_emb, action_emb, outcome_emb,
+            prediction_error, emotional_tag, model_id,
+            authority, provenance, supersedes,
+            caller_role, assertion_key, polarity,
+            raw_text,
+        )?;
+        self.registry.record_learn(&id);
+        let desc = self.registry.get(&id)
+            .map(ContextDescriptor::from)
+            .ok_or_else(|| anyhow::anyhow!("context vanished after learn"))?;
+        Ok((result, desc))
+    }
+
 
 
     /// Retrieve from a context. If context_id is None, uses the default context.
     ///
     /// `seed_type` is mandatory — unscoped retrieval is not permitted from the public API.
-    pub fn retrieve(
-        &mut self,
-        context_id: Option<&str>,
-        query_emb: Vec<f32>,
-        model_id:  &str,
-        seed_type: NodeType,
-    ) -> Result<(RetrievalResult, ContextDescriptor)> {
-        let id = self.resolve_context(context_id)?;
-        let handle = self.ensure_loaded(&id)?;
-        let result = handle.retrieve(query_emb, model_id, seed_type)?;
+     pub fn retrieve(
+         &mut self,
+         context_id: Option<&str>,
+         query_emb: Vec<f32>,
+         model_id:  &str,
+         seed_type: NodeType,
+         query_text: &str,
+     ) -> Result<(RetrievalResult, ContextDescriptor)> {
+         let id = self.resolve_context(context_id)?;
+         let handle = self.ensure_loaded(&id)?;
+         let result = handle.retrieve(query_emb, model_id, seed_type, query_text)?;
         // ensure_loaded already called transition -> Active
         let desc = self.registry.get(&id)
             .map(ContextDescriptor::from)
@@ -336,16 +376,16 @@ impl ContextRuntime {
     /// Unscoped retrieval — all NodeType variants compete in the candidate pool.
     ///
     /// Used when `retrieval_intent` is absent from the MCP call, or when a
-    /// benchmark must verify cross-type contradiction safety without type fencing.
-    pub fn retrieve_unscoped(
-        &mut self,
-        context_id: Option<&str>,
-        query_emb: Vec<f32>,
-        model_id:  &str,
-    ) -> Result<(RetrievalResult, ContextDescriptor)> {
-        let id = self.resolve_context(context_id)?;
-        let handle = self.ensure_loaded(&id)?;
-        let result = handle.retrieve_unscoped(query_emb, model_id)?;
+     pub fn retrieve_unscoped(
+         &mut self,
+         context_id: Option<&str>,
+         query_emb: Vec<f32>,
+         model_id:  &str,
+         query_text: &str,
+     ) -> Result<(RetrievalResult, ContextDescriptor)> {
+         let id = self.resolve_context(context_id)?;
+         let handle = self.ensure_loaded(&id)?;
+         let result = handle.retrieve_unscoped(query_emb, model_id, query_text)?;
         let desc = self.registry.get(&id)
             .map(ContextDescriptor::from)
             .ok_or_else(|| anyhow::anyhow!("context vanished after retrieve_unscoped"))?;

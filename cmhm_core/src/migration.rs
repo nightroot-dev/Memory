@@ -96,17 +96,18 @@ pub fn migrate_v2_to_v3(v2_payload: &[u8]) -> Result<CoreState> {
             last_retrieved:       n2.last_retrieved,
             half_life_days:       n2.half_life_days,
             max_prediction_error: n2.max_prediction_error,
-            bandit_alpha:         n2.bandit_alpha,
-            bandit_beta:          n2.bandit_beta,
-            // Phase 2 new fields assigned neutral unpromoted defaults
-            authority:            0.5,
-            provenance:           String::new(),
-            superseded_by:        None,
-            assertion_key:        None,
-            polarity:             None,
-        };
-        migrated_nodes.insert(id, node);
-    }
+             bandit_alpha:         n2.bandit_alpha,
+             bandit_beta:          n2.bandit_beta,
+             // Phase 2 new fields assigned neutral unpromoted defaults
+             authority:            0.5,
+             provenance:           String::new(),
+             superseded_by:        None,
+             assertion_key:        None,
+             polarity:             None,
+             text:                 String::new(),
+         };
+         migrated_nodes.insert(id, node);
+     }
 
     let node_store = NodeStore {
         nodes: migrated_nodes,
@@ -115,22 +116,27 @@ pub fn migrate_v2_to_v3(v2_payload: &[u8]) -> Result<CoreState> {
         embed_dim: v2.node_store.embed_dim,
     };
 
-    Ok(CoreState {
-        node_store,
-        edge_store:              v2.edge_store,
-        working_memory:          v2.working_memory,
-        episode_log:             v2.episode_log,
-        salience_engine:         v2.salience_engine,
-        dense_core:              v2.dense_core,
-        cohorts:                 v2.cohorts,
-        projections:             v2.projections,
-        cmd_seq:                 v2.cmd_seq,
-        last_consolidation_secs: v2.last_consolidation_secs,
-        cumulative_reinforce:    v2.cumulative_reinforce,
-        global_ema:              v2.global_ema,
-        feedback_seen:           v2.feedback_seen,
-        birth_q30:               v2.birth_q30,
-    })
+     Ok({
+         let mut state = CoreState {
+         node_store,
+         edge_store:              v2.edge_store,
+         working_memory:          v2.working_memory,
+         episode_log:             v2.episode_log,
+         salience_engine:         v2.salience_engine,
+         dense_core:              v2.dense_core,
+         cohorts:                 v2.cohorts,
+         projections:             v2.projections,
+         cmd_seq:                 v2.cmd_seq,
+         last_consolidation_secs: v2.last_consolidation_secs,
+         cumulative_reinforce:    v2.cumulative_reinforce,
+         global_ema:              v2.global_ema,
+         feedback_seen:           v2.feedback_seen,
+         birth_q30:               v2.birth_q30,
+         bm25_index:              crate::bm25::Bm25Index::new(),
+         };
+         state.rebuild_bm25_index();
+         state
+     })
 }
 
 /// Helper to generate a valid v2 snapshot envelope payload for fixture creation and testing.
