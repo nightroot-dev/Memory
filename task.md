@@ -85,3 +85,24 @@ benefit from BM25 until this is extended. Extension requires its own measurement
 The paraphrase ceiling is set by the dense embedder. Next lever is
 fixing the MiniLM truncation sites in `engine.rs` / `consolidation.rs` /
 `dense_core.rs`. Est. +20-25 pts overall P@1 after fix.
+
+## Truncation fix complete (2026-09)
+All 11 silent 384->128 truncation sites eliminated:
+  engine.rs: birth_node, trigger_edge_birth, update_causal_edge x2,
+             process_explicit_edge x2
+  consolidation.rs: credit-propagation x1, dead-edge prune x1
+Behavior: fail-closed. On missing projection: warn + skip dense update.
+Storage layer (nodes, edges, WAL) unaffected.
+
+Two follow-up findings from this session:
+  1. No projection registration infrastructure exists. MiniLM embeddings
+     currently fail closed at learn time. Positive-path MiniLM requires
+     either Command::RegisterProjection or startup loading from
+     cfg.projections_dir (which is created but never read — engine.rs:582).
+  2. process_learn stringifies ProjectionError via map_err, losing the
+     typed error. Callers cannot programmatically match on NoProjectionFound
+     vs DimMismatch. Fix: replace the three map_err sites with direct ?
+     propagation.
+
+Test coverage: projection_failclosed.rs (2 tests) + projection.rs
+(3 contract tests) lock the fail-closed behavior end-to-end.
