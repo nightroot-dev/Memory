@@ -71,3 +71,17 @@ $$\text{gate\_score} = \text{novelty} \times (1.0 + \kappa \cdot |\text{predicti
 Scoping note: BM25 indexes state text only. Action/outcome text is in WAL V4
 but not in the lexical index. Queries phrased as "how did I fix X" will not
 benefit from BM25 until this is extended. Extension requires its own measurement.
+
+## 5. Known Baselines (measured 2026-09, corpus `bm25_fusion_bench`, n=80)
+
+| Metric | Value | Notes |
+|---|---|---|
+| Hash-128 paraphrase P@1 | 5.0% | Honest baseline; replaces earlier ~6.7% estimate |
+| Hash-128 lexical P@1 | 60.0% | Boilerplate-inflated (shared template phrasing) |
+| Hash-128 + BM25 overall P@1 | 48.8% | +16.3 pts over dense-only |
+| Hash-128 + BM25 lexical P@1 | 92.5% | +32.5 pts; P@5 at 100% |
+| Hash-128 + BM25 paraphrase P@1 | 5.0% | Flat — BM25 adds nothing without token overlap (control) |
+
+The paraphrase ceiling is set by the dense embedder. Next lever is
+fixing the MiniLM truncation sites in `engine.rs` / `consolidation.rs` /
+`dense_core.rs`. Est. +20-25 pts overall P@1 after fix.
