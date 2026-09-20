@@ -170,4 +170,53 @@ mod tests {
         let e = vec![1.0f32; 64]; // wrong dim
         assert!(proj.project(&e).is_err());
     }
+
+    /// Fail-closed contract: 384-dim input with no registered projection
+    /// must Err(NoProjectionFound), never silently truncate.
+    #[test]
+    fn projection_registry_fails_closed_on_dim_mismatch() {
+        let reg = ProjectionRegistry::new();
+        let e = vec![0.0f32; 384];
+        match reg.project("model_with_no_projection", &e) {
+            Err(ProjectionError::NoProjectionFound { model_id }) => {
+                assert_eq!(model_id, "model_with_no_projection");
+            }
+            other => panic!("expected NoProjectionFound, got {:?}", other),
+        }
+    }
+
+    /// Identity path: 128-dim input with no registered projection succeeds.
+    #[test]
+    fn projection_registry_identity_for_128_dim() {
+        let reg = ProjectionRegistry::new();
+        let e = vec![0.1f32; 128];
+        let out = reg.project("hash-128d", &e).expect("identity path must succeed");
+        assert_eq!(out.len(), 128);
+    }
+
+    /// Registered matrix path: fake 384→128 projection (identity on the
+    /// first 128 dims) yields 128-dim unit-norm output.
+    #[test]
+    fn projection_registry_uses_registered_matrix() {
+        let mut matrix = vec![0.0f32; EMBED_DIM * 384];
+        for row in 0..EMBED_DIM {
+            matrix[row * 384 + row] = 1.0;
+        }
+        let proj = Projection {
+            input_dim: 384,
+            matrix,
+            bias: [0.0f32; EMBED_DIM],
+        };
+        let mut reg = ProjectionRegistry::new();
+        reg.register("fake-384d".to_string(), proj);
+        let mut e = vec![0.0f32; 384];
+        e[0] = 3.0;
+        e[1] = 4.0; // norm = 5 → [0.6, 0.8, ...]
+        let out = reg.project("fake-384d", &e).expect("registered projection must succeed");
+        assert_eq!(out.len(), 128);
+        assert!((out[0] - 0.6).abs() < 1e-5, "e[0] should be 0.6, got {}", out[0]);
+        assert!((out[1] - 0.8).abs() < 1e-5, "e[1] should be 0.8, got {}", out[1]);
+        let norm = out.iter().map(|f| f * f).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-5, "output must be unit-norm, got {}", norm);
+    }
 }
