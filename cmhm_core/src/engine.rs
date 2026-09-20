@@ -1413,16 +1413,33 @@ fn update_causal_edge(
         // Dense core update — safe now, edge_store not borrowed
         let a_emb  = state.node_store.get(action_id).map(|n| n.embedding.clone());
         let a_type = state.node_store.get(action_id).map(|n| n.node_type as u8);
+        let a_mid  = state.node_store.get(action_id).map(|n| n.model_id.clone());
         let o_emb  = state.node_store.get(outcome_id).map(|n| n.embedding.clone());
         let o_type = state.node_store.get(outcome_id).map(|n| n.node_type as u8);
+        let o_mid  = state.node_store.get(outcome_id).map(|n| n.model_id.clone());
 
-        if let (Some(a_emb), Some(a_type), Some(o_emb), Some(o_type)) =
-            (a_emb, a_type, o_emb, o_type)
+        if let (Some(a_emb), Some(a_type), Some(o_emb), Some(o_type), Some(a_mid), Some(o_mid)) =
+            (a_emb, a_type, o_emb, o_type, a_mid, o_mid)
         {
             let slice = DenseCore::slice_index(EdgeType::CausalHypothesis as u8, a_type, o_type);
-            let mut ap = [0.0f32; EMBED_DIM]; let al = a_emb.len().min(EMBED_DIM); ap[..al].copy_from_slice(&a_emb[..al]);
-            let mut op = [0.0f32; EMBED_DIM]; let ol = o_emb.len().min(EMBED_DIM); op[..ol].copy_from_slice(&o_emb[..ol]);
-            state.dense_core.update(slice, &ap, &op, final_w);
+            // Project both embeddings to EMBED_DIM. Both must succeed; either
+            // failing warns and skips the dense update (fail-closed).
+            match (state.projections.project(&a_mid, &a_emb),
+                   state.projections.project(&o_mid, &o_emb))
+            {
+                (Ok(ap), Ok(op)) => {
+                    state.dense_core.update(slice, &ap, &op, final_w);
+                }
+                (a_res, o_res) => {
+                    let a_ok = a_res.is_ok();
+                    let o_ok = o_res.is_ok();
+                    tracing::warn!(
+                        "update_causal_edge: dense update skipped (action_ok={}, outcome_ok={}); \
+                         action_mid={} action_dim={} outcome_mid={} outcome_dim={}",
+                        a_ok, o_ok, a_mid, a_emb.len(), o_mid, o_emb.len()
+                    );
+                }
+            }
         }
     }
 }
