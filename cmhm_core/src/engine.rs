@@ -1155,12 +1155,9 @@ fn process_learn(
     }
 
     // Project all three embeddings into node-store space.
-    let state_proj  = state.projections.project(model_id, raw_state)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
-    let action_proj = state.projections.project(model_id, raw_action)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
-    let outcome_proj = state.projections.project(model_id, raw_outcome)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let state_proj  = state.projections.project(model_id, raw_state)?;
+    let action_proj = state.projections.project(model_id, raw_action)?;
+    let outcome_proj = state.projections.project(model_id, raw_outcome)?;
 
     // B4: Authenticate caller role and clamp authority to authorized class bounds.
     let (authority, provenance) = crate::authority::authenticate_and_clamp(authority, &provenance, caller_role);

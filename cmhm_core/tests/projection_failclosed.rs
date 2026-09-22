@@ -7,12 +7,9 @@
 // with no registered projection must Err with NO side effects (no nodes,
 // no WAL entry), and 128-dim learns keep working via identity.
 //
-// NOTE on error shape: process_learn stringifies the projection error
-// (.map_err(|e| anyhow!("{e}"))), so the typed ProjectionError does NOT
-// survive in the anyhow chain — downcast_ref::<ProjectionError>() fails.
-// These tests therefore assert on is_err() + the Display message, which
-// carries the model_id. If a future cleanup preserves the typed error,
-// strengthen the assertions to downcast.
+// NOTE on error shape (Finding 2, resolved): process_learn now propagates
+// ProjectionError via ? instead of stringifying it, so the typed variant
+// survives in the anyhow chain and tests downcast to NoProjectionFound.
 
 // Positive-path test (384-dim + registered projection) is NOT testable:
 // it requires projection-registration infrastructure
@@ -55,15 +52,14 @@ fn learn_with_384_dim_and_no_projection_fails_closed() {
             "outcome text".to_string(),
         )),
     );
-    assert!(res.is_err(), "384-dim learn with no projection must Err");
-    let msg = format!("{:?}", res.unwrap_err());
+    let err = res.unwrap_err();
+    let pe = err.downcast_ref::<cmhm_core::projection::ProjectionError>();
     assert!(
-        msg.contains("test-model-384d-no-proj"),
-        "error must name the unprojected model, got: {msg}"
-    );
-    assert!(
-        msg.contains("No projection found"),
-        "error must be the NoProjectionFound message, got: {msg}"
+        matches!(
+            pe,
+            Some(cmhm_core::projection::ProjectionError::NoProjectionFound { .. })
+        ),
+        "expected ProjectionError::NoProjectionFound, got: {err:?}"
     );
     assert_eq!(
         handle.node_count(),
