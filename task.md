@@ -106,3 +106,30 @@ Two follow-up findings from this session:
 
 Test coverage: projection_failclosed.rs (2 tests) + projection.rs
 (3 contract tests) lock the fail-closed behavior end-to-end.
+
+## Projection registration landed (2026-09)
+
+- Command::RegisterProjection + EngineHandle::register_projection
+  (commit 974ef21)
+- Positive test: registered 384->128 projection → learn succeeds,
+  nodes created (projection_positive.rs)
+- Negative test: matrix-length mismatch → Err
+
+Resolves both follow-ups logged under "Truncation fix complete":
+  - Finding 2 (typed errors): process_learn propagates ProjectionError
+    via ?, callers can downcast — commit f266954.
+  - Finding 1 (registration infra): runtime registration now exists —
+    commit 974ef21.
+
+Remaining to enable MiniLM end-to-end:
+  1. Train real 384 -> 128 projection for "minilm-l6-v2-int8"
+     (Python, offline, ~1 day).
+  2. Expose register_projection via MCP tool
+     (memory_register_projection) + ContextRuntime passthrough.
+  3. Optionally wire startup loading from cfg.projections_dir
+     (currently created at engine.rs:582 but never read).
+
+Toolchain note: cargo +stable-x86_64-pc-windows-msvc hits a link error
+(rust-lld cannot find system/mingw libs — suspected gnu-target pin in
+.cargo/config.toml). Sessions currently use +stable-x86_64-pc-windows-gnu
+which links cleanly. Investigate the config pin in a future session.
