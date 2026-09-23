@@ -107,6 +107,16 @@ pub enum Command {
         path: PathBuf,
         tx: mpsc::SyncSender<Result<()>>,
     },
+    /// Register a projection matrix for a model_id at runtime.
+    /// `matrix` is row-major, shape [EMBED_DIM x input_dim].
+    /// `bias` is [f32; EMBED_DIM].
+    RegisterProjection {
+        model_id: String,
+        input_dim: usize,
+        matrix: Vec<f32>,
+        bias: [f32; crate::EMBED_DIM],
+        tx: mpsc::SyncSender<Result<()>>,
+    },
     Shutdown {
         tx: mpsc::SyncSender<Result<()>>,
     },
@@ -490,6 +500,42 @@ impl EngineHandle {
             return 0.30;
         }
         resp_rx.recv().unwrap_or(0.30)
+    }
+
+    /// Register a projection matrix at runtime.
+    ///
+    /// Matrix is row-major with shape [EMBED_DIM x input_dim].
+    /// Bias is [f32; EMBED_DIM]. After successful registration, learn
+    /// and retrieve calls with this model_id will project native-dim
+    /// embeddings into the internal EMBED_DIM space.
+    ///
+    /// Returns Err if the engine worker has shut down, or if matrix
+    /// length does not equal EMBED_DIM * input_dim.
+    pub fn register_projection(
+        &self,
+        model_id: impl Into<String>,
+        input_dim: usize,
+        matrix: Vec<f32>,
+        bias: [f32; crate::EMBED_DIM],
+    ) -> Result<()> {
+        if matrix.len() != crate::EMBED_DIM * input_dim {
+            anyhow::bail!(
+                "matrix shape mismatch: expected {} f32 ({} x {}), got {}",
+                crate::EMBED_DIM * input_dim,
+                crate::EMBED_DIM,
+                input_dim,
+                matrix.len()
+            );
+        }
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        self.tx.send(Command::RegisterProjection {
+            model_id: model_id.into(),
+            input_dim,
+            matrix,
+            bias,
+            tx: resp_tx,
+        })?;
+        resp_rx.recv()?
     }
 
     /// Shut down the engine gracefully (takes a final snapshot and waits for disk flush).
@@ -1030,6 +1076,11 @@ fn worker_loop(
             Command::GetBirthQ30 { tx } => {
                 // Read-only — no WAL, no state change.
                 let _ = tx.send(state.birth_q30);
+            }
+
+            Command::RegisterProjection { model_id, input_dim, matrix, bias, tx } => {
+                let result = process_register_projection(&mut state, model_id, input_dim, matrix, bias);
+                let _ = tx.send(result);
             }
 
             Command::Shutdown { tx } => {
@@ -1575,5 +1626,36 @@ fn process_explicit_edge(
         }
     }
 
+    Ok(())
+}
+
+fn process_register_projection(
+    state: &mut CoreState,
+    model_id: String,
+    input_dim: usize,
+    matrix: Vec<f32>,
+    bias: [f32; crate::EMBED_DIM],
+) -> Result<()> {
+    let expected = crate::EMBED_DIM * input_dim;
+    if matrix.len() != expected {
+        anyhow::bail!(
+            "process_register_projection: matrix len {} != expected {}",
+            matrix.len(),
+            expected
+        );
+    }
+    let proj = crate::projection::Projection {
+        input_dim,
+        matrix,
+        bias,
+    };
+    state.projections.register(model_id.clone(), proj);
+    tracing::info!(
+        model_id = %model_id,
+        input_dim,
+        "registered projection: {} -> {}",
+        input_dim,
+        crate::EMBED_DIM
+    );
     Ok(())
 }
