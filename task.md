@@ -181,14 +181,22 @@ Findings:
 1. Lexical is now measurable for both (was: unmeasurable for hash).
    MiniLM Lex P@1 = 1.0, hash = 0.50. The rare-ID design works;
    MiniLM separates unique tokens perfectly here.
-2. MINILM PARA_P@1 = 0.0000 — the target never appears in the
-   candidate pool for any of the 40 paraphrase queries. This is a
-   total failure on the clean set (was 0.15 on the flawed set)
-   and is UNDER INVESTIGATION. Hypotheses: node dedup collapsing
-   similar learns (eps=0.3 below birth escape), PCA projection
-   blurring ops-domain distinctions, or paraphrase situations too
-   close to each other in MiniLM space. Do not cite MiniLM
-   paraphrase numbers until the cause is found.
+2. MINILM PARA_P@1 = 0.0000 — diagnosed via scratch probe
+   (diag_para_tmp.rs, since deleted). Dedup hypothesis is DEAD:
+   40/40 paraphrase learns birthed distinct state nodes (120 nodes
+   total). Cross-similarity mean NN cosine is 0.426 — distinct but
+   close. Raw-vs-projected probe on 3 pairs shows the PCA projection
+   roughly preserves raw MiniLM similarities (0.469→0.550,
+   0.197→0.248, 0.302→0.285) — the projection is NOT the culprit.
+   The corpus pairs themselves are too weak: rewritten queries like
+   "responses are sluggish" score 0.25 absolute while unrelated
+   distractors score 0.41+. Only the database pair (0.55 > 0.50
+   best-distractor) is a genuine paraphrase in MiniLM space.
+   Conclusion: hand-written "zero token overlap" queries drifted
+   into "vague queries MiniLM itself doesn't match". Next step is
+   a v3 corpus whose pairs are validated THROUGH the embedder
+   (keep only pairs where projected cos(Q,S) beats the best
+   distractor by margin) before benching.
 3. Prior round's caveats still apply to the first table above
    (boilerplate lexical flaw; Session B clean-corpus ceiling 0.925).
 
