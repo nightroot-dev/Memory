@@ -133,3 +133,21 @@ Toolchain note: cargo +stable-x86_64-pc-windows-msvc hits a link error
 (rust-lld cannot find system/mingw libs — suspected gnu-target pin in
 .cargo/config.toml). Sessions currently use +stable-x86_64-pc-windows-gnu
 which links cleanly. Investigate the config pin in a future session.
+
+## Projection auto-load landed (2026-09)
+
+- engine::start() loads all *.bin from cfg.projections_dir before
+  WAL replay; registers each by filename stem as model_id.
+- Trained MiniLM projection at data/projections/minilm-l6-v2-int8.bin
+  (Session D: corpus 17946, variance retained 0.8346, 197124 bytes).
+- Closes the "created but never read" bug at engine.rs:628.
+
+MiniLM is now end-to-end wired:
+  1. Trained 384->128 projection exists on disk.
+  2. Engine auto-loads it on start.
+  3. 384-dim learn and retrieve succeed with model_id="minilm-l6-v2-int8".
+
+To enable MiniLM in production:
+  - Build with --features onnx so the embedder produces 384-dim vectors.
+  - Ensure cfg.projections_dir contains minilm-l6-v2-int8.bin.
+  - Learn/retrieve with model_id="minilm-l6-v2-int8".
