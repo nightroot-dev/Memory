@@ -29,40 +29,84 @@ struct Metrics { lex_p1: f64, lex_mrr: f64, para_p1: f64, para_mrr: f64, all_p1:
 
 fn build_corpus() -> Vec<(String, String, bool)> {
     let mut out = Vec::with_capacity(80);
-    // 40 lexical: shared rare token
+    // 40 lexical: each situation carries a unique single-token rare ID
+    // plus 4 content words used nowhere else in the corpus. The rare ID
+    // is alphanumeric with no separators so the tokenizer keeps it as
+    // one token. Query shares ONLY the rare ID with its situation.
+    // (Prior design shared 7 boilerplate tokens across all 40, which
+    // made BM25 unable to discriminate — see Session G caveats.)
+    let nouns = [
+        "firmware", "bootloader", "hypervisor", "bios", "uefi", "raid",
+        "nas", "san", "fiber", "switch", "router", "modem", "codec",
+        "transcoder", "multiplexer", "oscillator", "resonator", "capacitor",
+        "inductor", "transistor", "diode", "thyristor", "relay", "contactor",
+        "breaker", "transformer", "generator", "turbine", "compressor",
+        "pump", "valve", "actuator", "sensor", "gyroscope", "accelerometer",
+        "magnetometer", "barometer", "hygrometer", "thermometer",
+        "thermostat", "humidifier", "purifier", "ionizer", "ozonizer",
+        "humidistat", "anemometer", "pyrometer", "spectrometer",
+        "interferometer", "oscilloscope", "multimeter", "analyzer",
+        "synthesizer", "sequencer", "plotter", "printer", "engraver",
+        "cutter", "welder", "riveter", "press", "lathe", "shaper",
+        "grinder", "polisher", "sander", "drill", "saw", "hammer",
+        "wrench", "pliers", "chisel", "rasp", "awl", "punch", "die",
+        "mold", "cast", "forge", "furnace", "kiln", "oven", "boiler",
+        "chiller",
+    ];
+    let verbs = [
+        "halted", "seized", "jammed", "snapped", "cracked", "warped",
+        "dented", "pitted", "corroded", "annealed", "tempered", "quenched",
+        "plated", "coated", "anodized", "galvanized", "tinned", "soldered",
+        "brazed", "welded", "riveted", "bolted", "screwed", "nailed",
+        "pinned", "clamped", "crimped", "swaged", "flared", "beveled",
+        "chamfered", "tapped", "threaded", "bored", "reamed", "honed",
+        "lapped", "ground", "polished", "sanded", "buffed", "blasted",
+        "etched", "milled", "turned", "drilled", "sawed", "planed",
+        "jointed", "routed", "shaped", "mortised", "doweled", "glued",
+        "epoxied", "grouted", "caulked", "potted", "painted", "varnished",
+        "lacquered", "stained", "dyed", "bleached", "carded", "spun",
+        "woven", "knitted", "felted", "quilted", "stitched", "hemmed",
+        "piped", "edged", "trimmed", "notched", "grooved", "slotted",
+        "dimpled", "splined", "knurled", "peened", "burnished",
+    ];
     for i in 0..40 {
-        let rare = format!("zqx_rare_{:04}", i);
-        out.push((
-            format!("system experienced {} failure during phase {}", rare, i),
-            format!("what caused {}", rare),
-            true,
-        ));
+        let rare = format!("zqxrare{:04}", i);
+        let sit = format!(
+            "{} {} {} {} {}",
+            rare,
+            nouns[i * 2],
+            nouns[i * 2 + 1],
+            verbs[i * 2],
+            verbs[i * 2 + 1],
+        );
+        let q = format!("what caused {}", rare);
+        out.push((sit, q, true));
     }
     // 40 paraphrase: no shared content tokens
     let pairs = [
         ("database connection pool exhausted under peak load", "why are connections timing out"),
         ("authentication token expired before refresh completed", "users logged out unexpectedly"),
-        ("cache eviction rate spiked after memory pressure", "cache is slow to respond"),
-        ("message queue backlog grew past safe threshold", "queue processing fell behind"),
+        ("cache eviction rate spiked after memory pressure", "responses are sluggish"),
+        ("message queue backlog grew past safe threshold", "processing fell behind"),
         ("disk usage reached critical on primary volume", "storage is almost full"),
-        ("kubernetes pod entered crash loop after config change", "pod keeps restarting"),
+        ("kubernetes pod entered crash loop after config change", "keeps restarting"),
         ("TLS handshake latency increased on the ingress", "inbound requests slow to connect"),
         ("background scheduler missed two hourly runs", "scheduled jobs did not execute"),
-        ("log aggregator dropped events during rotation", "some log lines are missing"),
+        ("log aggregator dropped events during rotation", "some lines are missing"),
         ("container image pull slowed by registry throttling", "deployments take longer to start"),
         ("redis replica fell behind primary by seconds", "cache reads return stale data"),
         ("payment processor returned intermittent 502 errors", "checkout randomly fails"),
-        ("search index rebuilt slower than expected", "search results arrive late"),
+        ("search index rebuilt slower than expected", "results arrive late"),
         ("API gateway rate limit triggered for bulk requests", "clients hit request limits"),
         ("feature flag rollout exposed bug to small user group", "some users see a defect"),
-        ("database migration locked the events table", "table writes paused during upgrade"),
+        ("database migration locked the events table", "writes paused during upgrade"),
         ("session store replication lag grew overnight", "users lose sessions after login"),
-        ("cron worker memory grew without bound", "background process runs out of memory"),
+        ("cron worker memory grew without bound", "background process exhausted its allocation"),
         ("DNS resolver returned stale entries after config push", "hostnames resolve to old addresses"),
         ("load balancer health check flapped during deploy", "traffic shifted unexpectedly"),
         ("storage tier promotion delayed by replication backlog", "hot data lags on cold media"),
         ("build cache corrupted causing spurious test failures", "CI fails without real cause"),
-        ("service mesh sidecar restarted under memory pressure", "inter-service calls drop briefly"),
+        ("service mesh sidecar restarted under memory pressure", "calls between systems drop briefly"),
         ("TLS certificate approaching expiry without warning", "browsers show insecure warnings"),
         ("queue consumer crashed mid-batch leaving orphans", "some messages never processed"),
         ("backup job missed window due to upstream delay", "backups are out of date"),
@@ -70,12 +114,12 @@ fn build_corpus() -> Vec<(String, String, bool)> {
         ("authentication service returned 401 for valid tokens", "legitimate users blocked"),
         ("object store returned slow reads under high concurrency", "downloads are sluggish"),
         ("cron scheduler moved timezone causing missed triggers", "jobs fire at wrong times"),
-        ("database vacuum ran longer than maintenance window", "maintenance overran its slot"),
+        ("database vacuum ran longer than maintenance window", "cleanup overran its allotted time"),
         ("CDN edge cache poisoned with stale content", "users see outdated assets"),
         ("certificate rotation broke mutual TLS handshake", "some services cannot connect"),
         ("streaming pipeline backpressure stalled consumers", "real-time data falls behind"),
         ("scheduler fairness starved low-priority jobs", "background tasks never run"),
-        ("config reload triggered unintended service restart", "service drops during config changes"),
+        ("config reload triggered unintended service restart", "nodes reboot whenever settings refresh"),
         ("distributed lock leaked causing worker contention", "workers stall waiting for locks"),
         ("message dedup key collided across tenants", "some events processed twice"),
         ("query planner chose suboptimal index after stats update", "queries became slow overnight"),
