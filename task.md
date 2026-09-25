@@ -151,3 +151,49 @@ To enable MiniLM in production:
   - Build with --features onnx so the embedder produces 384-dim vectors.
   - Ensure cfg.projections_dir contains minilm-l6-v2-int8.bin.
   - Learn/retrieve with model_id="minilm-l6-v2-int8".
+
+## MiniLM benchmark (2026-09)
+
+Measured on n=80 (40 lexical, 40 paraphrase) via
+cmhm_core/tests/minilm_bench.rs:
+
+| Embedder   | Lex P@1 | Para P@1 | Overall P@1 | Overall MRR |
+|------------|---------|----------|-------------|-------------|
+| hash-128d  | 0.0750  | 0.2000   | 0.1375      | 0.3094      |
+| MiniLM     | 1.0000  | 0.1500   | 0.5750      | 0.5942      |
+
+Caveats — read before citing these numbers:
+
+1. LEXICAL HALF HAS A BENCHMARK DESIGN FLAW. All 40 lexical
+   situations share the boilerplate "system experienced X failure
+   during phase N", so 5 content tokens are identical across all of
+   them. BM25 (which the hash path relies on) cannot discriminate
+   within this cluster. The hash-128d Lex P@1 = 0.075 is a
+   measurement of this flaw, not of hash-128d's lexical ability.
+   Session B's bm25_fusion_bench measured 0.925 Lex P@1 with
+   properly distinct situations — that number is the true hash+BM25
+   lexical ceiling.
+
+2. PARAPHRASE HALF SHOWS NO MINILM ADVANTAGE ON THIS CORPUS.
+   MiniLM Para P@1 = 0.15 vs hash Para P@1 = 0.20. On n=40 this is
+   a 2-pair difference — statistically noisy but clearly not a
+   paraphrase win. This contradicts the single-scenario result in
+   minilm_e2e.rs (where the target ranked #1) and indicates that
+   the trained PCA projection may not generalize beyond the
+   mini_e2e scenario.
+
+3. Overall P@1 = 0.5750 for MiniLM vs 0.1375 for hash is real but
+   dominated by the pathological lexical half. Do not cite as
+   "MiniLM is 4x better."
+
+Action items (future sessions):
+  - Rebuild lexical corpus with truly distinct situations (zero
+    content-token overlap between any two situations).
+  - Investigate the paraphrase gap: is the projection undertrained,
+    is the corpus too narrow, or is MiniLM genuinely limited here?
+  - Consider training the PCA projection on a broader domain that
+    matches the benchmark's ops scenarios.
+
+Also note: tools/setup_ort.ps1 re-downloads ORT even when a valid
+copy is on disk — its version-string scan misses the existing DLL.
+Non-blocking; fix in a future housekeeping session.
