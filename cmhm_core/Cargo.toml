@@ -36,8 +36,9 @@ toml = { workspace = true }
 
 # ONNX backend — optional, only pulled in with --features onnx
 # Pinned to 5.x (latest stable as of 2026-08). Provides TextEmbedding wrapper over ORT.
-# ort-download-binaries-native-tls: fetches ORT DLL at build time via native TLS (no vendored OpenSSL).
-fastembed = { version = "5", optional = true, features = ["ort-download-binaries-native-tls"] }
+# ort-load-dynamic: runtime dynamic loading of onnxruntime.dll (see ORT_DYLIB_PATH).
+# Required on Windows MSVC: ort-download-binaries cannot statically link (dynamic CRT /MD).
+fastembed = { version = "5", optional = true, features = ["ort-load-dynamic"] }
 
 [dev-dependencies]
 tempfile = "3"
