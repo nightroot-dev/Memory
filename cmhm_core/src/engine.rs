@@ -720,6 +720,19 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     };
 
 
+    // ── Step 1b: Load projection matrices from disk ──────────────
+    // Projections live outside snapshots (large, derived data).
+    // Load after snapshot load and before WAL replay so that WAL
+    // replay of prior Learn commands can resolve model_ids correctly.
+    let projections_loaded = state.projections.load_from_dir(&cfg.projections_dir);
+    if projections_loaded > 0 {
+        tracing::info!(
+            count = projections_loaded,
+            dir = %cfg.projections_dir.display(),
+            "loaded projection matrices"
+        );
+    }
+
     // ── Step 2: WAL replay ────────────────────────────────────────────────
     let mut replayed: usize = 0;
     let mut replay_failed = false;

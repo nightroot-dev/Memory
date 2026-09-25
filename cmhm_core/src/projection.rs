@@ -112,6 +112,62 @@ impl ProjectionRegistry {
         self.projections.insert(model_id, proj);
     }
 
+    /// Load all `*.bin` files in `dir` and register each as a projection
+    /// keyed by its filename stem.
+    ///
+    /// Returns the number of projections successfully loaded. Files that
+    /// fail to read or parse are logged as warnings and skipped — a
+    /// corrupt file must not prevent engine startup.
+    ///
+    /// Missing or unreadable directory is treated as "no projections"
+    /// and returns 0 (not an error).
+    pub fn load_from_dir(&mut self, dir: &std::path::Path) -> usize {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return 0,
+        };
+        let mut loaded = 0usize;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("bin") {
+                continue;
+            }
+            let stem = match path.file_stem().and_then(|s| s.to_str()) {
+                Some(s) if !s.is_empty() => s.to_string(),
+                _ => continue,
+            };
+            let bytes = match std::fs::read(&path) {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::warn!(
+                        "projection {}: read failed: {e}",
+                        path.display()
+                    );
+                    continue;
+                }
+            };
+            match Projection::from_bytes(&bytes) {
+                Ok(proj) => {
+                    tracing::info!(
+                        model_id = %stem,
+                        input_dim = proj.input_dim,
+                        "loaded projection from {}",
+                        path.display()
+                    );
+                    self.projections.insert(stem, proj);
+                    loaded += 1;
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "projection {}: parse failed: {e}",
+                        path.display()
+                    );
+                }
+            }
+        }
+        loaded
+    }
+
     /// Project an embedding using the model's projection, or identity if not found.
     pub fn project(&self, model_id: &str, e: &[f32]) -> Result<[f32; EMBED_DIM], ProjectionError> {
         match self.projections.get(model_id) {
