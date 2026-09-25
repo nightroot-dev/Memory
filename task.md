@@ -162,7 +162,38 @@ cmhm_core/tests/minilm_bench.rs:
 | hash-128d  | 0.0750  | 0.2000   | 0.1375      | 0.3094      |
 | MiniLM     | 1.0000  | 0.1500   | 0.5750      | 0.5942      |
 
-Caveats — read before citing these numbers:
+Caveats — read before citing these numbers (first measurement round;
+corpus flaws found, see below).
+
+## MiniLM benchmark, clean corpus (2026-09, commit c417c9a)
+
+Corpus rebuilt: lexical situations share zero content tokens
+(rare-ID + 4 globally unique words each); all 40 paraphrase pairs
+verified zero-shared (10 violating queries rewritten).
+
+| Embedder   | Lex P@1 | Para P@1 | Overall P@1 | Overall MRR |
+|------------|---------|----------|-------------|-------------|
+| hash-128d  | 0.5000  | 0.0750   | 0.2875      | 0.3200      |
+| MiniLM     | 1.0000  | 0.0000   | 0.5000      | 0.5000      |
+
+Findings:
+
+1. Lexical is now measurable for both (was: unmeasurable for hash).
+   MiniLM Lex P@1 = 1.0, hash = 0.50. The rare-ID design works;
+   MiniLM separates unique tokens perfectly here.
+2. MINILM PARA_P@1 = 0.0000 — the target never appears in the
+   candidate pool for any of the 40 paraphrase queries. This is a
+   total failure on the clean set (was 0.15 on the flawed set)
+   and is UNDER INVESTIGATION. Hypotheses: node dedup collapsing
+   similar learns (eps=0.3 below birth escape), PCA projection
+   blurring ops-domain distinctions, or paraphrase situations too
+   close to each other in MiniLM space. Do not cite MiniLM
+   paraphrase numbers until the cause is found.
+3. Prior round's caveats still apply to the first table above
+   (boilerplate lexical flaw; Session B clean-corpus ceiling 0.925).
+
+First-round caveats (kept for history — they describe the old corpus,
+superseded by the clean-corpus table above):
 
 1. LEXICAL HALF HAS A BENCHMARK DESIGN FLAW. All 40 lexical
    situations share the boilerplate "system experienced X failure
@@ -187,10 +218,12 @@ Caveats — read before citing these numbers:
    "MiniLM is 4x better."
 
 Action items (future sessions):
-  - Rebuild lexical corpus with truly distinct situations (zero
-    content-token overlap between any two situations).
-  - Investigate the paraphrase gap: is the projection undertrained,
-    is the corpus too narrow, or is MiniLM genuinely limited here?
+  - DONE (commit c417c9a): rebuilt lexical corpus with truly distinct
+    situations (zero content-token overlap).
+  - OPEN: diagnose MiniLM para_P@1 = 0.0000 on the clean set. Prime
+    suspect is node dedup at learn time (eps=0.3 never triggers the
+    birth escape, so similar situations may collapse onto shared
+    nodes); alternatives are PCA blur or over-narrow paraphrase set.
   - Consider training the PCA projection on a broader domain that
     matches the benchmark's ops scenarios.
 
