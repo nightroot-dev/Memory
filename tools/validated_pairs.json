@@ -1,0 +1,242 @@
+[
+ {
+  "s": "distributed lock leaked causing worker contention",
+  "q": "workers stall waiting for locks",
+  "margin": 0.31867843866348267,
+  "cos_t": 0.6716743111610413
+ },
+ {
+  "s": "API gateway rate limit triggered for bulk requests",
+  "q": "clients hit request limits",
+  "margin": 0.2765699625015259,
+  "cos_t": 0.7484079599380493
+ },
+ {
+  "s": "background scheduler missed two hourly runs",
+  "q": "scheduled jobs did not execute",
+  "margin": 0.2016909420490265,
+  "cos_t": 0.6863222122192383
+ },
+ {
+  "s": "payment processor returned intermittent 502 errors",
+  "q": "checkout randomly fails",
+  "margin": 0.19199633598327637,
+  "cos_t": 0.6087536215782166
+ },
+ {
+  "s": "DNS resolver returned stale entries after config push",
+  "q": "hostnames resolve to old addresses",
+  "margin": 0.17572662234306335,
+  "cos_t": 0.5643964409828186
+ },
+ {
+  "s": "split brain partitioned the cluster in two",
+  "q": "halves cannot see each other",
+  "margin": 0.17294156551361084,
+  "cos_t": 0.456382691860199
+ },
+ {
+  "s": "feature flag rollout exposed bug to small user group",
+  "q": "some users see a defect",
+  "margin": 0.16845452785491943,
+  "cos_t": 0.4731203615665436
+ },
+ {
+  "s": "config reload triggered unintended service restart",
+  "q": "nodes reboot whenever settings refresh",
+  "margin": 0.1106535792350769,
+  "cos_t": 0.5239838361740112
+ },
+ {
+  "s": "backup job missed window due to upstream delay",
+  "q": "backups are out of date",
+  "margin": 0.06370958685874939,
+  "cos_t": 0.4728366434574127
+ },
+ {
+  "s": "CDN edge cache poisoned with stale content",
+  "q": "users see outdated assets",
+  "margin": 0.049446433782577515,
+  "cos_t": 0.34614959359169006
+ },
+ {
+  "s": "TLS certificate approaching expiry without warning",
+  "q": "browsers show insecure warnings",
+  "margin": 0.04610356688499451,
+  "cos_t": 0.41807836294174194
+ },
+ {
+  "s": "graceful shutdown hung waiting for drains",
+  "q": "deploys stall at termination",
+  "margin": 0.040841132402420044,
+  "cos_t": 0.4995463192462921
+ },
+ {
+  "s": "database vacuum ran longer than maintenance window",
+  "q": "cleanup overran its allotted time",
+  "margin": 0.026660680770874023,
+  "cos_t": 0.5506738424301147
+ },
+ {
+  "s": "authentication token expired before refresh completed",
+  "q": "users logged out unexpectedly",
+  "margin": 0.01219668984413147,
+  "cos_t": 0.4123555123806
+ },
+ {
+  "s": "idempotency window expired allowing duplicate charges",
+  "q": "customers billed twice",
+  "margin": 0.009281754493713379,
+  "cos_t": 0.41867780685424805
+ },
+ {
+  "s": "disk usage reached critical on primary volume",
+  "q": "storage is almost full",
+  "margin": 0.008945584297180176,
+  "cos_t": 0.5743426084518433
+ },
+ {
+  "s": "garbage collector pause exceeded stop-the-world budget",
+  "q": "application froze for seconds",
+  "margin": 0.0018463730812072754,
+  "cos_t": 0.43510574102401733
+ },
+ {
+  "s": "queue consumer crashed mid-batch leaving orphans",
+  "q": "some messages never processed",
+  "margin": -0.007717490196228027,
+  "cos_t": 0.4997680187225342
+ },
+ {
+  "s": "metrics exporter dropped series after schema change",
+  "q": "dashboards show gaps",
+  "margin": -0.016785889863967896,
+  "cos_t": 0.3196128308773041
+ },
+ {
+  "s": "search index rebuilt slower than expected",
+  "q": "results arrive late",
+  "margin": -0.018996089696884155,
+  "cos_t": 0.32540854811668396
+ },
+ {
+  "s": "hedged requests doubled load on the backend",
+  "q": "redundant calls overload servers",
+  "margin": -0.031308114528656006,
+  "cos_t": 0.434966504573822
+ },
+ {
+  "s": "streaming pipeline backpressure stalled consumers",
+  "q": "real-time data falls behind",
+  "margin": -0.033447086811065674,
+  "cos_t": 0.4067775011062622
+ },
+ {
+  "s": "build cache corrupted causing spurious test failures",
+  "q": "CI fails without real cause",
+  "margin": -0.04164344072341919,
+  "cos_t": 0.3244894742965698
+ },
+ {
+  "s": "schema migration backfill lagged for hours",
+  "q": "new column stays empty",
+  "margin": -0.04255983233451843,
+  "cos_t": 0.24832698702812195
+ },
+ {
+  "s": "resource quota blocked autoscaler from scaling",
+  "q": "capacity could not grow under load",
+  "margin": -0.04313373565673828,
+  "cos_t": 0.5551525354385376
+ },
+ {
+  "s": "cron worker memory grew without bound",
+  "q": "background process exhausted its allocation",
+  "margin": -0.047160804271698,
+  "cos_t": 0.49195748567581177
+ },
+ {
+  "s": "slow consumer dragged down the whole pipeline",
+  "q": "one lagging stage blocks all",
+  "margin": -0.05026894807815552,
+  "cos_t": 0.38420748710632324
+ },
+ {
+  "s": "connection timeouts cascade across dependent services",
+  "q": "outage spreads downstream",
+  "margin": -0.053922176361083984,
+  "cos_t": 0.571168839931488
+ },
+ {
+  "s": "session store replication lag grew overnight",
+  "q": "users lose sessions after login",
+  "margin": -0.054795145988464355,
+  "cos_t": 0.4330223500728607
+ },
+ {
+  "s": "TLS handshake latency increased on the ingress",
+  "q": "inbound requests slow to connect",
+  "margin": -0.058398663997650146,
+  "cos_t": 0.5558270812034607
+ },
+ {
+  "s": "DNS TTL misconfiguration pinned clients to dead endpoints",
+  "q": "traffic hits retired hosts",
+  "margin": -0.0626961886882782,
+  "cos_t": 0.3455723524093628
+ },
+ {
+  "s": "checkpoint interval too coarse losing recent writes",
+  "q": "restarts lose minutes of data",
+  "margin": -0.07210779190063477,
+  "cos_t": 0.41434866189956665
+ },
+ {
+  "s": "object store returned slow reads under high concurrency",
+  "q": "downloads are sluggish",
+  "margin": -0.0728197693824768,
+  "cos_t": 0.35391509532928467
+ },
+ {
+  "s": "cold start latency spiked for serverless handlers",
+  "q": "first requests are very slow",
+  "margin": -0.08446362614631653,
+  "cos_t": 0.4672333896160126
+ },
+ {
+  "s": "container image pull slowed by registry throttling",
+  "q": "deployments take longer to start",
+  "margin": -0.08733129501342773,
+  "cos_t": 0.45975548028945923
+ },
+ {
+  "s": "retry storm amplified a partial outage",
+  "q": "clients hammering made it worse",
+  "margin": -0.09458371996879578,
+  "cos_t": 0.2645348906517029
+ },
+ {
+  "s": "cron scheduler moved timezone causing missed triggers",
+  "q": "jobs fire at wrong times",
+  "margin": -0.09951680898666382,
+  "cos_t": 0.5145662426948547
+ },
+ {
+  "s": "primary database failover stalled mid-promotion",
+  "q": "standby never took over traffic",
+  "margin": -0.10484731197357178,
+  "cos_t": 0.34950751066207886
+ },
+ {
+  "s": "hot partition throttled by rate governor",
+  "q": "one shard is much slower",
+  "margin": -0.10493907332420349,
+  "cos_t": 0.2847175896167755
+ },
+ {
+  "s": "write-ahead log segment filled the disk partition",
+  "q": "node refuses new writes",
+  "margin": -0.11111357808113098,
+  "cos_t": 0.30450335144996643
+ }
+]
