@@ -1,8 +1,12 @@
 [package]
 name = "cmhm_mcp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "CMHM MCP server — stdio JSON-RPC, compatible with any MCP client (Claude, Cursor, OpenCode, Continue, etc.)"
+description = "MCP stdio server exposing CMHM causal memory as tools"
+license      = "MIT"
+repository   = "https://github.com/cmhm/cmhm"
+keywords     = ["mcp", "ai", "memory", "causal"]
+categories   = ["command-line-utilities"]
 
 [[bin]]
 name = "cmhm_mcp"

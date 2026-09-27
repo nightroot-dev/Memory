@@ -1,8 +1,12 @@
 [package]
 name = "cmhm_core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Causal-Matrix Hybrid Memory — core engine"
+description = "Causal-Matrix Hybrid Memory - core memory engine for AI agents"
+license      = "MIT"
+repository   = "https://github.com/cmhm/cmhm"
+keywords     = ["ai", "memory", "causal", "agents", "rust"]
+categories   = ["science", "data-structures"]
 
 [lib]
 name = "cmhm_core"

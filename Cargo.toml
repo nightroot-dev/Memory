@@ -22,3 +22,10 @@ thiserror = "1"
 anyhow = "1"
 # Config
 toml = "0.8"
+
+[workspace.package]
+version      = "0.2.0"
+edition      = "2021"
+license      = "MIT"
+repository   = "https://github.com/cmhm/cmhm"
+authors      = ["CMHM Contributors"]
