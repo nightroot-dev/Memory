@@ -37,7 +37,7 @@ Requires Rust 1.75+.
 
 Optional MiniLM support (semantic embeddings via ONNX Runtime):
 
-    # Requires MSVC toolchain on Windows; see docs.
+    # Requires MSVC toolchain on Windows; see docs/ONNX_SETUP.md.
     cargo build --release -p cmhm_core --features onnx
 
 ## Quick start
