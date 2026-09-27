@@ -11,6 +11,17 @@ $ErrorActionPreference = "Stop"
 
 function Test-OrVersion($path) {
     if (-not (Test-Path $path)) { return $false }
+    # Primary: PE version resource (reliable, encoding-independent).
+    try {
+        $prod = (Get-Item $path).VersionInfo.ProductVersion
+        $m = [regex]::Match("$prod", '(\d+)\.(\d+)\.(\d+)')
+        if ($m.Success) {
+            $ver = [version]"$($m.Groups[1].Value).$($m.Groups[2].Value).$($m.Groups[3].Value)"
+            Write-Host "  candidate $path has version $ver"
+            return ($ver -ge [version]"1.24.0")
+        }
+    } catch { }
+    # Fallback: raw byte scan for an ASCII version string.
     try {
         $bytes = [System.IO.File]::ReadAllBytes($path)
         if ($bytes.Length -lt 1024) { return $false }

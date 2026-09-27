@@ -235,9 +235,9 @@ Action items (future sessions):
   - Consider training the PCA projection on a broader domain that
     matches the benchmark's ops scenarios.
 
-Also note: tools/setup_ort.ps1 re-downloads ORT even when a valid
-copy is on disk — its version-string scan misses the existing DLL.
-Non-blocking; fix in a future housekeeping session.
+Also note: tools/setup_ort.ps1 previously re-downloaded ORT even when a valid
+copy was on disk (ASCII byte-scan missed UTF-16 version resources).
+Fixed: version check now reads the PE version resource first.
 
 ## MiniLM benchmark, v3 margin-validated corpus (2026-09, commit 987706b)
 
