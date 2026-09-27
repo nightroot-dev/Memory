@@ -733,6 +733,49 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
         );
     }
 
+    // ── Step 1c: Migrate native-dim nodes to projected 128-dim ──
+    // Prior builds stored native MiniLM vectors (384-dim) directly.
+    // Retrieval compares 128-dim queries; those nodes were invisible.
+    let mut projected_count = 0usize;
+    let mut quarantined_count = 0usize;
+    let node_ids: Vec<u64> = state.node_store.all_ids();
+    for id in node_ids {
+        let native = match state.node_store.get(id) {
+            Some(n) if n.embedding.len() != crate::EMBED_DIM => n.embedding.clone(),
+            _ => continue,
+        };
+        let model_id = state
+            .node_store
+            .get(id)
+            .map(|n| n.model_id.clone())
+            .unwrap_or_default();
+        match state.projections.project(&model_id, &native) {
+            Ok(p) => {
+                if let Some(n) = state.node_store.get_mut(id) {
+                    n.embedding = p.to_vec();
+                }
+                projected_count += 1;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "migration: node {} model_id={} dim={} — no projection: {e}; \
+                     retained but not dense-retrievable",
+                    id,
+                    model_id,
+                    native.len()
+                );
+                quarantined_count += 1;
+            }
+        }
+    }
+    if projected_count > 0 || quarantined_count > 0 {
+        tracing::info!(
+            projected = projected_count,
+            quarantined = quarantined_count,
+            "native-dim node migration complete"
+        );
+    }
+
     // ── Step 2: WAL replay ────────────────────────────────────────────────
     let mut replayed: usize = 0;
     let mut replay_failed = false;
@@ -1235,6 +1278,17 @@ fn process_learn(
      let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, None);
      let outcome_id= birth_node(&mut *state, raw_outcome.to_vec(),&outcome_proj,model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, None);
 
+    // Fail-closed: birth_node returns 0 when no projection exists for
+    // the model_id. Refuse the whole learn rather than recording
+    // half-built graph state.
+    if state_id == 0 || action_id == 0 || outcome_id == 0 {
+        return Err(anyhow::anyhow!(
+            "process_learn: node birth refused — one or more embeddings \
+             could not be projected to EMBED_DIM. Register the missing \
+             projection or check the model_id."
+        ));
+    }
+
     // B6: Apply supersession link to old node
     if let Some(old_id) = supersedes {
         if old_id == state_id {
@@ -1305,22 +1359,24 @@ fn birth_node(
         state.node_store.update_global_ema(&full_emb);
         // Blend embedding — result is Vec<f32> at the same dim as full_emb
         let blended = state.node_store.blend_with_ema(&full_emb);
-        // Project blended embedding to EMBED_DIM. Fail-closed: if no projection
-        // exists and blended isn't already EMBED_DIM, skip edge birth rather than
-        // silently truncating a native-dim vector (e.g. 384 -> 128).
-        let blended_projected: Option<[f32; EMBED_DIM]> =
+        // Project blended embedding to EMBED_DIM and store the projected
+        // form. Retrieval compares 128-dim queries, so storing native-dim
+        // vectors would make every such node invisible to dense search.
+        // Fail-closed: refuse birth when no projection exists.
+        let blended_projected: [f32; EMBED_DIM] =
             match state.projections.project(model_id, &blended) {
-                Ok(p) => Some(p),
+                Ok(p) => p,
                 Err(e) => {
                     tracing::warn!(
-                        "birth_node: model_id={} native_dim={} — no projection: {e}; skipping edge birth",
+                        "birth_node: model_id={} native_dim={} — no projection: {e}; \
+                         refusing to birth node without a 128-dim form",
                         model_id, blended.len()
                     );
-                    None
+                    return 0;
                 }
             };
 
-         let node = Node::new(blended, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
+         let node = Node::new(blended_projected.to_vec(), model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
              .with_assertion(assertion_key, polarity)
              .with_text(text.unwrap_or_default());
          let id = state.node_store.insert(node);
@@ -1331,9 +1387,7 @@ fn birth_node(
          }
 
         // Edge birth: connect to each node in working memory
-        if let Some(ref proj) = blended_projected {
-            trigger_edge_birth(state, id, timestamp, proj);
-        }
+        trigger_edge_birth(state, id, timestamp, &blended_projected);
 
         // Push to working memory
         state.working_memory.push(id);
