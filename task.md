@@ -238,3 +238,22 @@ Action items (future sessions):
 Also note: tools/setup_ort.ps1 re-downloads ORT even when a valid
 copy is on disk — its version-string scan misses the existing DLL.
 Non-blocking; fix in a future housekeeping session.
+
+## MiniLM benchmark, v3 margin-validated corpus (2026-09, commit 987706b)
+
+Post-fix measurement. Dense retrieval now live end-to-end. Corpus: 40
+lexical with globally-unique rare IDs (zero shared content tokens
+across all situations); 40 paraphrase pairs validated through the
+projected MiniLM embedder (margin > 0.03 over best distractor).
+
+| Embedder   | Lex P@1 | Lex MRR | Para P@1 | Para MRR | Overall P@1 | Overall MRR |
+|------------|---------|---------|----------|----------|-------------|-------------|
+| hash-128d  |  0.4750 |  0.5140 |   0.0750 |   0.1275 |      0.2750 |      0.3208 |
+| MiniLM     |  0.4250 |  0.5554 |   0.4000 |   0.6071 |      0.4125 |      0.5813 |
+
+Paraphrase P@1 improvement: 0.0750 → 0.4000 (5.3x).
+
+The prior "clean corpus c417c9a" table above reflects the pre-fix
+dead-dense state (birth stored native 384-dim, retrieval queried
+128-dim). Its MiniLM Para P@1 = 0.0000 is HISTORICAL, not current.
+Root cause fixed in 987706b.
