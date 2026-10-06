@@ -323,8 +323,21 @@ pub fn rrf_fuse(
 
 /// Max additive bonus (on the cosine scale) a decisive lexical winner can receive.
 pub const LEX_BOOST_MAX: f32 = 0.7;
+/// Tiny tie-breaker boost for plain natural-language queries (no identifier-like token).
+pub const LEX_BOOST_NATURAL: f32 = 0.05;
 /// BM25 top score at/above which lexical evidence counts as fully strong.
 const LEX_STRONG_SCORE: f32 = 3.0;
+
+/// True if the raw query contains an identifier-like token: length >= 4 and containing a
+/// digit, an underscore, or an interior uppercase letter (camelCase / PascalCase / mixed).
+pub fn has_identifier_token(text: &str) -> bool {
+    text.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .any(|tok| {
+            tok.chars().count() >= 4
+                && (tok.chars().any(|c| c.is_ascii_digit() || c == '_')
+                    || tok.chars().skip(1).any(|c| c.is_uppercase()))
+        })
+}
 
 /// Turn a BM25 ranking into an additive boost on the dense-cosine scale.
 ///
@@ -332,7 +345,7 @@ const LEX_STRONG_SCORE: f32 = 3.0;
 /// lone exact lexical hit (e.g. a rare ID) was being thrown away. Only the top hit is
 /// boosted, scaled by (a) its margin over the runner-up and (b) absolute BM25 strength.
 /// Ties and weak/common-word matches therefore yield ~0 boost and stay dense-driven.
-pub fn lexical_boost(bm25_ranked: &[(u64, f32)]) -> HashMap<u64, f32> {
+pub fn lexical_boost(bm25_ranked: &[(u64, f32)], query_text: &str) -> HashMap<u64, f32> {
     let mut out = HashMap::new();
     let Some(&(top_id, top)) = bm25_ranked.first() else { return out; };
     if top <= 0.0 {
@@ -341,7 +354,11 @@ pub fn lexical_boost(bm25_ranked: &[(u64, f32)]) -> HashMap<u64, f32> {
     let second = bm25_ranked.get(1).map(|&(_, s)| s).unwrap_or(0.0);
     let margin = ((top - second) / top).clamp(0.0, 1.0);
     let strength = (top / LEX_STRONG_SCORE).min(1.0);
-    let boost = LEX_BOOST_MAX * margin * strength;
+    // Identifier-like queries (IDs, snake_case, camelCase, digits) are exactly what dense
+    // embeddings miss, so lexical evidence is trusted. For plain natural language the
+    // embedder already handles overlap and an accidental shared word must not override it.
+    let max = if has_identifier_token(query_text) { LEX_BOOST_MAX } else { LEX_BOOST_NATURAL };
+    let boost = max * margin * strength;
     if boost > 0.0 {
         out.insert(top_id, boost);
     }
@@ -497,6 +514,25 @@ mod tests {
     fn rrf_empty_lists_handled() {
         let fused = rrf_fuse(&[], &[], 10);
         assert!(fused.is_empty());
+    }
+
+    #[test]
+    fn identifier_token_detection() {
+        assert!(has_identifier_token("what caused zqxrare0007"));
+        assert!(has_identifier_token("unwrap_or panics"));
+        assert!(has_identifier_token("ContextRuntime init"));
+        assert!(!has_identifier_token("users see outdated assets"));
+        assert!(!has_identifier_token("CI fails without real cause"));
+    }
+
+    #[test]
+    fn lexical_boost_only_for_decisive_identifier_hits() {
+        let lone = vec![(7u64, 4.0f32)];
+        let tie = vec![(1u64, 4.0f32), (2u64, 4.0f32)];
+        assert!(lexical_boost(&lone, "what caused zqxrare0007")[&7] > 0.5);
+        assert!(lexical_boost(&tie, "what caused zqxrare0007").is_empty());
+        assert!(lexical_boost(&lone, "users see outdated assets")[&7] < 0.1);
+        assert!(lexical_boost(&[], "anything").is_empty());
     }
 
     #[test]

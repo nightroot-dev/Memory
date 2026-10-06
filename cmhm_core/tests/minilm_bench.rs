@@ -151,7 +151,8 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
     cfg.data_dir = tmp.path().to_path_buf();
     if let Some(d) = projection_dir() { cfg.projections_dir = d; }
     if let Ok(v) = std::env::var("CMHM_CTX_W") { if let Ok(f) = v.parse::<f32>() { cfg.retrieval_context_weight = f; } }
-    let handle = engine::start(cfg).unwrap();
+    let cfg_keep = cfg.clone();
+    let mut handle = engine::start(cfg).unwrap();
 
     let mut target_ids = Vec::with_capacity(scenarios.len());
     for (sit, _, _) in scenarios {
@@ -170,8 +171,23 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
     let (mut ph, mut pn, mut prr) = (0usize, 0usize, 0.0f64);
     let (mut sl, mut sp) = (0usize, 0usize);
 
+    // Growth probe: node count after learning, then after a clean restart (WAL/snapshot recovery).
+    if std::env::var("CMHM_GROWTH").is_ok() {
+        let n1 = handle.node_count();
+        handle.shutdown().ok();
+        let h2 = engine::start(cfg_keep.clone()).unwrap();
+        let n2 = h2.node_count();
+        println!("  [GROWTH {}] learns={} nodes_after_learn={} ({:.2}/learn) nodes_after_restart={}",
+                 embedder.model_id(), scenarios.len(), n1, n1 as f64 / scenarios.len() as f64, n2);
+        handle = h2;
+    }
+
     for (i, (_, q, is_lex)) in scenarios.iter().enumerate() {
-        let q_emb = embedder.embed(q).unwrap();
+        let q_emb = if embedder.model_id().contains("bge") && std::env::var("CMHM_BGE_PREFIX").is_ok() {
+            embedder.embed(&format!("Represent this sentence for searching relevant passages: {}", q)).unwrap()
+        } else {
+            embedder.embed(q).unwrap()
+        };
         let r = handle.retrieve(q_emb, embedder.model_id(), NodeType::State, q).unwrap();
         let target = target_ids[i];
         let rank = r.post_filter_candidates.iter().position(|&id| id == target);
@@ -180,6 +196,11 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
         if *is_lex { ln += 1; if hit { lh += 1; } lrr += rr; }
         else       { pn += 1; if hit { ph += 1; } prr += rr; }
         if r.seed_id == Some(target) { if *is_lex { sl += 1; } else { sp += 1; } }
+        if std::env::var("CMHM_DIAG").is_ok() && !*is_lex && r.seed_id != Some(target) {
+            let w = r.seed_id.and_then(|id| target_ids.iter().position(|&t| t == id));
+            println!("  MISS [{}] q=\"{}\" | want=\"{}\" | got=\"{}\"", embedder.model_id(), q, scenarios[i].0,
+                     w.map(|j| scenarios[j].0.clone()).unwrap_or_else(|| "<none>".into()));
+        }
     }
     println!("  [REAL SEED top-1] lex={:.4} para={:.4} overall={:.4}",
              sl as f64 / ln as f64, sp as f64 / pn as f64, (sl + sp) as f64 / (ln + pn) as f64);
@@ -212,6 +233,11 @@ fn minilm_vs_hash_bench() {
     let minilm = OnnxEmbedder::new().expect("onnx init");
     let mm = run_bench(&minilm, &scenarios);
 
+    if let Ok(bge) = OnnxEmbedder::bge() {
+        let bm = run_bench(&bge, &scenarios);
+        println!("BGE-base:  lex_P@1={:.4} para_P@1={:.4} overall_P@1={:.4} overall_MRR={:.4}",
+                 bm.lex_p1, bm.para_p1, bm.all_p1, bm.all_mrr);
+    }
     // Native (unprojected 384-d) ceiling check, plain vs mean-centred.
     {
         let sits: Vec<Vec<f32>> = scenarios.iter().map(|(s, _, _)| minilm.embed(s).unwrap()).collect();

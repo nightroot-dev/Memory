@@ -236,7 +236,7 @@ pub fn retrieve(
             // Fuse for pool membership. Each candidate keeps its REAL dense cosine (computed on
             // demand for BM25-only hits instead of 0.0) plus a lexical boost for a decisive
             // BM25 winner, then the pool is re-sorted by that score.
-            let boosts = crate::bm25::lexical_boost(&bm25_candidates);
+            let boosts = crate::bm25::lexical_boost(&bm25_candidates, query_text);
             let mut fused: Vec<(u64, f32)> = crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, 20)
                 .into_iter()
                 .map(|(id, _rrf_score)| {
