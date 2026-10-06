@@ -163,6 +163,14 @@ pub struct RetrieveParams {
     ///
     /// Unknown values return an `invalid_params` error.
     pub retrieval_intent: String,
+
+    /// Optional natural-language text of the query, used to enable BM25 lexical fusion.
+    ///
+    /// R6: Previously the vector retrieve path always passed `query_text=""`, disabling BM25.
+    /// Providing this field enables hybrid retrieval (dense + BM25 RRF) on the vector path.
+    /// Omitting it (or passing `""`) preserves the original dense-only behavior.
+    #[serde(default)]
+    pub query_text: String,
 }
 
 
@@ -304,7 +312,16 @@ pub struct ProjectDetectParams {}
 
 // --- Defaults ----------------------------------------------------------------
 
-pub fn default_model()        -> String { "default".to_string() }
+/// C-04 fix: return the active embedder's model_id so vector-path tools (memory_learn,
+/// memory_retrieve) and text-path tools (memory_learn_text, memory_retrieve_text) share
+/// the same namespace. Before this fix, "default" nodes were invisible to text-path
+/// retrieval and vice versa — silent empty results with no error.
+pub fn default_model() -> String {
+    #[cfg(feature = "onnx")]
+    { "minilm-l6-v2-int8".to_string() }
+    #[cfg(not(feature = "onnx"))]
+    { "hash-128d".to_string() }
+}
 pub fn default_eta()          -> f32    { 0.5 }
 pub fn default_authority()    -> f32    { 0.5 }
 pub fn default_context_type() -> ContextTypeParam { ContextTypeParam::Project }

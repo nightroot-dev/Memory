@@ -16,6 +16,12 @@ path = "src/main.rs"
 name = "cmhm_mcp_lib"
 path = "src/lib.rs"
 
+[features]
+default = []
+# Enable MiniLM-L6-v2-int8 embedder (MSVC toolchain required).
+# cargo build --features onnx
+onnx = ["cmhm_core/onnx"]
+
 [dependencies]
 cmhm_core = { path = "../cmhm_core" }
 serde = { workspace = true }

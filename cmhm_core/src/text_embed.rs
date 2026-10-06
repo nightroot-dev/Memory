@@ -104,7 +104,9 @@ pub fn extract_tags(text: &str, max_tags: usize) -> Vec<String> {
         "could", "would", "should", "there", "these", "those", "where",
         "here", "each", "such", "both", "only", "even", "just", "like",
         "make", "made", "done", "does", "said", "want", "need", "used",
-        "using", "call", "call", "adds", "added", "added", "file", "path",
+        // M-01: "using" kept (useful for "using X library"). "call" and "added" deduped.
+        // "file" and "path" REMOVED — highly discriminative for coding assistant routing.
+        "using", "call", "adds", "added",
     ];
 
     let mut seen  = std::collections::HashSet::new();

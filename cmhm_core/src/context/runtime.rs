@@ -410,10 +410,11 @@ impl ContextRuntime {
             Ok(id) => id,
             Err(_) => return 0.0,
         };
-        // Only check if context is already loaded — avoid a disk load just for shadow gate
-        match self.cache.get(&id) {
-            Some(handle) => handle.max_cosine_to_existing(query_emb, model_id, Some(node_type)),
-            None => 0.0, // not loaded → treat as novel
+        // H2 fix: ensure context is loaded so sleeping contexts are not falsely treated
+        // as empty/maximally novel (max_cos = 0.0), which allowed near-duplicates to bypass the gate.
+        match self.ensure_loaded(&id) {
+            Ok(handle) => handle.max_cosine_to_existing(query_emb, model_id, Some(node_type)),
+            Err(_) => 0.0,
         }
     }
 
@@ -421,8 +422,9 @@ impl ContextRuntime {
     /// and cohort centroid distance without mutating graph state or writing to WAL.
     ///
     /// Pass `NodeType::State` for the standard state-novelty check (role-scoped).
-    /// Returns default (max_cos=0.0, none) on empty or unloaded context (treated as fully novel).
-    /// Does NOT load the context from disk if sleeping.
+    /// H2 fix: loads the context from disk via `ensure_loaded` if sleeping, ensuring
+    /// novelty and bandit metadata reflect actual persistent memories instead of
+    /// falsely reporting max_cosine=0.0 (maximally novel) on sleeping contexts.
     pub fn inspect_gate_in_context(
         &mut self,
         context_id: Option<&str>,
@@ -439,15 +441,16 @@ impl ContextRuntime {
                 cohort_dist: None,
             },
         };
-        match self.cache.get(&id) {
-            Some(handle) => handle.inspect_gate(query_emb, model_id, node_type),
-            None => crate::engine::GateInspectionResult {
+        let handle = match self.ensure_loaded(&id) {
+            Ok(h) => h,
+            Err(_) => return crate::engine::GateInspectionResult {
                 max_cosine: 0.0,
                 nearest_node_id: None,
                 nearest_bandit: None,
                 cohort_dist: None,
             },
-        }
+        };
+        handle.inspect_gate(query_emb, model_id, node_type)
     }
 
     /// Force a snapshot of a context.

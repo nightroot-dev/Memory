@@ -108,33 +108,73 @@ impl Embedder for HashEmbedder {
 #[cfg(feature = "onnx")]
 pub struct OnnxEmbedder {
     model: std::sync::Mutex<fastembed::TextEmbedding>,
+    model_id: &'static str,
+    dim: usize,
 }
 
 #[cfg(feature = "onnx")]
 impl OnnxEmbedder {
-    /// Initialise the embedder. Downloads the model on first call (~14 MB, HuggingFace).
+    /// Initialise the MiniLM embedder. Downloads the model on first call (~14 MB, HuggingFace).
     /// Subsequent calls use the local cache. This is the only network call in CMHM.
     pub fn new() -> Result<Self> {
-        let opts = fastembed::InitOptions::new(fastembed::EmbeddingModel::AllMiniLML6V2Q)
-            .with_show_download_progress(true);
-        let model = fastembed::TextEmbedding::try_new(opts)
-            .map_err(|e| anyhow::anyhow!("Failed to init MiniLM embedder: {e}"))?;
-        Ok(Self { model: std::sync::Mutex::new(model) })
+        Self::with_model(
+            fastembed::EmbeddingModel::AllMiniLML6V2Q,
+            "minilm-l6-v2-int8",
+            384,
+            "MiniLM",
+        )
+    }
+
+    /// Initialise the BGE-base-en-v1.5 embedder (quantized, 768-dim).
+    /// Downloads ~0.2 GB on first call. Same projection/training contract
+    /// as MiniLM: per-model PCA matrix auto-loaded by filename stem.
+    pub fn bge() -> Result<Self> {
+        Self::with_model(
+            fastembed::EmbeddingModel::BGEBaseENV15Q,
+            "bge-base-en-v1.5",
+            768,
+            "BGE",
+        )
+    }
+
+    fn with_model(
+        model: fastembed::EmbeddingModel,
+        model_id: &'static str,
+        dim: usize,
+        label: &str,
+    ) -> Result<Self> {
+        let opts =
+            fastembed::InitOptions::new(model).with_show_download_progress(true);
+        let embedder = fastembed::TextEmbedding::try_new(opts)
+            .map_err(|e| anyhow::anyhow!("Failed to init {label} embedder: {e}"))?;
+        Ok(Self {
+            model: std::sync::Mutex::new(embedder),
+            model_id,
+            dim,
+        })
     }
 }
 
 #[cfg(feature = "onnx")]
 impl Embedder for OnnxEmbedder {
-    fn model_id(&self) -> &str { "minilm-l6-v2-int8" }
+    fn model_id(&self) -> &str { self.model_id }
 
-    fn dim(&self) -> usize { 384 }
+    fn dim(&self) -> usize { self.dim }
 
     fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
         }
+        // M-10 fix: recover from a poisoned Mutex instead of failing permanently.
+        // fastembed::TextEmbedding is stateless (read-only weights) so recovering
+        // the guard after a prior panic is safe — the model remains valid.
+        // Without recovery, any OOM or ONNX Runtime panic permanently kills embedding
+        // for the rest of the session with no way to recover short of server restart.
         let mut guard = self.model.lock()
-            .map_err(|e| anyhow::anyhow!("OnnxEmbedder lock poisoned: {e}"))?;
+            .unwrap_or_else(|e| {
+                tracing::warn!("OnnxEmbedder Mutex was poisoned (prior panic recovered); continuing");
+                e.into_inner()
+            });
         // fastembed returns f32 embeddings, already L2-normalised
         guard
             .embed(texts.to_vec(), None)

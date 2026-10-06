@@ -4,7 +4,9 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use parking_lot::Mutex;
 use uuid::Uuid;
-use cmhm_core::{ContextRuntime, ContextType, text_to_embedding, extract_tags, scrub::scrub_learn, node::NodeType};
+use std::sync::OnceLock;
+use cmhm_core::{ContextRuntime, ContextType, extract_tags, scrub::scrub_learn, node::NodeType};
+use cmhm_core::embed::{default_embedder, Embedder};
 use crate::schema::{
     RetrieveParams, LearnParams, LearnTextParams, RetrieveTextParams,
     CreateContextParams, ListContextsParams, DeleteContextParams,
@@ -13,21 +15,46 @@ use crate::schema::{
     ToolCallResult, ContentItem, ToolDefinition,
 };
 
-/// Model ID used for all text-path embeddings (memory_learn_text, memory_retrieve_text).
-///
-/// Must match `HashEmbedder::model_id()` so nodes stored by text tools are
-/// retrievable by embedding tools (and vice versa) when the same hash backend is active.
-/// When the `onnx` feature is enabled and adopted, update this to `"minilm-l6-v2-int8-384d"`.
-pub const TEXT_MODEL_ID: &str = "hash-128d";
+// â”€â”€ Shared embedder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//
+// Initialized once at first use (lazily). With --features onnx: OnnxEmbedder
+// (MiniLM-L6-v2-int8, 384-dim, ~22 MB model from local cache).
+// Without onnx: HashEmbedder (FNV hash-128d, 128-dim, zero deps).
+//
+// All text-path tools (memory_learn_text, memory_retrieve_text, memory_promote)
+// route through this shared instance for consistent model_id stamping.
 
-/// Shadow gate policy version — bump when the gate formula changes.
+static SHARED_EMBEDDER: OnceLock<Box<dyn Embedder>> = OnceLock::new();
+
+fn get_text_embedder() -> &'static dyn Embedder {
+    SHARED_EMBEDDER
+        .get_or_init(|| default_embedder().expect("CMHM: failed to initialise text embedder"))
+        .as_ref()
+}
+
+/// Embed `text` using the active backend and return a heap-allocated Vec<f32>.
+fn embed_text(text: &str) -> Vec<f32> {
+    get_text_embedder()
+        .embed(text)
+        .unwrap_or_else(|_| vec![0.0; get_text_embedder().dim()])
+}
+
+/// Model ID of the active text-path embedder.
+/// Stamped on every node written by text tools (N3 invariant).
+fn text_model_id() -> &'static str {
+    get_text_embedder().model_id()
+}
+
+
+
+/// Shadow gate policy version â€” bump when the gate formula changes.
 /// All gate_shadow_log.jsonl entries are stamped with this so decisions
 /// can be compared across formula versions during retrospective analysis.
 pub const GATE_POLICY_V: u32 = 2;
 
-/// Shadow gate κ (kappa): weight on prediction_error in the gate score formula.
-/// gate_score = novelty × (1 + κ × |prediction_error|) × verifiability
-/// κ=2.0 makes a fully-surprising event (pe=1.0) worth 3× a neutral event (pe=0.0).
+/// Shadow gate Îº (kappa): weight on prediction_error in the gate score formula.
+/// gate_score = novelty Ã— (1 + Îº Ã— |prediction_error|) Ã— verifiability
+/// Îº=2.0 makes a fully-surprising event (pe=1.0) worth 3Ã— a neutral event (pe=0.0).
 pub const GATE_KAPPA: f32 = 2.0;
 
 /// Default shadow gate threshold for "would_index" decision when not configured.
@@ -39,17 +66,17 @@ pub const GATE_KAPPA: f32 = 2.0;
 ///   - Corroboration: content near established nodes blends with empirical Wilson LCB (w = N / (N + 4)).
 pub const GATE_THRESHOLD: f32 = 0.35;
 
-// ─── Sidecar log writers ─────────────────────────────────────────────────────
+// â”€â”€â”€ Sidecar log writers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // All three log files are:
-//   - Append-only JSONL, never truncated — safe to tail / import incrementally.
-//   - Separate from the memory store — log bugs never affect memory operations.
+//   - Append-only JSONL, never truncated â€” safe to tail / import incrementally.
+//   - Separate from the memory store â€” log bugs never affect memory operations.
 //   - Best-effort: file write failures emit tracing::warn! but never fail callers.
 //
 // Files:
-//   learn_log.jsonl      — Tier 0 raw learn archive (every attempt, pre-gate)
-//   retrieve_log.jsonl   — retrieve audit log with retrieve_id and ranked scores
-//   gate_shadow_log.jsonl — shadow gate: "would index" decisions without enforcement
+//   learn_log.jsonl      â€” Tier 0 raw learn archive (every attempt, pre-gate)
+//   retrieve_log.jsonl   â€” retrieve audit log with retrieve_id and ranked scores
+//   gate_shadow_log.jsonl â€” shadow gate: "would index" decisions without enforcement
 
 /// Append one line to `retrieve_log.jsonl`.
 ///
@@ -85,7 +112,7 @@ fn append_retrieve_log(
     best_effort_append(&path, &line, "retrieve_log");
 }
 
-/// Append one line to `learn_log.jsonl` — the Tier 0 raw learn archive.
+/// Append one line to `learn_log.jsonl` â€” the Tier 0 raw learn archive.
 ///
 /// Called BEFORE the gate and BEFORE engine write, with pre-scrubbed text.
 /// Secrets MUST be scrubbed by caller before passing state/action/outcome here.
@@ -137,7 +164,7 @@ fn append_learn_archive(
     best_effort_append(&path, &line, "learn_log");
 }
 
-/// Compute LFA verifiability V ∈ (0.0, 1.0] for ingestion gating.
+/// Compute LFA verifiability V âˆˆ (0.0, 1.0] for ingestion gating.
 ///
 /// Combines empirical evidence (Wilson score Lower Confidence Bound over nearest node's
 /// feedback track record) with caller-authorized source trust:
@@ -297,7 +324,7 @@ pub type SharedRuntime = Arc<Mutex<ContextRuntime>>;
 // Each entry defines exactly three things:
 //   1. Tool name  (what MCP clients see)
 //   2. Description (what the AI reads to decide when to call it)
-//   3. inputSchema (auto-derived from the Params struct — never edit manually)
+//   3. inputSchema (auto-derived from the Params struct â€” never edit manually)
 //
 // To add a tool: add a new ToolEntry here + a handler below + a match arm in main.rs.
 // To add a parameter: add a field to the Params struct in schema.rs.
@@ -317,7 +344,7 @@ fn schema_of<T: schemars::JsonSchema>() -> Value {
 /// Strip schemars internals from a generated schema before sending to MCP clients.
 ///
 /// Removes: $schema, title, definitions, format: "uint"
-/// Inlines:  $ref → the definition it points to (so clients see flat properties)
+/// Inlines:  $ref â†’ the definition it points to (so clients see flat properties)
 fn clean_schema(mut v: Value) -> Value {
     if let Some(obj) = v.as_object_mut() {
         // Pull definitions out before we recurse so we can inline $refs
@@ -337,7 +364,7 @@ fn clean_schema(mut v: Value) -> Value {
                 // Strip per-field internals
                 if let Some(o) = prop.as_object_mut() {
                     o.remove("title");
-                    // "format: uint" is a Rust-ism; drop it — type: integer is enough
+                    // "format: uint" is a Rust-ism; drop it â€” type: integer is enough
                     if o.get("format").and_then(|f| f.as_str()) == Some("uint") {
                         o.remove("format");
                     }
@@ -351,7 +378,7 @@ fn clean_schema(mut v: Value) -> Value {
 /// Resolve a single value: if it is (or wraps) a `$ref`, inline the definition.
 fn resolve_ref(v: Value, defs: &serde_json::Map<String, Value>) -> Value {
     match &v {
-        // Plain $ref → inline the definition
+        // Plain $ref â†’ inline the definition
         Value::Object(o) if o.contains_key("$ref") => {
             let r = o["$ref"].as_str().unwrap_or("");
             let key = r.strip_prefix("#/definitions/").unwrap_or(r);
@@ -366,7 +393,7 @@ fn resolve_ref(v: Value, defs: &serde_json::Map<String, Value>) -> Value {
             }
             inlined
         }
-        // allOf: [{ $ref }] + possible default/description — schemars uses this for
+        // allOf: [{ $ref }] + possible default/description â€” schemars uses this for
         // fields that have both a type reference and a default value.
         // Flatten: inline the ref and merge back default + description.
         Value::Object(o) if o.contains_key("allOf") => {
@@ -417,7 +444,7 @@ const TOOLS: &[ToolEntry] = &[
     },
     ToolEntry {
         name: "memory_learn",
-        description: "Record a (state → action → outcome) experience into causal memory. \
+        description: "Record a (state â†’ action â†’ outcome) experience into causal memory. \
             Call this AFTER an action's result is known. \
             prediction_error encodes how wrong the prediction was: \
             0.0 = outcome was exactly expected, 1.0 = complete surprise/failure.",
@@ -426,7 +453,7 @@ const TOOLS: &[ToolEntry] = &[
     ToolEntry {
         name: "context_create",
         description: "Create an isolated memory context for a project, topic, or session. \
-            Every context has its own completely separate causal graph — \
+            Every context has its own completely separate causal graph â€” \
             nothing leaks between them. \
             Returns the context UUID for use in memory_learn / memory_retrieve.",
         schema: || schema_of::<CreateContextParams>(),
@@ -441,7 +468,7 @@ const TOOLS: &[ToolEntry] = &[
     ToolEntry {
         name: "context_delete",
         description: "Permanently delete a context and all its causal memory. \
-            IRREVERSIBLE — there is no undo. \
+            IRREVERSIBLE â€” there is no undo. \
             The built-in default context cannot be deleted.",
         schema: || schema_of::<DeleteContextParams>(),
     },
@@ -449,7 +476,7 @@ const TOOLS: &[ToolEntry] = &[
         name: "context_route",
         description: "Automatically route a query to the best-matching context(s) \
             using probabilistic scoring (keyword overlap + recency + frequency). \
-            Returns contexts ranked by score [0–1]. \
+            Returns contexts ranked by score [0â€“1]. \
             Call this first when you are unsure which context to use.",
         schema: || schema_of::<RouteParams>(),
     },
@@ -462,7 +489,7 @@ const TOOLS: &[ToolEntry] = &[
     },
     ToolEntry {
         name: "memory_retrieve_text",
-        description: "Retrieve causal memory using plain text — no embeddings needed. \
+        description: "Retrieve causal memory using plain text â€” no embeddings needed. \
             PREFERRED over memory_retrieve for most agents. \
             Call this BEFORE making a decision to recall what was previously learned \
             about similar situations. The server converts text to an embedding internally.",
@@ -470,7 +497,7 @@ const TOOLS: &[ToolEntry] = &[
     },
     ToolEntry {
         name: "memory_learn_text",
-        description: "Record a (state → action → outcome) experience as plain text — \
+        description: "Record a (state â†’ action â†’ outcome) experience as plain text â€” \
             no embeddings needed. PREFERRED over memory_learn for most agents. \
             Call this AFTER an action's result is known. \
             Automatically extracts routing keywords (auto_tag=true by default) to \
@@ -493,7 +520,7 @@ const TOOLS: &[ToolEntry] = &[
             whether following that advice led to success or failure. \
             Updates each node's usefulness posterior (Beta bandit) and forgetting half-life. \
             Nodes that help succeed get longer memory; nodes that mislead get shorter memory. \
-            This is the core learning loop: retrieve → act → observe → feedback.",
+            This is the core learning loop: retrieve â†’ act â†’ observe â†’ feedback.",
         schema: || schema_of::<MemoryFeedbackParams>(),
     },
     ToolEntry {
@@ -543,7 +570,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Err(e) => return error_result(format!("Embedding decode error: {e}")),
     };
 
-    // Parse and require retrieval_intent — no unscoped retrieval from MCP.
+    // Parse and require retrieval_intent â€” no unscoped retrieval from MCP.
     let seed_type = match cmhm_core::node::NodeType::from_str(&params.retrieval_intent) {
         Some(t) => t,
         None => return error_result(format!(
@@ -552,14 +579,14 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         )),
     };
 
-    // Generate retrieve_id before locking — UUID v4, unique per call
+    // Generate retrieve_id before locking â€” UUID v4, unique per call
     let retrieve_id = Uuid::new_v4().to_string();
 
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
 
-     match rt.retrieve(ctx_id, emb, &params.model_id, seed_type, "") {
+     match rt.retrieve(ctx_id, emb, &params.model_id, seed_type, &params.query_text) { // R6
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
@@ -583,7 +610,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             );
             if result.abstained {
                 text.push_str(
-                    "> ⛔ **Retrieval abstained** — conflicting memories detected and \
+                    "> â›” **Retrieval abstained** â€” conflicting memories detected and \
                      `abstain_on_conflict` is enabled. No result returned. \
                      Review `conflict_candidates` and resolve with `supersedes`.\n\n"
                 );
@@ -599,7 +626,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     ))
                     .collect();
                 text.push_str(&format!(
-                    "> ⚠ **Conflict detected** [{}] — top-2 candidates had near-equal scores. \
+                    "> âš  **Conflict detected** [{}] â€” top-2 candidates had near-equal scores. \
                      Higher-scored candidate selected. \
                      Candidates: {}. Use `supersedes` on next learn to resolve.\n\n",
                     ctype, candidates_summary.join("; ")
@@ -612,11 +639,11 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 text.push_str("### Chain Details\n");
                 for (i, step) in result.causal_chain.iter().enumerate() {
                     text.push_str(&format!(
-                        "{}. Node {} → Node {} | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
+                        "{}. Node {} â†’ Node {} | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
                         i + 1, step.from_node, step.to_node,
                         step.mean_weight * 100.0, step.evidence,
                         if step.is_intervention { " [agent intervention]" } else { "" },
-                        if step.is_curious { " ⚠ uncertain" } else { "" },
+                        if step.is_curious { " âš  uncertain" } else { "" },
                     ));
                 }
                 text.push_str(&format!(
@@ -627,7 +654,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             // retrieve_id: copy this into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
 
-            // Machine-readable JSON block (content[1]) — structured fields for tests and agents.
+            // Machine-readable JSON block (content[1]) â€” structured fields for tests and agents.
             let structured = json!({
                 "retrieve_id":       retrieve_id,
                 "seed_id":           result.seed_id,
@@ -695,7 +722,7 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let session_id = rt.session_id().to_string();
     let data_dir = rt.data_dir().to_path_buf();
 
-    // Resolve ctx_id string for logging (best-effort — don't fail learn if this fails)
+    // Resolve ctx_id string for logging (best-effort â€” don't fail learn if this fails)
     let ctx_id_str = rt.list_contexts().iter()
         .find(|c| ctx_id.map_or(c.display_name == "default", |id| c.id.to_string() == id || c.display_name == id))
         .map(|c| c.id.to_string())
@@ -712,10 +739,12 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     );
 
     // Ingestion Gate (Policy v2: Wilson LCB verifiability + configurable enforcement)
+    // H-09: clamp authority to engine value before gate uses it for verifiability.
+    let clamped_authority = cmhm_core::authenticate_and_clamp(params.authority, &params.provenance, cmhm_core::CallerRole::Agent).0;
     let inspection = rt.inspect_gate_in_context(ctx_id, &state_emb, &params.model_id, NodeType::State);
     let max_cos = inspection.max_cosine;
-    let novelty = (1.0_f32 - max_cos).clamp(0.0, 2.0);
-    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, params.authority);
+    let novelty = (1.0_f32 - max_cos).clamp(0.0, 1.0); // M-07 fix: max novelty is 1.0 (was 2.0)
+    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, clamped_authority);
     let kappa = rt.config().gate_kappa;
     let threshold = rt.config().gate_threshold;
     let enforce = rt.config().enforce_gate;
@@ -976,20 +1005,20 @@ pub fn handle_memory_stats(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 
 // --- Text tool handlers -------------------------------------------------------
 
-/// Retrieve using plain text — converts to embedding internally.
+/// Retrieve using plain text â€” converts to embedding internally.
 pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let params: RetrieveTextParams = match serde_json::from_value(args.clone()) {
         Ok(p)  => p,
         Err(e) => return error_result(format!("Invalid arguments: {e}")),
     };
 
-    let emb = text_to_embedding(&params.query).to_vec();
+    let emb = embed_text(&params.query);
 
     // Parse retrieval_intent:
-    //   None/absent → seed_type = None  (unscoped: all node types compete — required for
+    //   None/absent â†’ seed_type = None  (unscoped: all node types compete â€” required for
     //                                    cross-type contradiction safety evaluation).
-    //   Some(s) and parseable → seed_type = Some(t)  (type-restricted pool).
-    //   Some(s) and unparseable → fail closed.
+    //   Some(s) and parseable â†’ seed_type = Some(t)  (type-restricted pool).
+    //   Some(s) and unparseable â†’ fail closed.
     let seed_type: Option<cmhm_core::node::NodeType> = match &params.retrieval_intent {
         None => None,
         Some(s) => match cmhm_core::node::NodeType::from_str(s) {
@@ -1001,18 +1030,18 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
         },
     };
 
-    // Generate retrieve_id before locking — UUID v4, unique per call
+    // Generate retrieve_id before locking â€” UUID v4, unique per call
     let retrieve_id = Uuid::new_v4().to_string();
 
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
 
-    // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
+    // text_model_id() = "hash-128d" â€” matches HashEmbedder::model_id() (N3)
     // Dispatch: unscoped when retrieval_intent absent, scoped when present.
      let retrieve_result = match seed_type {
-         None    => rt.retrieve_unscoped(ctx_id, emb, TEXT_MODEL_ID, &params.query),
-         Some(t) => rt.retrieve(ctx_id, emb, TEXT_MODEL_ID, t, &params.query),
+         None    => rt.retrieve_unscoped(ctx_id, emb, text_model_id(), &params.query),
+         Some(t) => rt.retrieve(ctx_id, emb, text_model_id(), t, &params.query),
      };
     match retrieve_result {
         Ok((result, ctx)) => {
@@ -1027,7 +1056,7 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                 &retrieve_id,
                 &session_id,
                 &ctx.id.to_string(),
-                TEXT_MODEL_ID,
+                text_model_id(),
                 &params.query,
                 &chain,
             );
@@ -1040,7 +1069,7 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
             );
             if result.abstained {
                 text.push_str(
-                    "> ⛔ **Retrieval abstained** — conflicting memories detected and \
+                    "> â›” **Retrieval abstained** â€” conflicting memories detected and \
                      `abstain_on_conflict` is enabled. No result returned. \
                      Review `conflict_candidates` and resolve with `supersedes`.\n\n"
                 );
@@ -1056,7 +1085,7 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                     ))
                     .collect();
                 text.push_str(&format!(
-                    "> ⚠ **Conflict detected** [{}] — top-2 candidates had near-equal scores. \
+                    "> âš  **Conflict detected** [{}] â€” top-2 candidates had near-equal scores. \
                      Higher-scored candidate selected. \
                      Candidates: {}. Use `supersedes` on next learn to resolve.\n\n",
                     ctype, candidates_summary.join("; ")
@@ -1069,11 +1098,11 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                 text.push_str("### Chain Details\n");
                 for (i, step) in result.causal_chain.iter().enumerate() {
                     text.push_str(&format!(
-                        "{}. Node {} → Node {} | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
+                        "{}. Node {} â†’ Node {} | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
                         i + 1, step.from_node, step.to_node,
                         step.mean_weight * 100.0, step.evidence,
                         if step.is_intervention { " [agent intervention]" } else { "" },
-                        if step.is_curious { " ⚠ uncertain" } else { "" },
+                        if step.is_curious { " âš  uncertain" } else { "" },
                     ));
                 }
             }
@@ -1112,7 +1141,7 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     }
 }
 
-/// Learn from plain text — converts to embeddings internally, auto-tags context.
+/// Learn from plain text â€” converts to embeddings internally, auto-tags context.
 pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let params: LearnTextParams = match serde_json::from_value(args.clone()) {
         Ok(p)  => p,
@@ -1139,9 +1168,9 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     // Generate a stable event_id linking learn_log + gate_shadow_log entries.
     let event_id = Uuid::new_v4().to_string();
 
-    let state_emb   = text_to_embedding(&state_clean).to_vec();
-    let action_emb  = text_to_embedding(&action_clean).to_vec();
-    let outcome_emb = text_to_embedding(&outcome_clean).to_vec();
+    let state_emb   = embed_text(&state_clean);
+    let action_emb  = embed_text(&action_clean);
+    let outcome_emb = embed_text(&outcome_clean);
 
     // Capture fields before locking
     let auto_tag     = params.auto_tag;
@@ -1155,13 +1184,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let session_id  = rt_lock.session_id().to_string();
     let data_dir    = rt_lock.data_dir().to_path_buf();
 
-    // Resolve ctx_id string for logging (best-effort — don't fail learn if this fails)
+    // Resolve ctx_id string for logging (best-effort â€” don't fail learn if this fails)
     let ctx_id_str = rt_lock.list_contexts().iter()
         .find(|c| ctx_id.map_or(c.display_name == "default", |id| c.id.to_string() == id || c.display_name == id))
         .map(|c| c.id.to_string())
         .unwrap_or_else(|| ctx_id.unwrap_or("default").to_string());
 
-    // ── Fix 1: Tier 0 learn archive ──────────────────────────────────────────
+    // â”€â”€ Fix 1: Tier 0 learn archive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Archive BEFORE gate and BEFORE engine write.
     // Secrets already scrubbed above. Failure here emits warn! but does not stop learn.
     let tags_for_archive: Vec<String> = if auto_tag {
@@ -1176,11 +1205,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         pe, Some(eta), &tags_for_archive,
     );
 
-    // ── Fix 3: Ingestion Gate (Policy v2: Wilson LCB verifiability + configurable enforcement) ──
-    let inspection = rt_lock.inspect_gate_in_context(ctx_id, &state_emb, TEXT_MODEL_ID, NodeType::State);
+    // â”€â”€ Fix 3: Ingestion Gate (Policy v2: Wilson LCB verifiability + configurable enforcement) â”€â”€
+    // H-09: clamp authority to engine value before gate uses it for verifiability.
+    let clamped_authority = cmhm_core::authenticate_and_clamp(params.authority, &params.provenance, cmhm_core::CallerRole::Agent).0;
+    let inspection = rt_lock.inspect_gate_in_context(ctx_id, &state_emb, text_model_id(), NodeType::State);
     let max_cos  = inspection.max_cosine;
-    let novelty  = (1.0_f32 - max_cos).clamp(0.0, 2.0);
-    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, params.authority);
+    let novelty  = (1.0_f32 - max_cos).clamp(0.0, 1.0); // M-07 fix: max novelty is 1.0 (was 2.0)
+    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, clamped_authority);
     let kappa = rt_lock.config().gate_kappa;
     let threshold = rt_lock.config().gate_threshold;
     let enforce = rt_lock.config().enforce_gate;
@@ -1210,7 +1241,7 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     // Normalize provenance at the MCP ingestion boundary.
     // Only recognized classes pass through; unknown strings are demoted to "" (neutral)
     // with a warning so the authority clamping policy can enforce the correct ceiling.
-    // This does NOT authenticate the caller — it narrows the attack surface at the public API.
+    // This does NOT authenticate the caller â€” it narrows the attack surface at the public API.
     let provenance = if KNOWN_PROVENANCE_CLASSES.contains(&params.provenance.as_str()) {
         params.provenance.clone()
     } else {
@@ -1227,13 +1258,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     // trusted Rust runtime APIs (ContextRuntime::learn_with_context).
     let caller_role = cmhm_core::CallerRole::Agent;
 
-    // TEXT_MODEL_ID = "hash-128d" — matches HashEmbedder::model_id() (N3)
+    // text_model_id() = "hash-128d" â€” matches HashEmbedder::model_id() (N3)
 
     // Text path: pass scrubbed raw text for BM25 lexical indexing.
-    // state_clean/action_clean/outcome_clean were scrubbed above — secrets
+    // state_clean/action_clean/outcome_clean were scrubbed above â€” secrets
     // never enter the BM25 index, WAL, snapshot, or archive.
     match rt_lock.learn_text_with_context(
-        ctx_id, state_emb, action_emb, outcome_emb, pe, eta, TEXT_MODEL_ID,
+        ctx_id, state_emb, action_emb, outcome_emb, pe, eta, text_model_id(),
         params.authority, provenance, params.supersedes,
         caller_role, params.assertion_key, params.polarity,
         Some((state_clean, action_clean, outcome_clean)),
@@ -1264,7 +1295,7 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 **Node IDs**: state={} action={} outcome={}\n\
                 **Auto-tagged**: {}{}\n\
                 **{gate_label}**: novelty={:.3} score={:.3} would_index={}\n\n\
-                State → Action → Outcome stored as causal graph nodes.\n\
+                State â†’ Action â†’ Outcome stored as causal graph nodes.\n\
                 Use `memory_retrieve_text` with a similar query to recall this experience.",
                 ctx.display_name, ctx.id,
                 outcome_label, pe,
@@ -1313,7 +1344,7 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
         .unwrap_or("unknown")
         .to_string();
 
-    // Detect generic/home directories — agent should use default context for these
+    // Detect generic/home directories â€” agent should use default context for these
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_default();
@@ -1336,7 +1367,7 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
     let git_branch = detect_git_branch(&cwd);
 
     let recommendation = if is_default_dir {
-        "Use the `default` context — this is a generic directory, not a project.".to_string()
+        "Use the `default` context â€” this is a generic directory, not a project.".to_string()
     } else {
         format!(
             "Call `context_route` with query \"{project_name}\". \
@@ -1372,12 +1403,20 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
 // through pub fn boundaries, so targeted #[allow] instead of crate-wide.
 #[allow(dead_code)]
 fn detect_manifest_name(dir: &std::path::Path) -> Option<String> {
-    // Cargo.toml → [package] name
+    // Cargo.toml [package] name.
+    // M-02 fix: track current TOML section to avoid picking up [dependencies] or
+    // [workspace] name= entries before the [package] name.
     let cargo = dir.join("Cargo.toml");
     if cargo.exists() {
         if let Ok(src) = std::fs::read_to_string(&cargo) {
+            let mut in_package = false;
             for line in src.lines() {
                 let line = line.trim();
+                if line.starts_with('[') {
+                    in_package = line == "[package]";
+                    continue;
+                }
+                if !in_package { continue; }
                 if let Some(rest) = line.strip_prefix("name") {
                     let rest = rest.trim_start_matches(|c: char| c == ' ' || c == '=');
                     let name = rest.trim().trim_matches('"').trim_matches('\'');
@@ -1387,7 +1426,7 @@ fn detect_manifest_name(dir: &std::path::Path) -> Option<String> {
         }
     }
 
-    // package.json → "name"
+    // package.json -> "name" (already parsed via serde_json, no ambiguity)
     let pkg = dir.join("package.json");
     if pkg.exists() {
         if let Ok(src) = std::fs::read_to_string(&pkg) {
@@ -1399,12 +1438,19 @@ fn detect_manifest_name(dir: &std::path::Path) -> Option<String> {
         }
     }
 
-    // pyproject.toml → [tool.poetry] name or [project] name
+    // pyproject.toml [project] or [tool.poetry] name.
+    // M-02 fix: only extract from recognized sections.
     let pyproject = dir.join("pyproject.toml");
     if pyproject.exists() {
         if let Ok(src) = std::fs::read_to_string(&pyproject) {
+            let mut in_section = false;
             for line in src.lines() {
                 let line = line.trim();
+                if line.starts_with('[') {
+                    in_section = line == "[project]" || line == "[tool.poetry]";
+                    continue;
+                }
+                if !in_section { continue; }
                 if let Some(rest) = line.strip_prefix("name") {
                     let rest = rest.trim_start_matches(|c: char| c == ' ' || c == '=');
                     let name = rest.trim().trim_matches('"').trim_matches('\'');
@@ -1488,8 +1534,8 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
 
     // Build the engine-level feedback key from retrieve_id.
     // Key format per node inside the engine: "{retrieve_id}/{node_id}/{success_as_01}"
-    // This makes Beta(α,β) reflect evidence count, not submission count.
-    // Unjoined feedback (no retrieve_id) passes None — applied unconditionally, no dedup.
+    // This makes Beta(Î±,Î²) reflect evidence count, not submission count.
+    // Unjoined feedback (no retrieve_id) passes None â€” applied unconditionally, no dedup.
     let feedback_key = retrieve_id.map(|r| r.to_string());
 
     match rt_lock.feedback_nodes(ctx_id, params.node_ids.clone(), success, feedback_key) {
@@ -1507,12 +1553,12 @@ pub fn handle_memory_feedback(rt: &SharedRuntime, args: &Value) -> ToolCallResul
 
             let outcome_label = if success { "SUCCESS" } else { "FAILURE" };
             let idempotency_note = if let Some(rid) = retrieve_id {
-                format!("\n**retrieve_id**: `{rid}` — idempotency enabled, join key recorded in feedback_ledger.jsonl")
+                format!("\n**retrieve_id**: `{rid}` â€” idempotency enabled, join key recorded in feedback_ledger.jsonl")
             } else {
-                // Feedback without retrieve_id is valid — applied and counted.
+                // Feedback without retrieve_id is valid â€” applied and counted.
                 // It's marked "unjoined": cannot be linked to a retrieve_log entry for analysis.
                 // Repeated calls are not deduplicated (at-most-once guarantee requires a retrieve_id).
-                "\n_Status: unjoined — no retrieve_id provided. Feedback applied, but cannot be \
+                "\n_Status: unjoined â€” no retrieve_id provided. Feedback applied, but cannot be \
                 linked to a retrieve_log entry. Repeated calls without an ID are not deduplicated._".to_string()
             };
             let text = format!(
@@ -1552,8 +1598,10 @@ pub fn handle_memory_promote(rt: &SharedRuntime, args: &Value) -> ToolCallResult
         return error_result("authority must be a finite number in [0.0, 1.0]");
     }
 
-    // Role authentication: promotion is a trust escalation authorized by a supervisor or operator
-    let caller_role = match params.caller_role.as_deref().unwrap_or("user") {
+    // Role authentication: promotion is a trust escalation authorized by a supervisor or operator.
+    // C-01 FIX: Default to "agent" â€” promoted memories are agent-curated, not raw user input.
+    // Defaulting to "user" was granting user-level trust to all unspecified promotions.
+    let caller_role = match params.caller_role.as_deref().unwrap_or("agent") {
         "user" | "admin" => cmhm_core::CallerRole::User,
         "system" => cmhm_core::CallerRole::System,
         _ => cmhm_core::CallerRole::Agent,
@@ -1615,16 +1663,18 @@ pub fn handle_memory_promote(rt: &SharedRuntime, args: &Value) -> ToolCallResult
         .map(|c| c.id.to_string())
         .unwrap_or_else(|| target_ctx_str.to_string());
 
-    // Generate embeddings (TEXT_MODEL_ID = "hash-128d")
-    let state_emb   = text_to_embedding(&state).to_vec();
-    let action_emb  = text_to_embedding(&action).to_vec();
-    let outcome_emb = text_to_embedding(&outcome).to_vec();
+    // Generate embeddings via active embedder (MiniLM with onnx feature, hash-128d otherwise)
+    let state_emb   = embed_text(&state);
+    let action_emb  = embed_text(&action);
+    let outcome_emb = embed_text(&outcome);
 
     // 2. Promotion-time Gate Inspection (Novelty Drift Audit)
-    let inspection = rt_lock.inspect_gate_in_context(Some(target_ctx_str), &state_emb, TEXT_MODEL_ID, NodeType::State);
+    // H-09: clamp authority to engine value before gate uses it for verifiability.
+    let clamped_authority = cmhm_core::authenticate_and_clamp(params.authority, "corrected", cmhm_core::CallerRole::Agent).0;
+    let inspection = rt_lock.inspect_gate_in_context(Some(target_ctx_str), &state_emb, text_model_id(), NodeType::State);
     let max_cos = inspection.max_cosine;
-    let novelty = (1.0_f32 - max_cos).clamp(0.0, 2.0);
-    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, params.authority);
+    let novelty = (1.0_f32 - max_cos).clamp(0.0, 1.0); // M-07 fix: max novelty is 1.0 (was 2.0)
+    let verifiability = compute_lfa_verifiability(inspection.nearest_bandit, clamped_authority);
     let kappa = rt_lock.config().gate_kappa;
     let threshold = rt_lock.config().gate_threshold;
     let enforce = rt_lock.config().enforce_gate;
@@ -1657,7 +1707,7 @@ pub fn handle_memory_promote(rt: &SharedRuntime, args: &Value) -> ToolCallResult
         outcome_emb,
         pe,
         eta,
-        TEXT_MODEL_ID,
+        text_model_id(),
         params.authority,
         "user_explicit".to_string(),
         None, // supersedes: null
