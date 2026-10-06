@@ -160,6 +160,14 @@ pub struct Config {
     /// Default: 2.0.
     #[serde(default = "default_gate_kappa")]
     pub gate_kappa: f32,
+
+    /// Number of nearest-neighbor candidates to request for the seed pool.
+    ///
+    /// Larger values increase recall (more candidates survive filtering and scoring)
+    /// at the cost of O(pool_size) conflict detection and scoring work.
+    /// Default: 20. Old hardcoded value was 8 — doubled for recall improvement (R3).
+    #[serde(default = "default_retrieval_seed_pool_size")]
+    pub retrieval_seed_pool_size: usize,
 }
 
 impl Default for Config {
@@ -188,10 +196,10 @@ impl Default for Config {
             router_gamma: 0.20,
             router_delta: 0.10,
             router_recency_half_life_secs: 86400.0,
-            retrieval_query_weight: 0.7,
+            retrieval_query_weight: 0.7,      // unchanged (cosine is primary for equal-authority nodes)
             retrieval_context_weight: 0.3,
             retrieval_curiosity_threshold: 0.1,
-            retrieval_authority_weight:    0.8,
+            retrieval_authority_weight:    0.75, // R2: reduced from 0.8, still authority-safe
             retrieval_recency_weight:      0.0,
             retrieval_recency_lambda:      0.01,
             conflict_detection_threshold:  0.0,
@@ -200,22 +208,24 @@ impl Default for Config {
             enforce_gate:                  false,
             gate_threshold:                0.35,
             gate_kappa:                    2.0,
+            retrieval_seed_pool_size:      20,  // R3: was hardcoded 8
         }
     }
 }
 
-fn default_retrieval_query_weight()        -> f32  { 0.7 }
-fn default_retrieval_context_weight()      -> f32  { 0.3 }
-fn default_retrieval_curiosity_threshold() -> f32  { 0.1 }
-fn default_retrieval_authority_weight()    -> f32  { 0.8 }
-fn default_retrieval_recency_weight()      -> f32  { 0.0 }
-fn default_retrieval_recency_lambda()      -> f32  { 0.01 }
-fn default_conflict_detection_threshold()  -> f32  { 0.0 }
-fn default_abstain_on_conflict()           -> bool { true }
+fn default_retrieval_query_weight()        -> f32   { 0.7 }  // R2: balanced (was 0.7 — unchanged)
+fn default_retrieval_context_weight()      -> f32   { 0.3 }
+fn default_retrieval_curiosity_threshold() -> f32   { 0.1 }
+fn default_retrieval_authority_weight()    -> f32   { 0.75 } // R2: reduced from 0.8, still authority-safe
+fn default_retrieval_recency_weight()      -> f32   { 0.0 }
+fn default_retrieval_recency_lambda()      -> f32   { 0.01 }
+fn default_conflict_detection_threshold()  -> f32   { 0.0 }
+fn default_abstain_on_conflict()           -> bool  { true }
 fn default_allow_incompatible_snapshot_reset() -> bool { false }
-fn default_enforce_gate()                  -> bool { false }
-fn default_gate_threshold()                -> f32  { 0.35 }
-fn default_gate_kappa()                    -> f32  { 2.0 }
+fn default_enforce_gate()                  -> bool  { false }
+fn default_gate_threshold()                -> f32   { 0.35 }
+fn default_gate_kappa()                    -> f32   { 2.0 }
+fn default_retrieval_seed_pool_size()      -> usize { 20 }  // R3: was hardcoded 8
 
 
 impl Config {

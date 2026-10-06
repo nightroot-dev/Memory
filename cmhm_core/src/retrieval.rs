@@ -168,7 +168,7 @@ pub fn retrieve(
     // None falls back to the unscoped nearest() scan (backward-compat library path).
     // MCP tool handlers always pass Some(node_type) — never None.
     seed_type: Option<NodeType>,
-    // Weight of node.authority in seed scoring. Production default: 0.8.
+    // Weight of node.authority in seed scoring. Production default: 0.2 (R2).
     // Uses node.authority (machine-readable trust level), NOT node.emotional_tag.
     authority_weight: f32,
     // Score gap below which two candidates trigger conflict_detected = true.
@@ -177,10 +177,13 @@ pub fn retrieve(
     _conflict_detection_threshold: f32,
     // When true and conflict_detected, return empty chain + abstained=true instead of
     // returning the contested winner. Callers still receive conflict_candidates.
-     abstain_on_conflict: bool,
-     query_text: &str,
-     bm25: &crate::bm25::Bm25Index,
- ) -> RetrievalResult {
+    abstain_on_conflict: bool,
+    query_text: &str,
+    bm25: &crate::bm25::Bm25Index,
+    // R3: Seed pool size — number of NN candidates to retrieve before scoring.
+    // Default 20 (was hardcoded 8). Tunable via Config::retrieval_seed_pool_size.
+    seed_pool_size: usize,
+) -> RetrievalResult {
     // Step 1: Dense context
     let dense_ctx = dense_core.query(query);
 
@@ -209,21 +212,47 @@ pub fn retrieve(
     // When seed_type is Some(t), restrict candidates to nodes of that role.
     // We request 8 to have a meaningful pool for conflict detection and supersession filtering.
     let raw_candidates = match seed_type {
-        Some(t) => node_store.nearest_by_type(query, model_id, 8, t),
-        None    => node_store.nearest(query, model_id, 8),
-     };
-     // BM25 lexical candidates fused via RRF when query_text is provided.
-     // Empty query_text (legacy/vector paths) skips fusion — dense-only behavior unchanged.
-     let raw_candidates = if query_text.is_empty() {
-         raw_candidates
-     } else {
-         let bm25_candidates = bm25.query(query_text, 50);
-         if bm25_candidates.is_empty() {
-             raw_candidates
-         } else {
-             crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, 20)
-         }
-     };
+        Some(t) => node_store.nearest_by_type(query, model_id, seed_pool_size, t),
+        None    => node_store.nearest(query, model_id, seed_pool_size),
+    };
+    // BM25 lexical candidates fused via RRF when query_text is provided.
+    // Empty query_text (legacy/vector paths) skips fusion — dense-only behavior unchanged.
+    //
+    // R1 FIX: Snapshot dense cosines BEFORE fusion so the scorer receives a real cosine
+    // value (∈ [−1,1]) for every candidate, not the RRF rank score (~0.016).
+    // BM25-only candidates that have no dense hit receive dense_cos = 0.0.
+    // rrf_fuse() output is used only for pool membership and ordering; the (id, rrf_score)
+    // tuple's score is immediately replaced by the original dense cosine below.
+    let dense_cosines: std::collections::HashMap<u64, f32> =
+        raw_candidates.iter().map(|&(id, cos)| (id, cos)).collect();
+
+    let raw_candidates = if query_text.is_empty() {
+        raw_candidates
+    } else {
+        let bm25_candidates = bm25.query(query_text, 50);
+        if bm25_candidates.is_empty() {
+            raw_candidates
+        } else {
+            // Fuse for pool membership. Each candidate keeps its REAL dense cosine (computed on
+            // demand for BM25-only hits instead of 0.0) plus a lexical boost for a decisive
+            // BM25 winner, then the pool is re-sorted by that score.
+            let boosts = crate::bm25::lexical_boost(&bm25_candidates);
+            let mut fused: Vec<(u64, f32)> = crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, 20)
+                .into_iter()
+                .map(|(id, _rrf_score)| {
+                    let cos = dense_cosines.get(&id).copied().unwrap_or_else(|| {
+                        node_store.get(id)
+                            .filter(|n| n.model_id == model_id && n.embedding.len() == query.len())
+                            .map(|n| cosine(query, &n.embedding))
+                            .unwrap_or(0.0)
+                    });
+                    (id, cos + boosts.get(&id).copied().unwrap_or(0.0))
+                })
+                .collect();
+            fused.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+            fused
+        }
+    };
     if raw_candidates.is_empty() {
         return empty_result!("No memories yet.");
     }
@@ -286,7 +315,8 @@ pub fn retrieve(
         auth:          f32,
         key:           Option<&'a str>,
         pol:           Option<i8>,
-        superseded_by: Option<u64>,
+        // superseded_by removed (L-06): Step 2a already filters superseded nodes before
+        // pool_meta is built, so this field was always None here. Removed with M-06 dead check.
     }
     let pool_meta: Vec<PoolEntry<'_>> = candidates.iter().filter_map(|(id, _)| {
         node_store.get(*id).map(|n| PoolEntry {
@@ -295,7 +325,6 @@ pub fn retrieve(
             auth:          n.authority,
             key:           n.assertion_key.as_deref(),
             pol:           n.polarity,
-            superseded_by: n.superseded_by,
         })
     }).collect();
 
@@ -314,16 +343,16 @@ pub fn retrieve(
                 }
             }
         }
-        // 2. SupersessionConflict — defensive: superseded node survived Step 2a filter
-        {
-            for e in &pool_meta {
-                if let Some(target) = e.superseded_by {
-                    break 'detect (Some(ConflictType::SupersessionConflict), Some((e.id, target)), true);
-                }
-            }
-        }
-        // 3. ProvenancePair: HIGH_TRUST + LOW_TRUST in pool — unconditional abstention (v2.0)
-        //    TrustCompromised clamped-gap sub-condition DELETED. See §14.8 Disclosure 4.
+        // 2. SupersessionConflict — M-06 note: this check can never fire.
+        //    Step 2a (line ~254) already filters out every node where superseded_by.is_some().
+        //    pool_meta is built from candidates (post-2a), so e.superseded_by is always None here.
+        //    The ConflictType::SupersessionConflict variant is kept for API compatibility.
+        // 3. ProvenancePair: HIGH_TRUST + LOW_TRUST in pool — guarded by assertion_key conflict (R4).
+        //    R4 INTENT: Suppress false abstention when competing nodes are about DIFFERENT topics.
+        //    RULE: Fire unless both nodes carry non-empty assertion_keys that are explicitly different.
+        //    - node A has key "db_pool_size", node B has no key → FIRE (topic unknown, safety first)
+        //    - node A has key "db_pool_size", node B has key "db_pool_size" → FIRE (same topic)
+        //    - node A has key "db_pool_size", node B has key "tls_ciphers" → SUPPRESS (different topics)
         {
             for i in 0..pool_meta.len() {
                 for j in (i + 1)..pool_meta.len() {
@@ -334,12 +363,21 @@ pub fn retrieve(
                     let b_high = HIGH_TRUST.contains(&b.prov);
                     let a_low  = LOW_TRUST.contains(&a.prov);
                     if (a_high && b_low) || (b_high && a_low) {
-                        break 'detect (Some(ConflictType::AuthorityPolarity), Some((a.id, b.id)), true);
+                        // R4: Suppress ONLY if both nodes have explicit non-empty, different keys.
+                        let key_conflict = a.key.is_some() && b.key.is_some()
+                            && !a.key.unwrap_or("").is_empty()
+                            && !b.key.unwrap_or("").is_empty()
+                            && a.key != b.key;
+                        if !key_conflict {
+                            break 'detect (Some(ConflictType::AuthorityPolarity), Some((a.id, b.id)), true);
+                        }
                     }
                 }
             }
         }
-        // 4. AdversarialPair: both HIGH_TRUST, one "corrected" + one "user_explicit", neg_auth > pos_auth
+        // 4. AdversarialPair: both HIGH_TRUST, one "corrected" + one "user_explicit", neg_auth > pos_auth.
+        //    No key guard — adversarial attacks may deliberately use a different key to evade detection.
+        //    The corrected+user_explicit HIGH+HIGH pattern is always suspicious regardless of keys.
         {
             for i in 0..pool_meta.len() {
                 for j in (i + 1)..pool_meta.len() {
@@ -365,16 +403,29 @@ pub fn retrieve(
     // score = query_weight * cos(q, node)
     //       + context_weight * cos(dense_ctx, node)
     //       + authority_weight * node.authority
-    // Scoring runs unconditionally — used for winner selection if not abstaining.
+    //       + BANDIT_WEIGHT * node.thompson_draw(rng)  <- H-03 fix: bandit exploration
+    //
+    // The Thompson draw theta ∈ (0,1) is sampled from Beta(alpha, beta).
+    // New/untested nodes draw from Beta(1,1) = Uniform — exploration bonus.
+    // Weight 0.10 keeps exploration bounded relative to cosine similarity.
+    const BANDIT_WEIGHT: f32 = 0.10;
     let mut scored: Vec<(u64, f32)> = candidates.iter().map(|(id, cos)| {
         let score = match node_store.get(*id) {
             Some(node) => {
                 // min-len cosine for mixed-dim safety during embedder transition
                 let min_len = dense_ctx.len().min(node.embedding.len());
                 let dense_cos = cosine(&dense_ctx[..min_len], &node.embedding[..min_len]);
+                // H-03 fix: bandit exploration. Only apply when node has actual feedback
+                // (alpha>1 or beta>1). Prior-only Beta(1,1) nodes get 0 — no signal yet.
+                let bandit_draw = if node.bandit_alpha > 1.0 || node.bandit_beta > 1.0 {
+                    node.thompson_draw(rng)
+                } else {
+                    0.0 // uniform prior = no exploitation signal
+                };
                 query_weight * cos
                     + context_weight * dense_cos
                     + authority_weight * node.authority
+                    + BANDIT_WEIGHT * bandit_draw
             }
             None => query_weight * cos,
         };
