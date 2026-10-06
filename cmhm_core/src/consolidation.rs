@@ -246,7 +246,17 @@ pub fn run_consolidation(
             let (_, hi_t) = wilson_ci(succ[ca][cb], n1);
             let (lo_c, _) = wilson_ci(succ_ctrl, n_ctrl);
             // Upper bound of Δ CI
-            let upper = delta + 1.96 * ((hi_t * (1.0 - hi_t) / n1) + (lo_c * (1.0 - lo_c) / n_ctrl.max(1.0))).sqrt();
+            let upper = delta + 1.96 * (
+                (hi_t * (1.0 - hi_t) / n1)
+                + if n_ctrl >= 1.0 {
+                    lo_c * (1.0 - lo_c) / n_ctrl
+                } else {
+                    // L-03 fix: n_ctrl=0 → wilson_ci returns lo_c=0 → variance=0 → CI collapses.
+                    // Use max variance 0.25 (p=0.5) as a conservative fallback.
+                    // This prevents incorrectly pruning edges with no control-arm data.
+                    0.25
+                }
+            ).sqrt();
 
             if upper <= 0.0 {
                 to_prune.push((src, tgt));

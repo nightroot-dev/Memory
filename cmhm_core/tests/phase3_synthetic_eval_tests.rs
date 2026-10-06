@@ -3,6 +3,7 @@
 //! These tests verify the correctness of the evaluation logic, pool stage definitions,
 //! and structural invariants used by `verify_phase3_approval.ps1`.
 //!
+#![allow(unused_imports, dead_code, unused_variables)] // L-07: test scaffolding
 //! IMPORTANT:
 //! - These fixtures have ZERO relationship to either prohibited corpus
 //!   (the 15-query dprime_bench rejection set or the 32-query phase3_held_out_bench).

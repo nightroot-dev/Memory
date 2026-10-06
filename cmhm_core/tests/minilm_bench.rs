@@ -150,6 +150,7 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
     let mut cfg = Config::default();
     cfg.data_dir = tmp.path().to_path_buf();
     if let Some(d) = projection_dir() { cfg.projections_dir = d; }
+    if let Ok(v) = std::env::var("CMHM_CTX_W") { if let Ok(f) = v.parse::<f32>() { cfg.retrieval_context_weight = f; } }
     let handle = engine::start(cfg).unwrap();
 
     let mut target_ids = Vec::with_capacity(scenarios.len());
@@ -167,6 +168,7 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
 
     let (mut lh, mut ln, mut lrr) = (0usize, 0usize, 0.0f64);
     let (mut ph, mut pn, mut prr) = (0usize, 0usize, 0.0f64);
+    let (mut sl, mut sp) = (0usize, 0usize);
 
     for (i, (_, q, is_lex)) in scenarios.iter().enumerate() {
         let q_emb = embedder.embed(q).unwrap();
@@ -177,7 +179,10 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
         let rr = rank.map(|rk| 1.0 / (rk as f64 + 1.0)).unwrap_or(0.0);
         if *is_lex { ln += 1; if hit { lh += 1; } lrr += rr; }
         else       { pn += 1; if hit { ph += 1; } prr += rr; }
+        if r.seed_id == Some(target) { if *is_lex { sl += 1; } else { sp += 1; } }
     }
+    println!("  [REAL SEED top-1] lex={:.4} para={:.4} overall={:.4}",
+             sl as f64 / ln as f64, sp as f64 / pn as f64, (sl + sp) as f64 / (ln + pn) as f64);
 
     handle.shutdown().ok();
     Metrics {
@@ -206,6 +211,35 @@ fn minilm_vs_hash_bench() {
 
     let minilm = OnnxEmbedder::new().expect("onnx init");
     let mm = run_bench(&minilm, &scenarios);
+
+    // Native (unprojected 384-d) ceiling check, plain vs mean-centred.
+    {
+        let sits: Vec<Vec<f32>> = scenarios.iter().map(|(s, _, _)| minilm.embed(s).unwrap()).collect();
+        let qs: Vec<Vec<f32>> = scenarios.iter().map(|(_, q, _)| minilm.embed(q).unwrap()).collect();
+        let dim = sits[0].len();
+        let mut mean = vec![0.0f32; dim];
+        for s in &sits { for k in 0..dim { mean[k] += s[k] / sits.len() as f32; } }
+        let cos = |a: &[f32], b: &[f32]| -> f32 {
+            let d: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+            let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+            let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+            d / (na * nb + 1e-9)
+        };
+        for centred in [false, true] {
+            let (mut lh, mut ph) = (0, 0);
+            for (i, (_, _, is_lex)) in scenarios.iter().enumerate() {
+                let q: Vec<f32> = if centred { qs[i].iter().zip(&mean).map(|(a, m)| a - m).collect() } else { qs[i].clone() };
+                let mut best = (0usize, f32::MIN);
+                for (j, s) in sits.iter().enumerate() {
+                    let sv: Vec<f32> = if centred { s.iter().zip(&mean).map(|(a, m)| a - m).collect() } else { s.clone() };
+                    let c = cos(&q, &sv);
+                    if c > best.1 { best = (j, c); }
+                }
+                if best.0 == i { if *is_lex { lh += 1 } else { ph += 1 } }
+            }
+            println!("  [NATIVE 384d centred={}] lex={}/40 para={}/40", centred, lh, ph);
+        }
+    }
     println!("MiniLM:    lex_P@1={:.4} lex_MRR={:.4} para_P@1={:.4} para_MRR={:.4} overall_P@1={:.4} overall_MRR={:.4}",
              mm.lex_p1, mm.lex_mrr, mm.para_p1, mm.para_mrr, mm.all_p1, mm.all_mrr);
 

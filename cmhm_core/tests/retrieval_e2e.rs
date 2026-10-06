@@ -10,6 +10,7 @@
 // Tests are named E1a–E10 matching the plan. The three original deterministic
 // assertions in retrieval_contract.rs are NOT weakened here; these tests are additive.
 
+#![allow(unused_imports, dead_code, unused_variables, unused_mut)] // L-07: test scaffolding
 use cmhm_core::{Config, ContextRuntime, ContextType, NodeType, ConflictType, CallerRole, SupersessionError};
 
 
@@ -907,6 +908,7 @@ fn e5d_conflict_type_logical_contradiction_opposing_polarities() {
 }
 
 // E5e — ConflictType::AuthorityPolarity: corrected vs contradicted near-equal scores
+// R4 update: nodes now carry a shared assertion_key so ProvenancePair is scoped correctly.
 // =============================================================================
 
 #[test]
@@ -918,6 +920,8 @@ fn e5e_conflict_type_authority_polarity() {
     let ctx_id = rt.create_context("e5e", ContextType::Project, None, "e5e", vec![]).unwrap().id;
     let ctx = Some(ctx_id.as_str());
 
+    // R4 refined: unkeyed corrected+contradicted pair fires ProvenancePair (same as before).
+    // No assertion_key needed — suppression only kicks in when BOTH nodes have different non-empty keys.
     rt.learn(ctx, unit_vec(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
              0.85_f32, "corrected".into(), None).unwrap();
     rt.learn(ctx, unit_vec(1), emb(3), emb(4), 0.5, 0.5, "hash-128d",
@@ -1518,4 +1522,5 @@ fn e12_non_finite_inputs_rejected_at_engine_boundary() {
     rt.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
 

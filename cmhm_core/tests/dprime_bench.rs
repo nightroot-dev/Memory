@@ -52,6 +52,7 @@
 //!   cargo test --test dprime_bench -- --ignored --nocapture
 //!   cargo test --test dprime_bench --features onnx -- --ignored --nocapture
 
+#![allow(unused_imports, dead_code, unused_variables, unused_mut)] // L-07: test scaffolding
 use cmhm_core::{Embedder, HashEmbedder};
 use std::time::Instant;
 
@@ -748,3 +749,4 @@ fn bench_minilm_dprime() {
     println!("  TEXT_MODEL_ID may be changed to \"minilm-l6-v2-int8\" once");
     println!("  this test passes on the native Rust ONNX backend.");
 }
+

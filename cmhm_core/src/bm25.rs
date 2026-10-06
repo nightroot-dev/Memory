@@ -66,6 +66,7 @@ impl PostingList {
         }
     }
 
+    #[allow(dead_code)] // L-05: part of PostingList API; query path accesses postings directly
     fn tf(&self, node_id: u64) -> Option<f32> {
         self.postings.binary_search_by_key(&node_id, |&(id, _)| id)
             .ok()
@@ -85,6 +86,10 @@ pub struct Bm25Index {
     index: HashMap<String, PostingList>,
     /// Per-document length (number of tokens after tokenization)
     doc_lengths: HashMap<u64, u32>,
+    /// H-10 fix: reverse index node_id → distinct terms for O(terms/doc) removal.
+    /// Without this, remove() scans all posting lists — O(unique_terms_in_index).
+    #[serde(default)]
+    node_terms: HashMap<u64, Vec<String>>,
     /// Running sum of all document lengths (for avgdl)
     total_length: u64,
     /// Number of indexed documents
@@ -113,26 +118,47 @@ impl Bm25Index {
             *tf_map.entry(tok.as_str()).or_insert(0) += 1;
         }
 
-        // Insert into posting lists
+        // Insert into posting lists; collect distinct terms for reverse index.
+        let mut term_set: Vec<String> = Vec::with_capacity(tf_map.len());
         for (term, raw_tf) in &tf_map {
             let tf = *raw_tf as f32;
             self.index
                 .entry((*term).to_string())
                 .or_default()
                 .insert(node_id, tf);
+            term_set.push((*term).to_string());
         }
 
+        // H-10: store reverse mapping for O(terms/doc) removal.
+        self.node_terms.insert(node_id, term_set);
         self.doc_lengths.insert(node_id, doc_len);
         self.total_length += doc_len as u64;
         self.num_docs += 1;
     }
 
     /// Remove a node from the index.
+    ///
+    /// H-10 fix: uses `node_terms` reverse index for O(terms/doc) removal instead of
+    /// scanning all posting lists O(unique_terms_in_index). During consolidation when
+    /// many nodes are pruned simultaneously, this prevents O(dead_nodes × vocabulary) spikes.
     pub fn remove(&mut self, node_id: u64) {
         if let Some(&doc_len) = self.doc_lengths.get(&node_id) {
-            // Remove from all posting lists (scan — acceptable since removals are rare)
-            for list in self.index.values_mut() {
-                list.remove(node_id);
+            // Use reverse index to remove only the posting lists this node appears in.
+            if let Some(terms) = self.node_terms.remove(&node_id) {
+                for term in &terms {
+                    if let Some(list) = self.index.get_mut(term) {
+                        list.remove(node_id);
+                        // Prune empty posting lists to keep memory bounded.
+                        // (HashMap entry removal not done here to avoid borrow issues;
+                        //  empty lists are filtered at query time.)
+                    }
+                }
+            } else {
+                // Fallback for nodes indexed before H-10 (no node_terms entry).
+                // This path runs at most once per pre-existing node.
+                for list in self.index.values_mut() {
+                    list.remove(node_id);
+                }
             }
             self.doc_lengths.remove(&node_id);
             self.total_length = self.total_length.saturating_sub(doc_len as u64);
@@ -183,6 +209,29 @@ impl Bm25Index {
         results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         results.truncate(top_k);
         results
+    }
+
+    /// Minimum document frequency among query terms present in the index.
+    ///
+    /// Returns None if no query term appears in the index at all.
+    /// Used by the retrieval fusion gate: a query whose every matching
+    /// term is common (high df) gets no discriminative signal from BM25
+    /// and should stay dense-only. A query with at least one rare
+    /// (low-df) matching term carries genuine lexical evidence.
+    pub fn rarest_query_df(&self, query_text: &str) -> Option<u32> {
+        let mut seen = std::collections::HashSet::new();
+        let mut best: Option<u32> = None;
+        for t in tokenize(query_text) {
+            if !seen.insert(t.clone()) {
+                continue;
+            }
+            if let Some(list) = self.index.get(&t) {
+                if list.doc_freq > 0 {
+                    best = Some(best.map_or(list.doc_freq, |b| b.min(list.doc_freq)));
+                }
+            }
+        }
+        best
     }
 
     /// Number of indexed documents.
@@ -270,6 +319,33 @@ pub fn rrf_fuse(
     fused.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     fused.truncate(top_k);
     fused
+}
+
+/// Max additive bonus (on the cosine scale) a decisive lexical winner can receive.
+pub const LEX_BOOST_MAX: f32 = 0.7;
+/// BM25 top score at/above which lexical evidence counts as fully strong.
+const LEX_STRONG_SCORE: f32 = 3.0;
+
+/// Turn a BM25 ranking into an additive boost on the dense-cosine scale.
+///
+/// RRF alone only decides pool *membership*; the final seed is chosen by cosine, so a
+/// lone exact lexical hit (e.g. a rare ID) was being thrown away. Only the top hit is
+/// boosted, scaled by (a) its margin over the runner-up and (b) absolute BM25 strength.
+/// Ties and weak/common-word matches therefore yield ~0 boost and stay dense-driven.
+pub fn lexical_boost(bm25_ranked: &[(u64, f32)]) -> HashMap<u64, f32> {
+    let mut out = HashMap::new();
+    let Some(&(top_id, top)) = bm25_ranked.first() else { return out; };
+    if top <= 0.0 {
+        return out;
+    }
+    let second = bm25_ranked.get(1).map(|&(_, s)| s).unwrap_or(0.0);
+    let margin = ((top - second) / top).clamp(0.0, 1.0);
+    let strength = (top / LEX_STRONG_SCORE).min(1.0);
+    let boost = LEX_BOOST_MAX * margin * strength;
+    if boost > 0.0 {
+        out.insert(top_id, boost);
+    }
+    out
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -421,5 +497,23 @@ mod tests {
     fn rrf_empty_lists_handled() {
         let fused = rrf_fuse(&[], &[], 10);
         assert!(fused.is_empty());
+    }
+
+    #[test]
+    fn rarest_query_df_none_when_no_overlap() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed linker error");
+        assert_eq!(idx.rarest_query_df("nvidia provider bench-agent-k"), None);
+    }
+
+    #[test]
+    fn rarest_query_df_finds_rare_term() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "zqxrare0001 firmware bootloader halted");
+        idx.insert(2, "service requests failed timeout");
+        idx.insert(3, "service requests failed retry");
+        // "zqxrare0001" appears in 1 doc; "service" in 2 docs.
+        assert_eq!(idx.rarest_query_df("what caused zqxrare0001"), Some(1));
+        assert_eq!(idx.rarest_query_df("service requests"), Some(2));
     }
 }

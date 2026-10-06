@@ -28,6 +28,7 @@
 //!   Do not run `scripts/verify_phase3_approval.ps1` without `-SyntheticOnly`
 //!   until the conformance check and overlap audit have both passed.
 
+#![allow(unused_imports, dead_code, unused_variables, unused_mut)] // L-07: test scaffolding
 use std::sync::atomic::{AtomicU32, Ordering};
 use tempfile::TempDir;
 
@@ -1780,3 +1781,4 @@ fn phase3_conformance_check() {
         SCENARIOS.len()
     );
 }
+

@@ -110,8 +110,8 @@ fn rand_gamma(shape: f32, rng: &mut impl rand::Rng) -> f32 {
     let d = shape - 1.0 / 3.0;
     let c = (1.0 / (9.0 * d)).sqrt();
     loop {
-        let x: f32 = rng.gen::<f32>() * 2.0 - 1.0; // simplified; use Box-Muller for production
-        // Use a proper normal sample
+        // L-01 fix: removed dead `x` variable (was `rng.gen::<f32>() * 2.0 - 1.0`,
+        // never used — x2 = z*z, not x*x). Marsaglia-Tsang requires one normal z + one uniform u.
         let u: f32 = rng.gen();
         let z = normal_sample(rng);
         let v = (1.0 + c * z).powi(3);
@@ -125,7 +125,6 @@ fn rand_gamma(shape: f32, rng: &mut impl rand::Rng) -> f32 {
                 return dv;
             }
         }
-        let _ = x; // suppress unused warning
     }
 }
 

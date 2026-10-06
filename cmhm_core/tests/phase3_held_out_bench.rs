@@ -14,6 +14,7 @@
 //! 6. Zero query overlap with historical 15-query rejection set in `dprime_bench.rs`.
 //! 7. 32 domain-diverse, fresh operational scenarios across systems, databases, cloud, and security.
 
+#![allow(unused_imports, dead_code, unused_variables, unused_mut)] // L-07: test scaffolding
 use cmhm_core::{Config, ContextRuntime, ContextType, NodeType, ConflictType, text_to_embedding};
 use rand::{SeedableRng, rngs::StdRng, Rng};
 use std::collections::HashMap;
@@ -778,4 +779,5 @@ fn test_phase3_conflict_detection_and_safe_abstention() {
     let _ = std::fs::remove_dir_all(&data_dir);
     println!("\nPHASE 3 CONFLICT DETECTION & ABSTENTION GATE STRICTLY PASSED.\n");
 }
+
 

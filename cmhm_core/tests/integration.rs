@@ -1335,6 +1335,86 @@ fn test_feedback_ledger_crash_boundary() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Test: unkeyed feedback across multiple restart sessions with seq reset.
+///
+/// Verifies H-07 Option (b):
+/// 1. Session 1: Learn node (alpha=1.0). Apply unkeyed feedback (alpha -> 2.0).
+/// 2. Session 1 shutdown: snapshot is saved (with node alpha=2.0 and feedback_seen hash).
+/// 3. Session 2 reload: fresh WalWriter opens with seq=0.
+///    - WAL replay does NOT duplicate the feedback (alpha stays 2.0).
+/// 4. Session 2 new unkeyed feedback: applies fresh feedback on the same node.
+///    - Because of Option (b) random 128-bit IDs, this does NOT collide with Session 1's seq=0 key.
+///    - Feedback is successfully applied (alpha -> 3.0), proving no false drops on seq reset.
+/// 5. Crash without snapshot: drop(rt).
+/// 6. Session 3 reload: WAL replay replays the Session 2 feedback.
+///    - Alpha is restored to 3.0 exactly once.
+#[test]
+fn test_unkeyed_feedback_restart_seq_reset_cycle() {
+    let _ = tracing_subscriber::fmt().try_init();
+    let (cfg, dir) = make_cfg("unkeyed_seq_reset_cycle");
+    let node_id;
+
+    // Session 1: Learn + Unkeyed Feedback + Clean Shutdown (writes snapshot).
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let (learn_res, _) = rt.learn(
+            None, emb(1), emb(2), emb(3), 0.2, 0.0, "hash-128d", 0.5, String::new(), None
+        ).unwrap();
+        node_id = learn_res.state_node_id;
+
+        let (a0, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!((a0 - 1.0).abs() < 1e-5);
+
+        // First unkeyed feedback
+        let (updated, _) = rt.feedback_nodes(None, vec![node_id], true, None).unwrap();
+        assert_eq!(updated, 1);
+        println!("Session 1 node_count after feedback: {:?}", rt.node_count(None));
+        let (a1, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!((a1 - 2.0).abs() < 1e-5, "Session 1: alpha must be 2.0 after unkeyed feedback");
+
+        rt.shutdown(); // cleanly writes snapshot, closes WAL
+    }
+
+    // Session 2: Reload (wal.seq resets to 0).
+    {
+        let mut rt = ContextRuntime::new(cfg.clone(), "s".to_string()).unwrap();
+        let _ = rt.retrieve(None, emb(1), "hash-128d", NodeType::State, ""); // load context
+        println!("Session 2 node_count after retrieve: {:?}", rt.node_count(None));
+
+        let (a2, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!((a2 - 2.0).abs() < 1e-5, "Session 2 reload: alpha must remain 2.0 (no duplicate replay)");
+
+        // Second unkeyed feedback in Session 2 (wal.seq reset to 0!)
+        // Under Option (b), this generates a fresh 128-bit ID and must NOT collide with Session 1.
+        let (updated, _) = rt.feedback_nodes(None, vec![node_id], true, None).unwrap();
+        assert_eq!(updated, 1, "Session 2: new unkeyed feedback must not collide with old seq and be dropped");
+
+        let (a3, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!((a3 - 3.0).abs() < 1e-5, "Session 2: alpha must reach 3.0");
+
+        // Crash without snapshot: drop(rt)
+        drop(rt);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    // Session 3: Crash Recovery (WAL replay of Session 2 unkeyed feedback).
+    {
+        let mut rt = ContextRuntime::new(cfg, "s".to_string()).unwrap();
+        let _ = rt.retrieve(None, emb(1), "hash-128d", NodeType::State, ""); // load context
+        assert_eq!(rt.node_count(None), 3, "Session 3: all 3 nodes must be present after snapshot+replay");
+
+        let (a4, _) = rt.get_node_beta(None, node_id).unwrap();
+        assert!(
+            (a4 - 3.0).abs() < 1e-5,
+            "Session 3 crash replay: alpha must be 3.0 (survived crash and applied exactly once), got {a4}"
+        );
+
+        rt.shutdown();
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 
 
 

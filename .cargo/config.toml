@@ -5,20 +5,23 @@ target = "x86_64-pc-windows-gnu"
 linker = "rust-lld"
 ar = "C:/msys64/mingw64/bin/ar.exe"
 
+# ─── Parallelism cap (prevents OOM on MSVC debug builds with fastembed/ORT) ──
+# Uncomment if running: cargo +stable-msvc test --features onnx --workspace
+# [build]
+# jobs = 2
+
 # ─── To activate the `onnx` feature (MiniLM-L6-v2-int8 embeddings) ───────────
 #
-# Requires MSVC linker (link.exe). VS Build Tools must be installed:
+# Run the recall benchmark with MiniLM:
+#   cargo +stable-x86_64-pc-windows-msvc test --package cmhm_core --test recall_paraphrase --features onnx -j2 -- --nocapture
 #
-#   winget install Microsoft.VisualStudio.2022.BuildTools `
-#     --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --quiet --wait"
+# Run the full onnx suite (package-by-package to avoid page file OOM):
+#   cargo +stable-x86_64-pc-windows-msvc test --package cmhm_core --features onnx -j2
+#   cargo +stable-x86_64-pc-windows-msvc test --package cmhm_mcp --features onnx -j2
 #
-# Then switch this file to MSVC target:
-#   1. Comment out the `[build] target = gnu` line above
-#   2. Uncomment the two lines below
-#   3. Run: cargo build --features onnx
+# VS Build Tools 2022 installed at:
+#   C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
+# MSVC stdlib installed: rustup target add x86_64-pc-windows-msvc (already done)
 #
-# [build]
-# target = "x86_64-pc-windows-msvc"
-#
-# The `Embedder` trait, feature flags, and all code wiring are already in place.
-# Switching back: re-comment the msvc lines, uncomment the gnu lines.
+# The `Embedder` trait, OnnxEmbedder, feature flags, and all code wiring are in place.
+# Default (no flags): GNU toolchain, hash-128d embedder — runs entire workspace suite.

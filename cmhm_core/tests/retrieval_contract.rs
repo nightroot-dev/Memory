@@ -332,6 +332,7 @@ fn test_stale_state_does_not_override_authoritative() {
          false, // abstain_on_conflict — deterministic test must not abstain
          "",    // query_text — vector-only contract test, dense path
          &cmhm_core::bm25::Bm25Index::new(),
+         8,     // seed_pool_size — contract test uses fixed pool, not config
      );
 
 

@@ -33,7 +33,8 @@ pub struct CoreState {
     pub last_consolidation_secs: f64,
     /// Cumulative |Δreinforce| since last consolidation.
     pub cumulative_reinforce: f32,
-    /// Global EMA of embeddings (used in node birth blending).
+    /// Dead field — never read. All EMA logic uses NodeStore::global_ema (Vec<f32>).
+    /// Kept in serde layout for bincode positional compatibility with on-disk snapshots.
     #[serde(with = "crate::serde_helpers::f32_128")]
     pub global_ema: [f32; 128],
 

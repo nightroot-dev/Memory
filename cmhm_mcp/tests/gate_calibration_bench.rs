@@ -15,8 +15,15 @@ use cmhm_core::{Config, ContextRuntime};
 use cmhm_mcp_lib::{dispatch, tools};
 
 fn make_runtime(tmp: &TempDir, enforce: bool, threshold: f32) -> tools::SharedRuntime {
+    // Cargo test CWD is the package directory (cmhm_mcp/), not the workspace root.
+    // projections_dir default is relative "data/projections" which resolves from CWD.
+    // Override to the workspace-root absolute path so .bin files are always found.
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("CARGO_MANIFEST_DIR has no parent");
     let cfg = Config {
         data_dir: tmp.path().to_path_buf(),
+        projections_dir: workspace_root.join("data").join("projections"),
         enforce_gate: enforce,
         gate_threshold: threshold,
         ..Config::default()

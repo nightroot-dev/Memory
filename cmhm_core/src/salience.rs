@@ -26,7 +26,10 @@ impl SalienceEngine {
 
         self.welford_update(epsilon);
 
-        let variance = if self.count > 1 { self.m2 / self.count as f64 } else { 1.0 };
+        // H-05 fix: Bessel's correction — divide by (n-1) for unbiased sample variance.
+        // ÷n (biased) underestimates variance → inflated z-scores → salience saturates
+        // near 1.0 → consolidation death threshold never triggers → graph grows unbounded.
+        let variance = if self.count > 1 { self.m2 / (self.count - 1) as f64 } else { 1.0 };
 
         let salience = if variance < 1e-12 {
             0.5
