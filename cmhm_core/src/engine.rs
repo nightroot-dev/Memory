@@ -236,6 +236,24 @@ const WAL_TYPE_LEARN_V3: u8 = 0x03;
 /// Replayed with CallerRole::System (same trust basis as V3).
 const WAL_TYPE_LEARN_V4: u8 = 0x04;
 
+/// H-07 fix: WAL record for ExplicitEdge (edge store + dense core update).
+/// Replayed by re-calling process_explicit_edge with the stored node IDs and success flag.
+const WAL_TYPE_EXPLICIT_EDGE: u8 = 0x05;
+
+/// H-07 fix: WAL record for WalFeedbackEntry with empty retrieve_id (unkeyed feedback).
+/// Same struct as WalFeedbackEntry; distinguished by retrieve_id being empty.
+/// Unkeyed feedback is idempotent (no feedback_seen gate for empty key), so duplicate replay is benign.
+const WAL_TYPE_FEEDBACK_UNKEYED: u8 = 0x06;
+
+/// H-07: WAL entry for explicit edge reinforcement (committed S→A→O triple + bandit alpha/beta).
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct WalExplicitEdgeEntry {
+    state_id:   u64,
+    action_id:  u64,
+    outcome_id: u64,
+    success:    bool,
+}
+
 /// Result of a Learn command.
 #[derive(Debug, Clone)]
 pub struct LearnResult {
@@ -596,6 +614,7 @@ impl std::error::Error for SchemaMismatchError {}
 ///
 /// The caller decides what to do on failure: quarantine + opt-in data loss, or
 /// fail closed (return `Err` from `start()`).
+#[allow(dead_code)] // L-04: kept as v1→v2 migration infrastructure; not yet wired to a call site.
 fn try_migrate_v1_snapshot(snapshot_path: &std::path::Path) -> anyhow::Result<CoreState> {
     let bytes = std::fs::read(snapshot_path)?;
     let state = bincode::deserialize::<CoreState>(&bytes)
@@ -806,6 +825,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::System,
                                          cmd.assertion_key, cmd.polarity,
                                          cmd.raw_text.as_ref().map(|(s, _, _)| s.as_str()),
+                                         cmd.raw_text.as_ref().map(|(_, a, _)| a.as_str()), // R5
+                                         cmd.raw_text.as_ref().map(|(_, _, o)| o.as_str()), // R5
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -827,6 +848,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         cmd.authority, cmd.provenance, cmd.supersedes,
                                         crate::authority::CallerRole::System,
                                          cmd.assertion_key, cmd.polarity, None,
+                                         None, None, // R5: no action/outcome text in V3
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -847,6 +869,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         cmd.authority, cmd.provenance, cmd.supersedes,
                                         crate::authority::CallerRole::Agent,
                                          cmd.assertion_key, cmd.polarity, None,
+                                         None, None, // R5: no action/outcome text in V2
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -866,6 +889,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         0.5, String::new(), None,
                                         crate::authority::CallerRole::User,
                                          None, None, None,
+                                         None, None, // R5: no action/outcome text in V1
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -888,6 +912,34 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                 Err(e) => tracing::warn!("WAL Feedback decode error: {e}"),
                             }
                         }
+                        WAL_TYPE_EXPLICIT_EDGE => {
+                            // H-07: replay explicit edge reinforcement.
+                            match bincode::deserialize::<WalExplicitEdgeEntry>(&payload[1..]) {
+                                Ok(ee) => {
+                                    let _ = process_explicit_edge(&mut state, ee.state_id, ee.action_id, ee.outcome_id, ee.success);
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL ExplicitEdge decode error: {e}"),
+                            }
+                        }
+                        WAL_TYPE_FEEDBACK_UNKEYED => {
+                            // H-07 regression fix: pass retrieve_id as dedup key (not None).
+                            // Write side now embeds "wal-seq-N" so feedback_seen in the snapshot
+                            // gates duplicate replay correctly. Beta posteriors no longer inflate
+                            // on every restart.
+                            match bincode::deserialize::<WalFeedbackEntry>(&payload[1..]) {
+                                Ok(fb) => {
+                                    let key = if fb.retrieve_id.is_empty() {
+                                        None // legacy record written before regression fix — replay once, accept the dup
+                                    } else {
+                                        Some(fb.retrieve_id.as_str())
+                                    };
+                                    let _ = process_feedback_nodes(&mut state, &[fb.node_id], fb.outcome, key);
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL FeedbackUnkeyed decode error: {e}"),
+                            }
+                        }
                         _ => {
                             // Legacy untyped Learn (pre-44e4b15): whole payload = WalLearnEntry.
                             // Replay with neutral defaults for the new fields.
@@ -900,6 +952,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         0.5, String::new(), None,
                                         crate::authority::CallerRole::User,
                                          None, None, None,
+                                         None, None, // R5: no action/outcome text in untyped legacy
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -932,9 +985,8 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     // ── Step 3: Compaction point ──────────────────────────────────────────
     write_snapshot(&state, &snapshot_path)?;
     if wal_path.exists() {
-        let _ = std::fs::remove_file(&wal_path);
+        if let Err(e) = std::fs::remove_file(&wal_path) { if e.kind() != std::io::ErrorKind::NotFound { tracing::warn!("WAL delete failed at startup: {e}"); } }
     }
-
     // ── Step 4: Open fresh WAL ────────────────────────────────────────────
     let wal = Some(WalWriter::open(&wal_path)?);
 
@@ -986,6 +1038,8 @@ fn worker_loop(
                     authority, provenance.clone(), supersedes,
                      caller_role, assertion_key.clone(), polarity,
                      raw_text.as_ref().map(|(s, _, _)| s.as_str()),
+                     raw_text.as_ref().map(|(_, a, _)| a.as_str()), // R5: action text
+                     raw_text.as_ref().map(|(_, _, o)| o.as_str()), // R5: outcome text
                      &cfg,
                 );
                 // Atomic WAL append: ONLY write to WAL if process_learn succeeded!
@@ -1015,7 +1069,7 @@ fn worker_loop(
                                 let mut tagged = Vec::with_capacity(1 + payload.len());
                                 tagged.push(WAL_TYPE_LEARN_V4);
                                 tagged.extend_from_slice(&payload);
-                                let _ = wal.append(&tagged);
+                                if let Err(e) = wal.append(&tagged) { tracing::error!("WAL append failed (Learn V4): {e}"); }
                             }
                         } else {
                         let entry = WalLearnEntryV2 {
@@ -1035,7 +1089,7 @@ fn worker_loop(
                             let mut tagged = Vec::with_capacity(1 + payload.len());
                             tagged.push(WAL_TYPE_LEARN_V3);
                             tagged.extend_from_slice(&payload);
-                            let _ = wal.append(&tagged);
+                            if let Err(e) = wal.append(&tagged) { tracing::error!("WAL append failed (Learn V3): {e}"); }
                         }
                         }
                     }
@@ -1046,33 +1100,58 @@ fn worker_loop(
 
             Command::ExplicitEdge { state_id, action_id, outcome_id, success, tx } => {
                 let result = process_explicit_edge(&mut state, state_id, action_id, outcome_id, success);
+                // H-07 fix: WAL-log explicit edges so edge store + dense core survive crash.
+                if result.is_ok() {
+                    if let Some(wal) = &mut wal {
+                        let entry = WalExplicitEdgeEntry { state_id, action_id, outcome_id, success };
+                        if let Ok(payload) = bincode::serialize(&entry) {
+                            let mut tagged = Vec::with_capacity(1 + payload.len());
+                            tagged.push(WAL_TYPE_EXPLICIT_EDGE);
+                            tagged.extend_from_slice(&payload);
+                            if let Err(e) = wal.append(&tagged) { tracing::error!("WAL append failed (ExplicitEdge): {e}"); }
+                        }
+                    }
+                }
                 let _ = tx.send(result);
             }
 
             Command::FeedbackNodes { node_ids, success, feedback_key, tx } => {
-                let result = process_feedback_nodes(&mut state, &node_ids, success, feedback_key.as_deref());
-                // WAL append: one typed record per applied (not skipped) node.
-                // Replay re-checks feedback_seen → exactly-once even if WAL is replayed twice.
+                // H-07 Option (b): If no feedback_key is supplied (unkeyed feedback),
+                // generate a random 128-bit ID before applying.
+                // This ensures:
+                // 1. Live application populates state.feedback_seen with this unique key.
+                // 2. The WAL record carries this exact 128-bit ID.
+                // 3. Snapshot captures both the updated Beta and the feedback_seen hash.
+                // 4. On crash/restart, WAL replay checks feedback_seen and avoids double-bumping.
+                // 5. Subsequent sessions across restarts generate fresh random 128-bit IDs,
+                //    eliminating seq-reset collisions (P(collision) ~ 2^-128).
+                let (effective_key, wal_type) = match feedback_key {
+                    Some(k) => (k, WAL_TYPE_FEEDBACK),
+                    None => {
+                        let rand_u128: u128 = rand::random();
+                        (format!("unkeyed-{:032x}", rand_u128), WAL_TYPE_FEEDBACK_UNKEYED)
+                    }
+                };
+                let result = process_feedback_nodes(&mut state, &node_ids, success, Some(&effective_key));
+                // WAL append: one typed record per applied node.
                 if let Some(wal) = &mut wal {
-                    if let Some(key) = &feedback_key {
-                        let ts = crate::core_state::now_secs();
-                        let outcome_bit = if success { 1u64 } else { 0u64 };
-                        for &nid in &node_ids {
-                            // Only WAL-log nodes that were actually applied (check seen set).
-                            let hash = crate::core_state::fnv64(&format!("{key}/{nid}/{outcome_bit}"));
-                            if state.feedback_seen.contains(&hash) {
-                                // This node is now in feedback_seen → it was just applied.
-                                let fb = WalFeedbackEntry {
-                                    retrieve_id: key.clone(),
-                                    node_id:     nid,
-                                    outcome:     success,
-                                    ts_secs:     ts,
-                                };
-                                if let Ok(payload) = bincode::serialize(&fb) {
-                                    let mut tagged = Vec::with_capacity(1 + payload.len());
-                                    tagged.push(WAL_TYPE_FEEDBACK);
-                                    tagged.extend_from_slice(&payload);
-                                    let _ = wal.append(&tagged);
+                    let ts = crate::core_state::now_secs();
+                    let outcome_bit = if success { 1u64 } else { 0u64 };
+                    for &nid in &node_ids {
+                        let hash = crate::core_state::fnv64(&format!("{effective_key}/{nid}/{outcome_bit}"));
+                        if state.feedback_seen.contains(&hash) {
+                            let fb = WalFeedbackEntry {
+                                retrieve_id: effective_key.clone(),
+                                node_id: nid,
+                                outcome: success,
+                                ts_secs: ts,
+                            };
+                            if let Ok(payload) = bincode::serialize(&fb) {
+                                let mut tagged = Vec::with_capacity(1 + payload.len());
+                                tagged.push(wal_type);
+                                tagged.extend_from_slice(&payload);
+                                if let Err(e) = wal.append(&tagged) {
+                                    tracing::error!("WAL append failed (Feedback): {e}");
                                 }
                             }
                         }
@@ -1089,25 +1168,43 @@ fn worker_loop(
 
             Command::MaxCosine { query_emb, model_id, node_type, tx } => {
                 // Read-only — no WAL, no state change.
+                // Project into EMBED_DIM space before cosine comparison.
+                let proj_emb = state.projections.project(&model_id, &query_emb)
+                    .map(|arr| arr.to_vec())
+                    .unwrap_or(query_emb);
                 let score = match node_type {
-                    Some(nt) => state.node_store.max_cosine_to_existing_typed(&query_emb, &model_id, nt),
-                    None     => state.node_store.max_cosine_to_existing(&query_emb, &model_id),
+                    Some(nt) => state.node_store.max_cosine_to_existing_typed(&proj_emb, &model_id, nt),
+                    None     => state.node_store.max_cosine_to_existing(&proj_emb, &model_id),
                 };
                 let _ = tx.send(score);
             }
 
             Command::InspectGate { query_emb, model_id, node_type, tx } => {
                 // Read-only — no WAL, no state change.
-                let nearest = state.node_store.nearest_by_type(&query_emb, &model_id, 1, node_type);
+                //
+                // Project the raw query into EMBED_DIM space before NN lookup.
+                // Dense index stores projected 128-dim vectors; comparing a 384-dim
+                // MiniLM query against them directly yields zero similarity (wrong dims).
+                // Projection mirrors what process_learn does at birth time.
+                let proj_emb = match state.projections.project(&model_id, &query_emb) {
+                    Ok(arr) => arr.to_vec(),
+                    Err(_) => {
+                        // No projection found (e.g. hash-128d identity path or unknown model).
+                        // Fall back to raw embedding; if dimensions match it works, otherwise
+                        // nearest_by_type will return empty and max_cosine stays 0.
+                        query_emb.clone()
+                    }
+                };
+                let nearest = state.node_store.nearest_by_type(&proj_emb, &model_id, 1, node_type);
                 let (max_cosine, nearest_node_id, nearest_bandit) = if let Some(&(id, sim)) = nearest.first() {
                     let bandit = state.node_store.get(id).map(|n| (n.bandit_alpha, n.bandit_beta));
                     (sim, Some(id), bandit)
                 } else {
                     (0.0, None, None)
                 };
-                let c_idx = state.cohorts.label(&query_emb);
+                let c_idx = state.cohorts.label(&proj_emb);
                 let cohort_dist = state.cohorts.centroids.get(c_idx).map(|c| {
-                    query_emb.iter().zip(c.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f32>().sqrt()
+                    proj_emb.iter().zip(c.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f32>().sqrt()
                 });
                 let _ = tx.send(GateInspectionResult {
                     max_cosine,
@@ -1153,7 +1250,11 @@ fn worker_loop(
         // Periodic snapshot every `snapshot_interval_cmds` commands (default 1000).
         // `.max(1)` guards a zero value in user-supplied config (modulo-by-zero panics).
         if cmd_count % cfg.snapshot_interval_cmds.max(1) == 0 {
-            let _ = write_snapshot(&state, &snapshot_path);
+            if let Err(e) = write_snapshot(&state, &snapshot_path) { tracing::error!("Periodic snapshot failed: {e}"); }
+            // H-11 note: WAL truncation is intentionally deferred to startup (Step 3 of
+            // `start()`). Mid-session rotation is unsafe: if the snapshot is corrupted
+            // before the next startup verifies it, the WAL is the only recovery path.
+            // On startup: load snapshot -> replay WAL -> write new snapshot -> delete WAL -> open fresh WAL.
         }
 
         // Consolidation check
@@ -1209,6 +1310,7 @@ fn process_retrieve(
          cfg.abstain_on_conflict,
          query_text,
          &state.bm25_index,
+         cfg.retrieval_seed_pool_size,
       ))
  }
 
@@ -1225,10 +1327,12 @@ fn process_learn(
     provenance: String,
     supersedes: Option<u64>,
     caller_role: crate::authority::CallerRole,
-     assertion_key: Option<String>,
-     polarity: Option<i8>,
-     text: Option<&str>,
-     cfg: &Config,
+    assertion_key: Option<String>,
+    polarity: Option<i8>,
+    text: Option<&str>,           // state text
+    action_text: Option<&str>,    // R5: action text for BM25
+    outcome_text: Option<&str>,   // R5: outcome text for BM25
+    cfg: &Config,
 ) -> Result<LearnResult> {
     // Fail-safe validation for non-finite values and out-of-range inputs
     if !epsilon.is_finite() || !(0.0..=1.0).contains(&epsilon) {
@@ -1274,9 +1378,21 @@ fn process_learn(
     let effective_provenance = provenance.clone();
 
     // Birth nodes
-      let state_id  = birth_node(&mut *state, raw_state.to_vec(),  &state_proj,  model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text);
-     let action_id = birth_node(&mut *state, raw_action.to_vec(), &action_proj, model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, None);
-     let outcome_id= birth_node(&mut *state, raw_outcome.to_vec(),&outcome_proj,model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, None);
+    // R5: Pass text for all three node types so BM25 indexes action and outcome vocabulary.
+    // "How did I fix X?" queries now match action text. "What was the result?" queries match outcome text.
+    let state_id   = birth_node(&mut *state, raw_state.to_vec(),   &state_proj,   model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text);
+
+    // B6: Check self-loop immediately before birthing action/outcome nodes so atomicity is preserved
+    // and no orphaned action/outcome nodes are inserted into node_store on self-loop rejection.
+    if let Some(old_id) = supersedes {
+        if old_id == state_id {
+            // Dedup returned existing node -> self-loop
+            return Err(SupersessionError::SelfLoop(old_id).into());
+        }
+    }
+
+    let action_id  = birth_node(&mut *state, raw_action.to_vec(),  &action_proj,  model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, action_text);
+    let outcome_id = birth_node(&mut *state, raw_outcome.to_vec(), &outcome_proj, model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, outcome_text);
 
     // Fail-closed: birth_node returns 0 when no projection exists for
     // the model_id. Refuse the whole learn rather than recording
@@ -1291,10 +1407,6 @@ fn process_learn(
 
     // B6: Apply supersession link to old node
     if let Some(old_id) = supersedes {
-        if old_id == state_id {
-            // Dedup returned existing node -> self-loop
-            return Err(SupersessionError::SelfLoop(old_id).into());
-        }
         if let Some(old_node) = state.node_store.get_mut(old_id) {
             old_node.superseded_by = Some(state_id);
             tracing::debug!("Node {} superseded by {}", old_id, state_id);
@@ -1352,7 +1464,11 @@ fn birth_node(
     state.birth_q30 += lr * (0.30 - indicator);
     state.birth_q30 = state.birth_q30.clamp(0.01, 0.99);
 
-    let should_birth = cos_max < state.birth_q30 || salience > 0.70 || epsilon > 0.5;
+    // Recall guard: the adaptive q30 gate alone folds ~70% of DISTINCT memories into their
+    // nearest node, silently discarding their text and embedding. Only treat an arrival as a
+    // duplicate when it is genuinely near-identical.
+    const NEAR_DUP_COS: f32 = 0.85;
+    let should_birth = cos_max < state.birth_q30.max(NEAR_DUP_COS) || salience > 0.70 || epsilon > 0.5;
 
     if should_birth {
         // Update global EMA with full_emb (tracks semantic centroid)
@@ -1394,12 +1510,48 @@ fn birth_node(
 
         id
     } else {
-        // Return the nearest existing node
-        nearest.first().map(|(id, _)| *id).unwrap_or_else(|| {
-            let node = Node::new(full_emb, model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
-                .with_assertion(assertion_key, polarity);
+        // Dedup: return the nearest existing node, but APPLY the new learn's corrections.
+        // H-12 fix: previously authority, provenance, assertion_key, polarity, and text
+        // were silently discarded when dedup returned an existing node. A correction
+        // (polarity=-1, provenance="corrected", high authority) would be invisible.
+        let existing_id = nearest.first().map(|(id, _)| *id).unwrap_or_else(|| {
+            let node = Node::new(full_emb.clone(), model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance.clone())
+                .with_assertion(assertion_key.clone(), polarity)
+                .with_text(text.unwrap_or_default());
             state.node_store.insert(node)
-        })
+        });
+
+        // Apply updates to the existing node:
+        if let Some(existing) = state.node_store.get_mut(existing_id) {
+            let is_correction = provenance == "corrected";
+            // Authority: only increase (never demote a more-trusted node with a low-authority repeat).
+            if authority > existing.authority {
+                existing.authority = authority;
+                existing.provenance = provenance;
+            }
+            // Assertion: updates if authority is equal/higher, or if explicitly marked as a correction.
+            // Low-authority near-duplicates cannot clobber a higher-authority node's assertion.
+            if assertion_key.is_some() && (authority >= existing.authority || is_correction) {
+                existing.assertion_key = assertion_key.clone();
+                existing.polarity = polarity;
+            }
+        }
+        // BM25: index text if the existing node had none and the new learn provides it.
+        if let Some(t) = text {
+            if !t.is_empty() {
+                let has_text = state.node_store.get(existing_id)
+                    .map(|n| !n.text.is_empty())
+                    .unwrap_or(false);
+                if !has_text {
+                    state.bm25_index.insert(existing_id, t);
+                    if let Some(n) = state.node_store.get_mut(existing_id) {
+                        n.text = t.to_string();
+                    }
+                }
+            }
+        }
+
+        existing_id
     }
 }
 
@@ -1604,7 +1756,14 @@ fn process_feedback_nodes(
             node.record_retrieval(now);
             updated += 1;
             // Mark applied — subsequent identical calls are no-ops.
+            // M-03 fix: cap feedback_seen to prevent unbounded growth.
+            // retrieve_ids are UUIDs (per-call), so cross-session dedup was never possible.
+            // Clearing at the cap is safe: only intra-session dedup is meaningful.
             if let Some(h) = seen_hash {
+                const MAX_FEEDBACK_SEEN: usize = 100_000;
+                if state.feedback_seen.len() >= MAX_FEEDBACK_SEEN {
+                    state.feedback_seen.clear();
+                }
                 state.feedback_seen.insert(h);
             }
         }
