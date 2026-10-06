@@ -343,8 +343,11 @@ pub struct Node {
         }
     }
 
-    /// Legacy salience accessor (used by consolidation for culling decisions).
-    pub fn salience(&self) -> f32 {
+    /// M-08 fix: renamed from `salience()` to avoid shadowing the `salience` field.
+    /// The field and method returned the same value, creating a maintenance trap.
+    /// Consolidation uses the field directly (`.salience`), not this method.
+    #[allow(dead_code)]
+    pub fn salience_value(&self) -> f32 {
         self.salience
     }
 }

@@ -97,10 +97,25 @@ impl DenseCore {
         out
     }
 
-    /// Remove an edge's influence by updating with w=0.
-    /// This effectively zeros out the stored association for key e_i on this slice.
+    /// Remove an edge's influence from the associative matrix.
+    ///
+    /// H-04 fix: The previous implementation called `update(w=0)`, which applies the
+    /// delta rule with a zero target:
+    ///   `C[r][col] += η_c * (0·e_j[r] - c_ei[r]) * e_i[col]`
+    ///            `= -η_c * c_ei[r] * e_i[col]`
+    ///
+    /// This **anti-associates** — it actively pushes the matrix away from the current
+    /// association, corrupting context vectors for all nodes that share a subspace with
+    /// e_i. After enough consolidation pruning passes the dense context vector accumulates
+    /// systematic anti-associations for dead relationships.
+    ///
+    /// Correct semantics: removing an edge means "stop reinforcing this association."
+    /// Dead edges leave a small decaying residual through disuse (subsequent learns with
+    /// other targets naturally dilute the old association). This is standard Hebbian
+    /// forgetting — not active negation.
+    #[allow(unused_variables)]
     pub fn remove_edge(&mut self, slice: usize, e_i: &[f32; EMBED_DIM], e_j: &[f32; EMBED_DIM]) {
-        self.update(slice, e_i, e_j, 0.0);
+        // No-op: do not anti-associate. Residual naturally decays through disuse.
     }
 }
 

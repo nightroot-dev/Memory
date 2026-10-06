@@ -24,11 +24,20 @@ pub struct EpisodeLog {
 }
 
 impl EpisodeLog {
+    /// M-04: max entries before oldest are evicted.
+    /// Credit propagation is approximate — losing some entries is preferable to
+    /// unbounded RAM growth in long sessions that never hit consolidation threshold.
+    pub const MAX_SIZE: usize = 1_000;
+
     pub fn new() -> Self {
         Self { entries: Vec::new() }
     }
 
     pub fn log(&mut self, state_id: u64, action_id: u64, delta: f32, was_success: bool) {
+        // M-04 fix: evict oldest when full to prevent unbounded accumulation.
+        if self.entries.len() >= Self::MAX_SIZE {
+            self.entries.remove(0); // oldest-first eviction
+        }
         self.entries.push(EpisodeLogEntry { state_id, action_id, delta, was_success });
     }
 

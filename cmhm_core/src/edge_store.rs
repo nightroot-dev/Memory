@@ -84,9 +84,13 @@ impl EdgeStore {
             .unwrap_or_default()
     }
 
-    /// Degree (out-degree) of a node. Used in node death criteria.
+    /// Total degree (in + out) of a node. Used in node death criteria.
+    /// C-02 FIX: Was out-degree only — Outcome nodes (leaf, out_degree=0) were always culled
+    /// because eff_sal * 0 = 0 < NODE_DEATH_SCORE regardless of salience or age.
     pub fn degree(&self, node_id: u64) -> usize {
-        self.out_edges.get(&node_id).map(|v| v.len()).unwrap_or(0)
+        let out = self.out_edges.get(&node_id).map(|v| v.len()).unwrap_or(0);
+        let in_ = self.in_edges.get(&node_id).map(|v| v.len()).unwrap_or(0);
+        out + in_
     }
 
     /// Remove a specific edge. Called during consolidation.

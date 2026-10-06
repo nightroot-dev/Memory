@@ -43,12 +43,24 @@ impl NodeStore {
     /// Insert a node and return its assigned ID.
     ///
     /// On the first insert, establishes the store's embedding dimension.
-    /// Subsequent inserts with a different dimension are rejected with a warning.
+    /// Subsequent inserts with a mismatched dimension are **rejected**: returns
+    /// `u64::MAX` as an error sentinel and emits `tracing::error!`.
+    ///
+    /// H-01 fix: the previous implementation silently accepted wrong-dim nodes.
+    /// They were invisible to NN retrieval (filtered by `embedding.len() != query.len()`)
+    /// but consumed RAM and were counted toward consolidation thresholds.
     pub fn insert(&mut self, node: Node) -> u64 {
         let dim = node.embedding.len();
         if self.embed_dim == 0 {
             self.embed_dim = dim;
             self.global_ema = vec![0.0f32; dim];
+        } else if dim != self.embed_dim {
+            tracing::error!(
+                "NodeStore::insert rejected: embedding dim {} != store dim {} \
+                 (model_id={:?}). Node was NOT inserted.",
+                dim, self.embed_dim, node.model_id
+            );
+            return u64::MAX; // sentinel — caller must treat as error
         }
         let id = self.next_id;
         self.next_id += 1;
