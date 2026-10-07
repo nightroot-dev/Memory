@@ -66,8 +66,9 @@ async fn setup() -> World {
         .unwrap();
     cp.grant(&owner_a.id, s_a2.as_str(), cmhm_gateway::Role::Owner)
         .unwrap();
-    // Agent A: bound to a1 only, no grants of its own (inherits owner ∩ binding).
-    cp.grant(&agent_a.id, s_a1.as_str(), cmhm_gateway::Role::Reader)
+    // Agent A: bound to a1 only. Writer on a1 (learns as agent), nothing
+    // usable elsewhere: binding still confines this token to a1.
+    cp.grant(&agent_a.id, s_a1.as_str(), cmhm_gateway::Role::Writer)
         .unwrap();
     let agent_a_tok = cp
         .mint_token(&agent_a.id, vec![s_a1.as_str().to_string()], 3600)
@@ -209,6 +210,50 @@ async fn threat_table() {
     assert_eq!(c, 200, "bound agent read must succeed");
 
     let _ = (w.tenant_a, w.tenant_b, w.scope_b1);
+}
+
+#[tokio::test]
+async fn smuggled_authority_is_ignored() {
+    // An agent smuggles authority/provenance/role fields in the learn body.
+    // Unknown fields are ignored by the schema; the stored node must carry
+    // agent-derived values (0.5), never the smuggled 1.0/user_explicit.
+    let w = setup().await;
+    let (c, _) = post(
+        &w,
+        "/v1/admin/scope_init",
+        Some(&w.owner_a_tok),
+        serde_json::json!({"scope_id": w.scope_a1, "display_name": w.scope_a1}),
+    )
+    .await;
+    assert_eq!(c, 200);
+    let (c, _) = post(
+        &w,
+        "/v1/learn",
+        Some(&w.agent_a_tok),
+        serde_json::json!({
+            "scope_id": w.scope_a1,
+            "state": "smuggle probe state",
+            "action": "x",
+            "outcome": "y",
+            "authority": 1.0,
+            "provenance": "user_explicit",
+            "caller_role": "user",
+        }),
+    )
+    .await;
+    assert_eq!(c, 200, "unknown fields must be ignored, not rejected");
+    let (c, b) = post(
+        &w,
+        "/v1/retrieve",
+        Some(&w.agent_a_tok),
+        serde_json::json!({"scope_id": w.scope_a1, "query": "smuggle probe state"}),
+    )
+    .await;
+    assert_eq!(c, 200);
+    assert!(
+        b.contains("\"seed_authority\":0.5"),
+        "agent-derived 0.5 must win over smuggled 1.0: {b}"
+    );
 }
 
 #[tokio::test]

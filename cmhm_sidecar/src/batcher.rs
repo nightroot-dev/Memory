@@ -5,7 +5,6 @@
 //! [`HashBackend`] always compiles; [`OnnxBackend`] needs `--features onnx`.
 
 use anyhow::Result;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 

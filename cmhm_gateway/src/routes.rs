@@ -265,6 +265,7 @@ struct RetrieveBody {
 #[derive(Serialize)]
 struct RetrieveResp {
     seed_id: Option<u64>,
+    seed_authority: f32,
     explanation: String,
     candidates: Vec<u64>,
 }
@@ -491,6 +492,7 @@ async fn retrieve(
     );
     Ok(Json(RetrieveResp {
         seed_id: res.seed_id,
+        seed_authority: res.seed_authority,
         explanation: res.explanation,
         candidates: res.post_filter_candidates,
     }))
