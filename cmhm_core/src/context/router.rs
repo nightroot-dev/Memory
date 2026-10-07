@@ -142,8 +142,9 @@ fn semantic_score(meta: &ContextMeta, query_hint: &str) -> f32 {
         haystack.push_str(&tag.to_lowercase());
     }
 
+    let haystack_tokens: Vec<&str> = haystack.split_whitespace().collect();
     let matched = query_words.iter()
-        .filter(|w| haystack.contains(**w))
+        .filter(|w| haystack_tokens.iter().any(|t| *t == **w))
         .count();
 
     matched as f32 / query_words.len() as f32

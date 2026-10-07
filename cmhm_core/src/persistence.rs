@@ -330,7 +330,10 @@ fn read_one_record<R: Read>(reader: &mut R, len: usize, key: Option<&DataKey>) -
 
 // ─── CRC32 (Castagnoli / CRC32C) ─────────────────────────────────────────────
 
-/// CRC32 with the Castagnoli polynomial (0x1EDC6F41, reflected 0xEDB88320).
+/// CRC32 with the IEEE 802.3 polynomial (0x04C11DB7, reflected 0xEDB88320).
+///
+/// Note: this is the IEEE CRC32, not CRC32C/Castagnoli. Existing WAL files
+/// and snapshots use IEEE CRC32, so the algorithm must not change.
 ///
 /// P(undetected random corruption per record) ≈ 2⁻³² ≈ 2.3×10⁻¹⁰.
 /// Detects all 1-3 bit errors and all burst errors ≤ 32 bits.

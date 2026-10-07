@@ -21,6 +21,11 @@ impl WorkingMemory {
 
     /// Push a new node ID to the front. Evicts oldest if at capacity.
     pub fn push(&mut self, node_id: u64) {
+        if self.capacity == 0 {
+            return; // degenerate buffer: refuse to grow
+        }
+        // Duplicate touches refresh recency instead of filling the buffer.
+        self.buffer.retain(|&id| id != node_id);
         if self.buffer.len() == self.capacity {
             self.buffer.pop_back();
         }
