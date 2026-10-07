@@ -2,6 +2,7 @@
 members = [
     "cmhm_core",
     "cmhm_mcp",
+    "cmhm_gateway",
 ]
 resolver = "2"
 

@@ -1,0 +1,32 @@
+[package]
+name = "cmhm_gateway"
+version = "0.2.0"
+edition = "2021"
+description = "CMHM multi-tenant HTTP gateway: auth, RBAC, per-scope routing (Expansion M2)"
+license = "MIT"
+repository = "https://github.com/cmhm/cmhm"
+
+[lib]
+name = "cmhm_gateway"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cmhm_gateway"
+path = "src/main.rs"
+
+[dependencies]
+cmhm_core = { path = "../cmhm_core" }
+axum = { version = "0.8", features = ["macros"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = "1"
+sha2 = "0.10"
+rand = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+reqwest = { version = "0.12", features = ["json"] }
