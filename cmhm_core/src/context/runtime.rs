@@ -216,6 +216,15 @@ impl ContextRuntime {
             anyhow::bail!("E_PROTECTED: cannot delete the default context");
         }
 
+        // Validate the FSM transition BEFORE touching data: a rejected
+        // transition must leave both the registry entry and on-disk data intact.
+        if !super::fsm::is_valid(meta.state, ContextState::Deleted) {
+            anyhow::bail!(
+                "E_INVALID_TRANSITION: cannot delete context in state {:?}",
+                meta.state
+            );
+        }
+
         // Evict from cache (shuts down engine, takes snapshot)
         self.cache.remove(id);
         // Release the scope lock BEFORE deleting the directory (Windows holds

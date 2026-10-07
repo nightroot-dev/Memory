@@ -235,6 +235,36 @@ fn test_delete_is_irrevocable() {
 }
 
 // =============================================================================
+// Test 5b: Invalid delete leaves registry entry AND data dir untouched
+// =============================================================================
+
+#[test]
+fn test_delete_invalid_transition_preserves_data() {
+    let (cfg, dir) = make_cfg("delete_invalid");
+    let mut rt = ContextRuntime::new(cfg, "test-session".to_string()).unwrap();
+
+    // Default context is protected: delete must error BEFORE touching disk.
+    let default_id = rt.default_context_id().unwrap().as_str().to_string();
+    let default_dir = dir.join("contexts").join(&default_id);
+    std::fs::create_dir_all(&default_dir).unwrap();
+    let err = rt.delete_context(&ContextId::from_str(&default_id)).unwrap_err().to_string();
+    assert!(err.contains("E_PROTECTED"), "got: {err}");
+    assert!(default_dir.exists(), "default ctx data dir must survive rejected delete");
+    assert!(
+        rt.get_descriptor(&ContextId::from_str(&default_id)).is_some(),
+        "registry entry must survive rejected delete"
+    );
+
+    // Non-existent context: error, and no context dirs created or removed.
+    let before = std::fs::read_dir(dir.join("contexts")).unwrap().count();
+    let err = rt.delete_context(&ContextId::from_str("00000000-0000-0000-0000-000000000000"))
+        .unwrap_err().to_string();
+    assert!(err.contains("E_NOT_FOUND"), "got: {err}");
+    let after = std::fs::read_dir(dir.join("contexts")).unwrap().count();
+    assert_eq!(before, after, "context dirs must be untouched on rejected delete");
+}
+
+// =============================================================================
 // Test 6: WAL crash recovery
 // =============================================================================
 

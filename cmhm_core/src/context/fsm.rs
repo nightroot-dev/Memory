@@ -201,4 +201,6 @@ mod tests {
     #[test] fn creating_not_serviceable()  { assert!(!is_serviceable(Creating)); }
     #[test] fn deleted_not_serviceable()   { assert!(!is_serviceable(Deleted));  }
     #[test] fn recovering_not_serviceable(){ assert!(!is_serviceable(Recovering));}
+    #[test] fn archived_cannot_delete_directly() { assert!(!is_valid(Archived, Deleted)); }
+
 }
