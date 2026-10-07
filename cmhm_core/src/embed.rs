@@ -187,15 +187,23 @@ impl Embedder for OnnxEmbedder {
 /// Construct the default embedder for this build configuration.
 ///
 /// Selection order (first matching feature wins):
-///   1. `onnx` feature → `OnnxEmbedder` (MiniLM-L6-v2-int8, 384-dim)
+///   1. `onnx` feature → `OnnxEmbedder`; model chosen by `CMHM_EMBEDDER`:
+///        `minilm` (default, 384-dim) or `bge` (bge-base-en-v1.5, 768-dim).
+///        An unrecognised value is an error, never a silent fallback.
 ///   2. `hash` feature (default) → `HashEmbedder` (hash-128d, 128-dim)
+///
+/// A store is tied to one `model_id` (the N3 guard rejects mixed vectors), so changing
+/// `CMHM_EMBEDDER` requires a fresh data directory.
 ///
 /// Returns `Box<dyn Embedder>` so callers hold a trait object — the concrete type
 /// is an implementation detail that changes with the feature flag.
 pub fn default_embedder() -> Result<Box<dyn Embedder>> {
     #[cfg(feature = "onnx")]
     {
-        return Ok(Box::new(OnnxEmbedder::new()?));
+        return match embedder_choice().map_err(|e| anyhow::anyhow!(e))? {
+            "bge" => Ok(Box::new(OnnxEmbedder::bge()?)),
+            _ => Ok(Box::new(OnnxEmbedder::new()?)),
+        };
     }
 
     #[cfg(not(feature = "onnx"))]
@@ -204,11 +212,50 @@ pub fn default_embedder() -> Result<Box<dyn Embedder>> {
     }
 }
 
+/// Parse `CMHM_EMBEDDER` (onnx builds only): `minilm` (default) or `bge`.
+#[cfg(feature = "onnx")]
+fn embedder_choice() -> std::result::Result<&'static str, String> {
+    match std::env::var("CMHM_EMBEDDER").ok().as_deref().map(str::trim) {
+        None | Some("") | Some("minilm") => Ok("minilm"),
+        Some("bge") => Ok("bge"),
+        Some(other) => Err(format!(
+            "CMHM_EMBEDDER={other:?} not recognised (expected \"minilm\" or \"bge\")"
+        )),
+    }
+}
+
+/// The `model_id` that `default_embedder()` will stamp, WITHOUT loading any model.
+/// Single source of truth so defaults elsewhere (e.g. the MCP schema) can never
+/// disagree with the embedder actually in use (the C-04 namespace-split bug).
+pub fn default_model_id() -> &'static str {
+    #[cfg(feature = "onnx")]
+    {
+        // An invalid value falls to minilm here only because default_embedder() will
+        // refuse to start with it; this function never hides the error.
+        match embedder_choice() {
+            Ok("bge") => "bge-base-en-v1.5",
+            _ => "minilm-l6-v2-int8",
+        }
+    }
+    #[cfg(not(feature = "onnx"))]
+    {
+        "hash-128d"
+    }
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // C-04 invariant: the model id the MCP schema defaults to must equal the id of the
+    // embedder actually built. (onnx builds would load a model, so the check is hash-only.)
+    #[cfg(not(feature = "onnx"))]
+    #[test]
+    fn default_model_id_matches_default_embedder() {
+        assert_eq!(default_embedder().unwrap().model_id(), default_model_id());
+    }
 
     // --- HashEmbedder --------------------------------------------------------
 

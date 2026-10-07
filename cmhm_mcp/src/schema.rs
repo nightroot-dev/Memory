@@ -317,10 +317,9 @@ pub struct ProjectDetectParams {}
 /// the same namespace. Before this fix, "default" nodes were invisible to text-path
 /// retrieval and vice versa — silent empty results with no error.
 pub fn default_model() -> String {
-    #[cfg(feature = "onnx")]
-    { "minilm-l6-v2-int8".to_string() }
-    #[cfg(not(feature = "onnx"))]
-    { "hash-128d".to_string() }
+    // Single source of truth: follows CMHM_EMBEDDER, so the vector path can never
+    // disagree with the embedder the text path actually loads.
+    cmhm_core::embed::default_model_id().to_string()
 }
 pub fn default_eta()          -> f32    { 0.5 }
 pub fn default_authority()    -> f32    { 0.5 }
