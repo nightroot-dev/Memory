@@ -29,6 +29,8 @@ serde_json = "1"
 fs2 = "0.4"
 # Authenticated encryption at rest (M3 storage seam)
 aes-gcm = "0.10"
+# Hashing (M6 backup manifests, gateway audit)
+sha2 = "0.10"
 
 [workspace.package]
 version      = "0.2.0"

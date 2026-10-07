@@ -55,6 +55,7 @@ pub mod authority;
 pub mod migration;
 pub mod scope;
 pub mod crypto;
+pub mod backup;
 
 // Re-export the most commonly used types at crate root
 pub use config::Config;
