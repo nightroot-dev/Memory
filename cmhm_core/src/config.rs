@@ -6,53 +6,76 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// Working memory buffer capacity (default: 5).
+    #[serde(default = "default_working_memory_size")]
     pub working_memory_size: usize,
     /// Edge birth: minimum similarity score to create an inferred edge (default: 0.35).
+    #[serde(default = "default_edge_birth_threshold")]
     pub edge_birth_threshold: f32,
     /// Node birth: maximum cosine to nearest neighbor for novelty (default: 0.55).
+    #[serde(default = "default_novelty_threshold")]
     pub novelty_threshold: f32,
     /// Node birth: minimum salience to force creation even if not novel (default: 0.70).
+    #[serde(default = "default_salience_threshold")]
     pub salience_threshold: f32,
     /// Edge forgetting rate λ_c in hr⁻¹ (default: 0.1, half-life ~7h).
+    #[serde(default = "default_forgetting_lambda_c")]
     pub forgetting_lambda_c: f64,
     /// Edge birth temporal decay λ_t in s⁻¹ (default: 0.0001).
+    #[serde(default = "default_temporal_decay_lambda_t")]
     pub temporal_decay_lambda_t: f64,
     /// Number of cohort centroids for the superstition filter (default: 512).
+    #[serde(default = "default_cohort_count")]
     pub cohort_count: usize,
     /// Dense core relation slices (default: 8).
+    #[serde(default = "default_dense_core_slices")]
     pub dense_core_slices: usize,
     /// Consolidation: max hours between consolidation passes (default: 24).
+    #[serde(default = "default_consolidation_interval_hours")]
     pub consolidation_interval_hours: f64,
     /// Consolidation: node count trigger (default: 8000).
+    #[serde(default = "default_consolidation_node_trigger")]
     pub consolidation_node_trigger: usize,
     /// Consolidation: cumulative reinforcement trigger (default: 50.0).
+    #[serde(default = "default_consolidation_reinforce_trigger")]
     pub consolidation_reinforce_trigger: f32,
     /// Data directory for WAL and snapshots.
+    #[serde(default = "default_data_dir")]
     pub data_dir: PathBuf,
     /// Path to projection matrices directory.
+    #[serde(default = "default_projections_dir")]
     pub projections_dir: PathBuf,
     /// Max hops in Dijkstra retrieval (default: 3).
+    #[serde(default = "default_retrieval_max_depth")]
     pub retrieval_max_depth: usize,
     // ── Context Runtime ────────────────────────────────────────────────────
     /// Maximum number of contexts to keep loaded in RAM simultaneously (default: 10).
+    #[serde(default = "default_max_active_contexts")]
     pub max_active_contexts: usize,
     /// Seconds of inactivity before Active → Idle transition (default: 300 = 5 min).
+    #[serde(default = "default_idle_timeout_secs")]
     pub idle_timeout_secs: u64,
     /// Seconds in Idle before Idle → Sleeping transition (default: 1800 = 30 min).
+    #[serde(default = "default_sleep_timeout_secs")]
     pub sleep_timeout_secs: u64,
     /// Snapshot every N learn commands per context (default: 1000).
+    #[serde(default = "default_snapshot_interval_cmds")]
     pub snapshot_interval_cmds: u64,
     // ── Context Router Weights ─────────────────────────────────────────────
     /// Weight for semantic (keyword/tag) overlap score Sq. Must sum with others to ~1.0.
+    #[serde(default = "default_router_alpha")]
     pub router_alpha: f32,
     /// Weight for access-frequency score Sh.
+    #[serde(default = "default_router_beta")]
     pub router_beta: f32,
     /// Weight for temporal recency score St.
+    #[serde(default = "default_router_gamma")]
     pub router_gamma: f32,
     /// Weight for active-context bonus Sa.
+    #[serde(default = "default_router_delta")]
     pub router_delta: f32,
     /// Half-life in seconds for the recency decay St = exp(-ln(2)/half_life * age).
     /// Default 86400 = 1 day: a context used 1 day ago scores St=0.5.
+    #[serde(default = "default_router_recency_half_life_secs")]
     pub router_recency_half_life_secs: f32,
     // ── Retrieval Blend Weights ────────────────────────────────────────────
     /// Weight of direct query cosine similarity in seed-node scoring (default: 0.7).
@@ -226,6 +249,29 @@ fn default_enforce_gate()                  -> bool  { false }
 fn default_gate_threshold()                -> f32   { 0.35 }
 fn default_gate_kappa()                    -> f32   { 2.0 }
 fn default_retrieval_seed_pool_size()      -> usize { 20 }  // R3: was hardcoded 8
+fn default_working_memory_size()           -> usize { 5 }
+fn default_edge_birth_threshold()          -> f32   { 0.35 }
+fn default_novelty_threshold()             -> f32   { 0.55 }
+fn default_salience_threshold()            -> f32   { 0.70 }
+fn default_forgetting_lambda_c()           -> f64   { 0.1 }
+fn default_temporal_decay_lambda_t()       -> f64   { 0.0001 }
+fn default_cohort_count()                  -> usize { 512 }
+fn default_dense_core_slices()             -> usize { 8 }
+fn default_consolidation_interval_hours()   -> f64   { 24.0 }
+fn default_consolidation_node_trigger()     -> usize { 8000 }
+fn default_consolidation_reinforce_trigger()-> f32   { 50.0 }
+fn default_data_dir()                      -> PathBuf { PathBuf::from("data") }
+fn default_projections_dir()               -> PathBuf { PathBuf::from("data/projections") }
+fn default_retrieval_max_depth()           -> usize { 3 }
+fn default_max_active_contexts()           -> usize { 10 }
+fn default_idle_timeout_secs()             -> u64   { 300 }
+fn default_sleep_timeout_secs()            -> u64   { 1800 }
+fn default_snapshot_interval_cmds()        -> u64   { 1000 }
+fn default_router_alpha()                  -> f32   { 0.50 }
+fn default_router_beta()                   -> f32   { 0.20 }
+fn default_router_gamma()                  -> f32   { 0.20 }
+fn default_router_delta()                  -> f32   { 0.10 }
+fn default_router_recency_half_life_secs() -> f32   { 86400.0 }
 
 
 impl Config {
@@ -242,5 +288,23 @@ impl Config {
         let toml_str = toml::to_string_pretty(&cfg)?;
         std::fs::write(path, toml_str)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn partial_toml_falls_back_to_documented_defaults() {
+        let cfg: Config = toml::from_str("data_dir = \"altdata\"").expect("partial config must parse");
+        assert_eq!(cfg.data_dir, PathBuf::from("altdata"));
+        let def = Config::default();
+        assert_eq!(cfg.working_memory_size, def.working_memory_size);
+        assert_eq!(cfg.novelty_threshold, def.novelty_threshold);
+        assert_eq!(cfg.cohort_count, def.cohort_count);
+        assert_eq!(cfg.router_alpha, def.router_alpha);
+        assert_eq!(cfg.max_active_contexts, def.max_active_contexts);
+        assert_eq!(cfg.gate_kappa, def.gate_kappa);
     }
 }
