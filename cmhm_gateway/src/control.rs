@@ -62,6 +62,18 @@ pub struct Grant {
     pub role: Role,
 }
 
+/// Stored idempotent response: replayed byte-identically on key reuse.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredResp {
+    pub status: u16,
+    pub body: serde_json::Value,
+    pub created_at: f64,
+}
+
+/// Cap on stored idempotency records. Oldest-first eviction past the cap
+/// (documented approximation: eviction scans for the minimum timestamp).
+pub const IDEMPOTENCY_CAP: usize = 10_000;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct StoreDoc {
     tenants: HashMap<String, Tenant>,
@@ -69,6 +81,7 @@ struct StoreDoc {
     tokens: HashMap<String, TokenRecord>,
     grants: Vec<Grant>,
     scopes: HashMap<String, ScopeRef>,
+    idempotency: HashMap<String, StoredResp>,
 }
 
 /// Control-plane interface. Postgres implements this later.
@@ -92,6 +105,8 @@ pub trait ControlPlane: Send + Sync {
     fn bind_scope_context(&mut self, scope_id: &str, context_id: &str) -> Result<()>;
     fn scope(&self, scope_id: &str) -> Option<ScopeRef>;
     fn tenant_of_scope(&self, scope_id: &str) -> Option<String>;
+    fn idempotency_get(&self, principal_id: &str, key: &str) -> Option<StoredResp>;
+    fn idempotency_put(&mut self, principal_id: &str, key: &str, status: u16, body: serde_json::Value) -> Result<()>;
 }
 
 /// File-backed control plane. See module docs for scale limits.
@@ -289,6 +304,44 @@ impl ControlPlane for FileControlPlane {
     fn tenant_of_scope(&self, scope_id: &str) -> Option<String> {
         self.doc.scopes.get(scope_id).map(|s| s.tenant_id.clone())
     }
+
+    fn idempotency_get(&self, principal_id: &str, key: &str) -> Option<StoredResp> {
+        self.doc
+            .idempotency
+            .get(&format!("{principal_id}:{key}"))
+            .cloned()
+    }
+
+    fn idempotency_put(
+        &mut self,
+        principal_id: &str,
+        key: &str,
+        status: u16,
+        body: serde_json::Value,
+    ) -> Result<()> {
+        if self.doc.idempotency.len() >= IDEMPOTENCY_CAP {
+            // Evict the oldest record (linear scan; cap hits are rare).
+            if let Some(oldest) = self
+                .doc
+                .idempotency
+                .iter()
+                .min_by(|a, b| {
+                    a.1.created_at
+                        .partial_cmp(&b.1.created_at)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(k, _)| k.clone())
+            {
+                self.doc.idempotency.remove(&oldest);
+            }
+        }
+        self.doc.idempotency.insert(
+            format!("{principal_id}:{key}"),
+            StoredResp { status, body, created_at: now_secs() },
+        );
+        self.persist_mut()?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -300,10 +353,22 @@ mod tests {
         FileControlPlane::open(&tmp.join("control.json")).unwrap()
     }
 
+    static CP_DIR_COUNTER: std::sync::atomic::AtomicU64 =
+        std::sync::atomic::AtomicU64::new(0);
+
+    /// Unique dir per test invocation. Fixed temp dirs race on Windows
+    /// (remove_dir_all returns before lazy deletion completes), producing
+    /// intermittent "cannot find the file" failures.
+    fn unique_dir(stem: &str) -> std::path::PathBuf {
+        let n = CP_DIR_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("{stem}_{:?}_{n}", std::thread::current().id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
     #[test]
     fn tenant_principal_token_round_trip() {
-        let dir = std::env::temp_dir().join("cmhm_gw_cp1");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = unique_dir("cmhm_gw_cp1");
         let mut cp = mem_plane(&dir);
         let t = cp.create_tenant("acme").unwrap();
         let tenant = TenantId::import(&t.id).unwrap_or_else(|_| TenantId::generate());
@@ -326,8 +391,7 @@ mod tests {
 
     #[test]
     fn grant_requires_known_scope_and_principal() {
-        let dir = std::env::temp_dir().join("cmhm_gw_cp2");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = unique_dir("cmhm_gw_cp2");
         let mut cp = mem_plane(&dir);
         assert!(cp.grant("nope", "nope", Role::Reader).is_err());
         let t = cp.create_tenant("acme").unwrap();

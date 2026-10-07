@@ -10,7 +10,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::control::{ControlPlane, PrincipalKind};
+use crate::control::ControlPlane;
 
 /// Roles, ordered. Comparison uses rank, not declaration order.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -203,7 +203,7 @@ mod hex {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::control::FileControlPlane;
+    use crate::control::{FileControlPlane, PrincipalKind};
     use cmhm_core::scope::{ScopeId, TenantId};
 
     static TEST_DIR_COUNTER: std::sync::atomic::AtomicU64 =

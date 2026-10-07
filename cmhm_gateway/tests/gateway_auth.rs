@@ -16,6 +16,7 @@ use cmhm_core::scope::ScopeId;
 struct World {
     base: String,
     client: reqwest::Client,
+    data_dir: std::path::PathBuf,
     tenant_a: String,
     tenant_b: String,
     scope_a1: String,
@@ -27,12 +28,14 @@ struct World {
 }
 
 async fn setup() -> World {
+    // Unique per test AND per thread: wall-clock nanos collide when tests
+    // start together (learned the hard way in auth.rs unit tests).
+    static SETUP_COUNTER: std::sync::atomic::AtomicU64 =
+        std::sync::atomic::AtomicU64::new(0);
+    let n = SETUP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let dir = std::env::temp_dir().join(format!(
-        "cmhm_gw_t_{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        "cmhm_gw_t_{:?}_{n}",
+        std::thread::current().id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
     let mut cp = FileControlPlane::open(&dir.join("control.json")).unwrap();
@@ -79,6 +82,7 @@ async fn setup() -> World {
     World {
         base: format!("http://127.0.0.1:{port}"),
         client: reqwest::Client::new(),
+        data_dir: dir.join("data"),
         tenant_a: ta.id,
         tenant_b: tb.id,
         scope_a1: s_a1.as_str().to_string(),
@@ -205,4 +209,89 @@ async fn threat_table() {
     assert_eq!(c, 200, "bound agent read must succeed");
 
     let _ = (w.tenant_a, w.tenant_b, w.scope_b1);
+}
+
+#[tokio::test]
+async fn idempotent_learn_stores_once() {
+    let w = setup().await;
+    // Bind scope first.
+    let (c, _) = post(
+        &w,
+        "/v1/admin/scope_init",
+        Some(&w.owner_a_tok),
+        serde_json::json!({"scope_id": w.scope_a1, "display_name": w.scope_a1}),
+    )
+    .await;
+    assert_eq!(c, 200);
+
+    let body = serde_json::json!({
+        "scope_id": w.scope_a1,
+        "state": "idempotency probe state",
+        "action": "probed",
+        "outcome": "worked",
+        "idempotency_key": "key-001",
+    });
+    let (c1, b1) = post(&w, "/v1/learn", Some(&w.owner_a_tok), body.clone()).await;
+    let (c2, b2) = post(&w, "/v1/learn", Some(&w.owner_a_tok), body).await;
+    assert_eq!((c1, c2), (200, 200));
+    assert_eq!(b1, b2, "same key must replay byte-identical response");
+    // Same node IDs both times proves the engine was untouched the 2nd time.
+    assert!(b1.contains("\"state_node_id\""));
+
+    // Different key AND different text learns again (new nodes). Same text
+    // would dedup to the same nodes by design, so the text differs here.
+    let (c3, b3) = post(
+        &w,
+        "/v1/learn",
+        Some(&w.owner_a_tok),
+        serde_json::json!({
+            "scope_id": w.scope_a1,
+            "state": "idempotency probe second state",
+            "action": "probed again",
+            "outcome": "worked again",
+            "idempotency_key": "key-002",
+        }),
+    )
+    .await;
+    assert_eq!(c3, 200);
+    assert_ne!(b1, b3, "different key must create distinct nodes");
+}
+
+#[tokio::test]
+async fn secrets_scrubbed_and_audited() {
+    let w = setup().await;
+    let (c, _) = post(
+        &w,
+        "/v1/admin/scope_init",
+        Some(&w.owner_a_tok),
+        serde_json::json!({"scope_id": w.scope_a1, "display_name": w.scope_a1}),
+    )
+    .await;
+    assert_eq!(c, 200);
+
+    let secret = "sk-abc123XYZ987morerandombytes";
+    let (c, _) = post(
+        &w,
+        "/v1/learn",
+        Some(&w.owner_a_tok),
+        serde_json::json!({
+            "scope_id": w.scope_a1,
+            "state": format!("set api_key={secret} in config"),
+            "action": "rotated it",
+            "outcome": "done",
+        }),
+    )
+    .await;
+    assert_eq!(c, 200);
+
+    // Audit log records the redaction count, never the secret.
+    let audit = std::fs::read_to_string(
+        w.data_dir.join("tenants").join(&w.tenant_a).join("audit.log"),
+    )
+    .unwrap();
+    assert!(
+        audit.contains("redacted=1"),
+        "audit must record the redaction: {audit}"
+    );
+    assert!(!audit.contains(secret), "secret must never reach the audit log");
 }

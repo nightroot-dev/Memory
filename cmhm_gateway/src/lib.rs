@@ -11,6 +11,7 @@
 //! their own role, authority, or tenant (the C-01 lesson).
 
 pub mod auth;
+pub mod audit;
 pub mod control;
 pub mod routes;
 

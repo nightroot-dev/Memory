@@ -29,6 +29,7 @@ use cmhm_core::node::NodeType;
 use cmhm_core::{text_to_embedding, ContextRuntime};
 
 use crate::auth::{authenticate, authorize, AuthContext, Role};
+use crate::audit;
 use crate::control::{ControlPlane, FileControlPlane};
 
 const MODEL_ID: &str = "hash-128d";
@@ -36,6 +37,35 @@ const MODEL_ID: &str = "hash-128d";
 /// Requests per token per minute (fixed window). Generous for tests;
 /// production policy lives in M4 rate work.
 const RATE_LIMIT_PER_MIN: u64 = 600;
+/// Requests per tenant per minute across all its tokens.
+const TENANT_RATE_PER_MIN: u64 = 5000;
+
+/// Fixed-window check against the shared map. Returns true when allowed.
+fn check_rate(map: &Mutex<HashMap<String, (u64, Instant)>>, key: &str, limit: u64) -> bool {
+    let mut rate = map.lock();
+    let now = Instant::now();
+    let entry = rate
+        .entry(key.to_string())
+        .or_insert((0, now));
+    if now.duration_since(entry.1).as_secs() >= 60 {
+        *entry = (0, now);
+    }
+    entry.0 += 1;
+    entry.0 <= limit
+}
+
+fn audit_for(
+    gate: &GateState,
+    tenant_id: &str,
+    principal_id: &str,
+    op: &str,
+    scope_id: &str,
+    outcome: &str,
+    detail: &str,
+) {
+    let dir = gate.inner.data_root.join("tenants").join(tenant_id);
+    audit::append(&dir, principal_id, tenant_id, op, scope_id, outcome, detail);
+}
 
 pub struct AppState {
     cp: Mutex<FileControlPlane>,
@@ -92,18 +122,12 @@ async fn auth_middleware(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     // Rate limit BEFORE auth so stolen-token hammering is bounded (M4 owns policy).
-    {
-        let key = format!("{:x}", fnv1a(bearer.as_bytes()));
-        let mut rate = gate.inner.rate.lock();
-        let now = Instant::now();
-        let entry = rate.entry(key).or_insert((0, now));
-        if now.duration_since(entry.1).as_secs() >= 60 {
-            *entry = (0, now);
-        }
-        entry.0 += 1;
-        if entry.0 > RATE_LIMIT_PER_MIN {
-            return (StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded").into_response();
-        }
+    if !check_rate(
+        &gate.inner.rate,
+        &format!("tok:{:x}", fnv1a(bearer.as_bytes())),
+        RATE_LIMIT_PER_MIN,
+    ) {
+        return (StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded").into_response();
     }
     let ctx = {
         let cp = gate.inner.cp.lock();
@@ -166,6 +190,18 @@ fn scoped(
         (role, context_id)
     };
     runtime_for_tenant(&gate.inner.runtimes, &gate.inner.data_root, &ctx.tenant_id);
+    // Per-tenant bucket: one heavy tenant cannot starve others sharing the host.
+    if !check_rate(
+        &gate.inner.rate,
+        &format!("tenant:{}", ctx.tenant_id),
+        TENANT_RATE_PER_MIN,
+    ) {
+        audit_for(
+            gate, &ctx.tenant_id, &ctx.principal_id, "rate_limited", scope_id, "denied",
+            "tenant bucket exhausted",
+        );
+        return Err((StatusCode::TOO_MANY_REQUESTS, "tenant rate limit exceeded".to_string()));
+    }
     Ok((ctx, role, context_id))
 }
 
@@ -185,9 +221,13 @@ struct LearnBody {
     state: String,
     action: String,
     outcome: String,
+    /// Client-supplied idempotency key. Same (principal, key) replays the
+    /// stored response WITHOUT re-learning. Absent = no dedup (as before).
+    #[serde(default)]
+    idempotency_key: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct LearnResp {
     state_node_id: u64,
     action_node_id: u64,
@@ -227,11 +267,34 @@ async fn learn(
     Json(body): Json<LearnBody>,
 ) -> Result<Json<LearnResp>, (StatusCode, String)> {
     let (ctx, _role, context_id) = scoped(&gate, ctx, &body.scope_id, Role::Writer)?;
+    // Idempotency: replay the stored response without touching the engine.
+    if let Some(key) = body.idempotency_key.as_deref().filter(|k| !k.is_empty()) {
+        let hit = gate
+            .inner
+            .cp
+            .lock()
+            .idempotency_get(&ctx.principal_id, key);
+        if let Some(stored) = hit {
+            audit_for(
+                &gate, &ctx.tenant_id, &ctx.principal_id, "learn", &body.scope_id,
+                "replayed", "idempotent replay, engine untouched",
+            );
+            if let Ok(resp) = serde_json::from_value::<LearnResp>(stored.body) {
+                return Ok(Json(resp));
+            }
+            // Stored body no longer parses (shape change): fall through and
+            // re-learn rather than failing the request.
+        }
+    }
     let (caller, authority, provenance) = role_to_caller(&ctx);
+    // Edge scrubbing: secrets never reach embeddings, store, WAL, or BM25.
+    // Scrubbed text is what gets stored (documented behavior, not silent).
+    let (state, action, outcome, redacted) =
+        cmhm_core::scrub::scrub_learn(&body.state, &body.action, &body.outcome);
     // Embeddings are server-side (hash model; sidecar is M5).
-    let s = text_to_embedding(&body.state).to_vec();
-    let a = text_to_embedding(&body.action).to_vec();
-    let o = text_to_embedding(&body.outcome).to_vec();
+    let s = text_to_embedding(&state).to_vec();
+    let a = text_to_embedding(&action).to_vec();
+    let o = text_to_embedding(&outcome).to_vec();
     let mut runtimes = gate.inner.runtimes.lock();
     let rt = runtimes.get_mut(&ctx.tenant_id).ok_or((
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -252,14 +315,31 @@ async fn learn(
             caller,
             None,
             None,
-            Some((body.state, body.action, body.outcome)),
+            Some((state, action, outcome)),
         )
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(LearnResp {
+    let resp = LearnResp {
         state_node_id: res.state_node_id,
         action_node_id: res.action_node_id,
         outcome_node_id: res.outcome_node_id,
-    }))
+    };
+    if let Some(key) = body.idempotency_key.as_deref().filter(|k| !k.is_empty()) {
+        let _ = gate.inner.cp.lock().idempotency_put(
+            &ctx.principal_id,
+            key,
+            200,
+            serde_json::to_value(&resp).unwrap_or(serde_json::Value::Null),
+        );
+    }
+    audit_for(
+        &gate, &ctx.tenant_id, &ctx.principal_id, "learn", &body.scope_id,
+        "ok",
+        &format!(
+            "nodes={}/{}/{} redacted={}",
+            resp.state_node_id, resp.action_node_id, resp.outcome_node_id, redacted
+        ),
+    );
+    Ok(Json(resp))
 }
 
 /// Bind the backing engine context for a scope. Owner-only. The mapping
@@ -294,6 +374,10 @@ async fn scope_init(
         cp.bind_scope_context(scope_id, &desc.id.to_string())
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
+    audit_for(
+        &gate, &ctx.tenant_id, &ctx.principal_id, "scope_init", scope_id,
+        "ok", "backing context bound",
+    );
     Ok(Json(serde_json::json!({"context_id": desc.id.to_string()})))
 }
 
@@ -342,6 +426,15 @@ async fn retrieve(
             &body.query,
         )
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    audit_for(
+        &gate, &ctx.tenant_id, &ctx.principal_id, "retrieve", &body.scope_id,
+        "ok",
+        &format!(
+            "seed={:?} candidates={}",
+            res.seed_id,
+            res.post_filter_candidates.len()
+        ),
+    );
     Ok(Json(RetrieveResp {
         seed_id: res.seed_id,
         explanation: res.explanation,
@@ -363,6 +456,11 @@ async fn feedback(
     let (updated, _) = rt
         .feedback_nodes(Some(&context_id), body.node_ids, body.success, None)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    audit_for(
+        &gate, &ctx.tenant_id, &ctx.principal_id, "feedback", &body.scope_id,
+        "ok",
+        &format!("updated={} success={}", updated, body.success),
+    );
     Ok(Json(serde_json::json!({"updated": updated})))
 }
 
