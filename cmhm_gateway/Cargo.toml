@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 cmhm_core = { path = "../cmhm_core" }
+cmhm_sidecar = { path = "../cmhm_sidecar" }
 axum = { version = "0.8", features = ["macros"] }
 tokio = { workspace = true }
 serde = { workspace = true }

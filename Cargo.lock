@@ -405,6 +405,7 @@ dependencies = [
  "anyhow",
  "axum",
  "cmhm_core",
+ "cmhm_sidecar",
  "parking_lot",
  "rand 0.8.7",
  "reqwest",
@@ -433,6 +434,21 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "cmhm_sidecar"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "cmhm_core",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

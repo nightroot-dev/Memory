@@ -205,6 +205,28 @@ fn scoped(
     Ok((ctx, role, context_id))
 }
 
+/// Embed via the sidecar when `CMHM_SIDECAR_ADDR` is set, else locally.
+/// Returns `None` when the sidecar is unreachable — callers degrade
+/// explicitly (never silent wrong embeddings). Read per call (not cached)
+/// so tests can point it at dead ports without process-global races
+/// beyond the env var itself.
+fn embed_texts(texts: Vec<String>) -> Option<Vec<Vec<f32>>> {
+    let addr = std::env::var("CMHM_SIDECAR_ADDR").ok().filter(|s| !s.is_empty())?;
+    let client = cmhm_sidecar::SidecarClient::new(addr);
+    // The std client blocks; run it off the async executor thread.
+    let handle = std::thread::spawn(move || client.embed(texts));
+    match handle.join() {
+        Ok(Ok(resp)) => Some(resp.embeddings),
+        _ => None,
+    }
+}
+
+fn local_embed(texts: &[String]) -> Vec<Vec<f32>> {
+    texts
+        .iter()
+        .map(|t| text_to_embedding(t).to_vec())
+        .collect()
+}
 fn role_to_caller(ctx: &AuthContext) -> (CallerRole, f32, String) {
     if ctx.is_agent {
         (CallerRole::Agent, 0.5, "inferred".to_string())
@@ -291,10 +313,26 @@ async fn learn(
     // Scrubbed text is what gets stored (documented behavior, not silent).
     let (state, action, outcome, redacted) =
         cmhm_core::scrub::scrub_learn(&body.state, &body.action, &body.outcome);
-    // Embeddings are server-side (hash model; sidecar is M5).
-    let s = text_to_embedding(&state).to_vec();
-    let a = text_to_embedding(&action).to_vec();
-    let o = text_to_embedding(&outcome).to_vec();
+    // Embeddings: sidecar when configured, else local. A configured-but-dead
+    // sidecar is an explicit 503 — learns are never stored with a missing or
+    // wrong embedding.
+    let texts = vec![state.clone(), action.clone(), outcome.clone()];
+    let mut embs = match embed_texts(texts) {
+        Some(v) => v,
+        None => {
+            if std::env::var("CMHM_SIDECAR_ADDR").ok().filter(|s| !s.is_empty()).is_some() {
+                audit_for(
+                    &gate, &ctx.tenant_id, &ctx.principal_id, "learn", &body.scope_id,
+                    "error", "embedding sidecar unavailable",
+                );
+                return Err((StatusCode::SERVICE_UNAVAILABLE, "embedding sidecar unavailable".to_string()));
+            }
+            local_embed(&[state.clone(), action.clone(), outcome.clone()])
+        }
+    };
+    let o = embs.pop().unwrap();
+    let a = embs.pop().unwrap();
+    let s = embs.pop().unwrap();
     let mut runtimes = gate.inner.runtimes.lock();
     let rt = runtimes.get_mut(&ctx.tenant_id).ok_or((
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -411,7 +449,23 @@ async fn retrieve(
     Json(body): Json<RetrieveBody>,
 ) -> Result<Json<RetrieveResp>, (StatusCode, String)> {
     let (ctx, _role, context_id) = scoped(&gate, ctx, &body.scope_id, Role::Reader)?;
-    let q = text_to_embedding(&body.query).to_vec();
+    // Degradation: sidecar down → BM25-only retrieval (zero dense vector, real
+    // query text). The engine still ranks; dense contributes nothing. Explicit
+    // and documented, never a silent wrong-vector search.
+    let (q, degraded) = match embed_texts(vec![body.query.clone()]) {
+        Some(mut v) => (v.pop().unwrap(), false),
+        None => {
+            if std::env::var("CMHM_SIDECAR_ADDR").ok().filter(|s| !s.is_empty()).is_some() {
+                audit_for(
+                    &gate, &ctx.tenant_id, &ctx.principal_id, "retrieve", &body.scope_id,
+                    "degraded", "sidecar down, BM25-only",
+                );
+                (vec![0.0f32; cmhm_core::EMBED_DIM], true)
+            } else {
+                (text_to_embedding(&body.query).to_vec(), false)
+            }
+        }
+    };
     let mut runtimes = gate.inner.runtimes.lock();
     let rt = runtimes.get_mut(&ctx.tenant_id).ok_or((
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -428,9 +482,9 @@ async fn retrieve(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     audit_for(
         &gate, &ctx.tenant_id, &ctx.principal_id, "retrieve", &body.scope_id,
-        "ok",
+        if degraded { "degraded" } else { "ok" },
         &format!(
-            "seed={:?} candidates={}",
+            "seed={:?} candidates={} bm25_only={degraded}",
             res.seed_id,
             res.post_filter_candidates.len()
         ),
