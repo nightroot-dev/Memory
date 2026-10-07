@@ -38,10 +38,30 @@ impl Registry {
         let path = data_dir.join(REGISTRY_FILE);
         let entries: HashMap<ContextId, ContextMeta> = if path.exists() {
             match std::fs::read_to_string(&path) {
-                Ok(s) => {
-                    let file: RegistryFile = toml::from_str(&s).unwrap_or_default();
-                    file.contexts.into_iter().map(|m| (m.id.clone(), m)).collect()
-                }
+                Ok(s) => match toml::from_str::<RegistryFile>(&s) {
+                    Ok(file) => file.contexts.into_iter().map(|m| (m.id.clone(), m)).collect(),
+                    Err(e) => {
+                        // Never silently discard: quarantine the corrupt file for
+                        // forensics, then start fresh with a loud warning.
+                        let quarantine = data_dir.join(format!(
+                            "{}.corrupt.{}",
+                            REGISTRY_FILE,
+                            crate::core_state::now_secs() as u64
+                        ));
+                        if let Err(rename_err) = std::fs::rename(&path, &quarantine) {
+                            tracing::error!(
+                                "Registry {:?} is corrupt ({e}) and quarantine rename failed: {rename_err}",
+                                path
+                            );
+                        } else {
+                            tracing::warn!(
+                                "Registry {:?} corrupt ({e}); quarantined to {:?}, starting fresh",
+                                path, quarantine
+                            );
+                        }
+                        HashMap::new()
+                    }
+                },
                 Err(e) => {
                     tracing::warn!("Could not read registry {:?}: {e} -- starting fresh", path);
                     HashMap::new()
@@ -364,5 +384,32 @@ mod tests {
         let m = reg.get(&id).unwrap();
         assert_eq!(m.version, 2);
         assert_eq!(m.learn_count, 2);
+    }
+
+    #[test]
+    fn corrupt_registry_is_quarantined_not_silently_reset() {
+        let dir = std::env::temp_dir().join(format!("cmhm_registry_corrupt_{}", ContextId::new().as_str()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("registry.toml");
+        std::fs::write(&path, "this is = not [[ valid toml =").unwrap();
+
+        let reg = Registry::load(&dir).expect("load must recover on corrupt file");
+
+        // Fresh registry (no phantom contexts from the corrupt file)
+        assert_eq!(reg.entries.len(), 0);
+        // Original path is either gone or replaced — crucially the corrupt
+        // bytes must survive in a quarantined sibling file.
+        let quarantined: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains("registry.toml.corrupt."))
+            .collect();
+        assert!(!quarantined.is_empty(), "expected a quarantined registry file, dir had: {:?}",
+            std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect::<Vec<_>>());
+        let q_path = dir.join(&quarantined[0]);
+        assert_eq!(std::fs::read_to_string(&q_path).unwrap(), "this is = not [[ valid toml =");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
