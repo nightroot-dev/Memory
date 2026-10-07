@@ -257,3 +257,26 @@ The prior "clean corpus c417c9a" table above reflects the pre-fix
 dead-dense state (birth stored native 384-dim, retrieval queried
 128-dim). Its MiniLM Para P@1 = 0.0000 is HISTORICAL, not current.
 Root cause fixed in 987706b.
+
+## Session L baseline (2026-10, L1 corpus: 200 pairs, 100 lex + 100 para)
+
+Corpus: tools/corpus_l1.json (embedder-free, zero-overlap checked).
+Harness: ops_bench_v2 (hash) + ops_bench_minilm_v2 (MiniLM). Metrics:
+seed P@1 / pool recall / chain accuracy / MRR, split by difficulty.
+Seed = engine's actual returned seed (REAL SEED), not pool rank.
+
+Hash-128d: lexical seed 0.13-0.18 (BM25 pure 1.00); paraphrase seed
+~0.01 overall (easy 0.03, med/hard 0.00); chain accuracy ~0.
+
+MiniLM: lexical seed 0.06 dense (rare IDs are OOV) / pool 1.00 fused,
+chain 0.33 fused; paraphrase seed easy 0.21 / medium 0.12 / hard 0.07;
+chain accuracy 0.03-0.10.
+
+Overall MiniLM seed P@1 ≈ 0.10 — LOWER than the old v3 0.40. This is
+the honest reset, not a regression: unbiased corpus (no margin
+filtering), a hard tier by design, and 5x the distractors (200 vs 80).
+The old 0.40 was measured on a MiniLM-favouring corpus. Cite L1 now.
+
+Noise floor on n=200: 1 pair = 0.005 overall; treat sub-0.035 deltas
+(under ~7 pairs) as noise. Per-group floors are higher: lex n=100
+(0.01/pair), easy n=29 (0.034/pair), medium n=41, hard n=30.
