@@ -103,10 +103,10 @@ impl Bm25Index {
 
     /// Index a node's text. If the node was previously indexed, the old entry is replaced.
     pub fn insert(&mut self, node_id: u64, text: &str) {
-        // Remove old entry if re-indexing
-        if let Some(&old_len) = self.doc_lengths.get(&node_id) {
+        // Remove old entry if re-indexing.
+        // remove() already decrements total_length and num_docs — do not subtract again.
+        if self.doc_lengths.contains_key(&node_id) {
             self.remove(node_id);
-            self.total_length = self.total_length.saturating_sub(old_len as u64);
         }
 
         let tokens = tokenize(text);
@@ -401,6 +401,38 @@ mod tests {
     }
 
     // --- BM25 basic -----------------------------------------------------------
+
+    #[test]
+    fn bm25_reindex_preserves_total_length_and_num_docs() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "alpha beta gamma delta");
+        idx.insert(2, "epsilon zeta");
+        assert_eq!(idx.num_docs, 2);
+        let baseline_total = idx.total_length;
+
+        // Re-index node 1 with different-length text: total_length must be
+        // recomputed exactly (remove + re-add), never double-subtracted.
+        idx.insert(1, "alpha beta gamma delta epsilon zeta eta theta");
+        assert_eq!(idx.num_docs, 2, "num_docs must stay exact after re-index");
+        assert_eq!(
+            idx.total_length,
+            (tokenize("alpha beta gamma delta epsilon zeta eta theta").len()
+                + tokenize("epsilon zeta").len()) as u64,
+            "total_length must equal sum of current doc lengths"
+        );
+
+        // Sanity: re-indexing many times never drives total_length to 0.
+        for _ in 0..10 {
+            idx.insert(1, "alpha beta gamma delta");
+        }
+        assert_eq!(idx.num_docs, 2);
+        assert!(idx.total_length > 0, "avgdl corruption would zero this out");
+        assert_eq!(
+            idx.total_length,
+            (tokenize("alpha beta gamma delta").len() + tokenize("epsilon zeta").len()) as u64
+        );
+        let _ = baseline_total;
+    }
 
     #[test]
     fn bm25_empty_query_returns_nothing() {
