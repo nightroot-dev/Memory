@@ -39,6 +39,7 @@ anyhow = { workspace = true }
 toml = { workspace = true }
 serde_json = { workspace = true }
 fs2 = { workspace = true }
+aes-gcm = { workspace = true }
 
 # ONNX backend — optional, only pulled in with --features onnx
 # Pinned to 5.x (latest stable as of 2026-08). Provides TextEmbedding wrapper over ORT.

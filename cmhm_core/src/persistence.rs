@@ -1,8 +1,11 @@
 use std::fs::{File, OpenOptions};
 use std::io::{Write, Read, Seek, SeekFrom, BufWriter, BufReader};
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use anyhow::{Result, anyhow};
+
+use crate::crypto::{self, DataKey};
 
 // ─── WAL constants ────────────────────────────────────────────────────────────
 
@@ -88,6 +91,52 @@ impl std::fmt::Display for SnapshotLoadError {
 }
 
 
+// ─── Storage seam (M3): per-scope encryption without touching the engine ───
+//
+// `engine.rs` calls the same `WalWriter::open/append`, `read_wal`,
+// `write_snapshot`, `read_snapshot` as before. Encryption is decided HERE by
+// looking up a data key for the file's scope directory:
+//
+// - Key present  → new writes are sealed (WAL records individually, snapshots
+//   whole-file). Reads try sealed-first, then legacy (mixed generations work).
+// - Key absent   → legacy plaintext behavior, byte-identical to before.
+// - Sealed bytes + no key → fail-closed `Corrupt("encrypted, no key")`, never
+//   misclassified as a version issue.
+//
+// Keys are registered by the scope layer (`scope.rs` adopt path) via
+// `register_scope_key`. One global registry, keyed by scope root directory;
+// lookup walks up at most two levels (file → scope root).
+static KEY_REGISTRY: std::sync::LazyLock<RwLock<std::collections::HashMap<PathBuf, DataKey>>> =
+    std::sync::LazyLock::new(|| RwLock::new(std::collections::HashMap::new()));
+
+/// Register a scope's data key. Called once per scope load (idempotent).
+pub fn register_scope_key(scope_root: &Path, key: DataKey) {
+    if let Ok(mut reg) = KEY_REGISTRY.write() {
+        reg.insert(scope_root.to_path_buf(), key);
+    }
+}
+
+/// Forget a scope's key (e.g. after crypto-shredding). Reads fail closed after.
+pub fn unregister_scope_key(scope_root: &Path) {
+    if let Ok(mut reg) = KEY_REGISTRY.write() {
+        reg.remove(scope_root);
+    }
+}
+
+fn key_for_file(path: &Path) -> Option<DataKey> {
+    let reg = KEY_REGISTRY.read().ok()?;
+    // Exact dir, then parent (covers `<root>/wal.dat`, `<root>/snapshots/x`).
+    let mut cur: Option<&Path> = path.parent();
+    for _ in 0..3 {
+        let dir = cur?;
+        if let Some(k) = reg.get(dir) {
+            return Some(k.clone());
+        }
+        cur = dir.parent();
+    }
+    None
+}
+
 // ─── Write-Ahead Log ─────────────────────────────────────────────────────────
 
 /// Write-Ahead Log writer.
@@ -102,6 +151,9 @@ impl std::fmt::Display for SnapshotLoadError {
 pub struct WalWriter {
     file: BufWriter<File>,
     pub seq: u64,
+    /// Seals record payloads when the scope registered a key. `None` keeps
+    /// the legacy plaintext format byte-identical.
+    key: Option<DataKey>,
 }
 
 impl WalWriter {
@@ -109,6 +161,8 @@ impl WalWriter {
     ///
     /// If the file is newly created (size == 0), writes the 4-byte magic header.
     /// If the file already exists, assumes magic was written on creation.
+    /// Picks up the scope key (if registered for this path) for new appends;
+    /// pre-existing plaintext records keep replaying unchanged.
     pub fn open(path: &PathBuf) -> Result<Self> {
         let mut file = OpenOptions::new()
             .create(true)
@@ -125,20 +179,33 @@ impl WalWriter {
             file.sync_data()?;
         }
 
-        Ok(Self { file: BufWriter::new(file), seq: 0 })
+        let key = key_for_file(path);
+        Ok(Self { file: BufWriter::new(file), seq: 0, key })
     }
 
     /// Append one serialized record to the WAL.
     ///
     /// Writes: `[len: u32 LE][payload][crc32: u32 LE]`
     /// Then flushes the buffer and calls `sync_data()` to guarantee durability.
+    ///
+    /// When a scope key is present, `payload` is sealed first (record becomes
+    /// `[0x53][nonce][ciphertext]`); `len`/`crc` still frame the sealed bytes,
+    /// so torn-tail and CRC handling are unchanged.
     pub fn append(&mut self, cmd_bytes: &[u8]) -> Result<()> {
         self.seq += 1;
-        let len = cmd_bytes.len() as u32;
-        let crc = crc32(cmd_bytes);
+        let sealed;
+        let payload: &[u8] = match &self.key {
+            Some(k) => {
+                sealed = crypto::seal_record(k, cmd_bytes);
+                &sealed
+            }
+            None => cmd_bytes,
+        };
+        let len = payload.len() as u32;
+        let crc = crc32(payload);
 
         self.file.write_all(&len.to_le_bytes())?;
-        self.file.write_all(cmd_bytes)?;
+        self.file.write_all(payload)?;
         self.file.write_all(&crc.to_le_bytes())?;
         self.file.flush()?;
 
@@ -177,6 +244,9 @@ pub fn read_wal(path: &PathBuf) -> Result<Vec<WalEntry>> {
     };
     let mut reader = BufReader::new(file);
     let mut entries = Vec::new();
+    // Sealed records decrypt with the scope key when one is registered for
+    // this path; legacy plaintext records pass through untouched either way.
+    let key = key_for_file(path);
 
     // Detect and skip optional file-level magic header
     let mut magic_buf = [0u8; 4];
@@ -192,7 +262,7 @@ pub fn read_wal(path: &PathBuf) -> Result<Vec<WalEntry>> {
             if len == 0 || len > WAL_MAX_RECORD_BYTES {
                 return Ok(entries); // corrupted first record
             }
-            if let Some(entry) = read_one_record(&mut reader, len)? {
+            if let Some(entry) = read_one_record(&mut reader, len, key.as_ref())? {
                 entries.push(entry);
             } else {
                 return Ok(entries);
@@ -212,9 +282,9 @@ pub fn read_wal(path: &PathBuf) -> Result<Vec<WalEntry>> {
             tracing::warn!("WAL: implausible record length {len} — stopping replay");
             break;
         }
-        match read_one_record(&mut reader, len)? {
+        match read_one_record(&mut reader, len, key.as_ref())? {
             Some(entry) => entries.push(entry),
-            None        => break, // CRC mismatch or short read — stop here
+            None        => break, // CRC mismatch, auth failure, or short read — stop here
         }
     }
 
@@ -224,7 +294,12 @@ pub fn read_wal(path: &PathBuf) -> Result<Vec<WalEntry>> {
 
 /// Read exactly one record (payload + CRC) given the length field was already read.
 /// Returns `None` on any read error or CRC mismatch — caller stops replay.
-fn read_one_record<R: Read>(reader: &mut R, len: usize) -> Result<Option<WalEntry>> {
+///
+/// When `key` is present, sealed records (`0x53` marker) are opened first;
+/// an authentication failure stops replay with a warning (same posture as a
+/// CRC mismatch — the tail from here on is untrusted). Legacy records pass
+/// through untouched, so mixed plaintext/sealed WALs replay seamlessly.
+fn read_one_record<R: Read>(reader: &mut R, len: usize, key: Option<&DataKey>) -> Result<Option<WalEntry>> {
     let mut payload = vec![0u8; len];
     if reader.read_exact(&mut payload).is_err() {
         return Ok(None); // torn payload
@@ -237,6 +312,17 @@ fn read_one_record<R: Read>(reader: &mut R, len: usize) -> Result<Option<WalEntr
     let computed_crc = crc32(&payload);
     if stored_crc != computed_crc {
         tracing::warn!("WAL: CRC mismatch (stored={stored_crc:#010x} computed={computed_crc:#010x}) — stopping replay");
+        return Ok(None);
+    }
+    if let Some(k) = key {
+        match crypto::open_record(k, &payload)? {
+            Some(inner) => return Ok(Some(WalEntry { payload: inner })),
+            None => {} // legacy plaintext record — fall through
+        }
+    } else if payload.first() == Some(&crypto::SEALED_RECORD_MARKER) {
+        // Sealed bytes but no key registered: fail closed loudly. This is NOT
+        // corruption or a version issue — the key is simply absent.
+        tracing::error!("WAL: sealed record with no registered key — stopping replay (destroyed/missing key?)");
         return Ok(None);
     }
     Ok(Some(WalEntry { payload }))
@@ -283,7 +369,12 @@ pub fn crc32(data: &[u8]) -> u32 {
 pub fn write_snapshot<T: serde::Serialize>(state: &T, path: &PathBuf) -> Result<()> {
     let payload = bincode::serialize(state)?;
     let envelope = SnapshotEnvelope { version: SNAPSHOT_VERSION, payload };
-    let bytes = bincode::serialize(&envelope)?;
+    let mut bytes = bincode::serialize(&envelope)?;
+    // Seal whole-file when the scope registered a key. The sealed form is
+    // `CMHMSEAL1 + nonce + ciphertext`; readers detect it by magic.
+    if let Some(key) = key_for_file(path) {
+        bytes = crypto::seal(&key, &bytes);
+    }
     let tmp_path = path.with_extension("bin.tmp");
 
     // Step 1+2: Write to .tmp and fsync it
@@ -330,13 +421,35 @@ pub fn read_snapshot<T: for<'de> serde::Deserialize<'de>>(path: &PathBuf)
         if !candidate.exists() { continue; }
         found_any = true;
 
-        let bytes = match std::fs::read(candidate) {
+        let mut bytes = match std::fs::read(candidate) {
             Err(e) => {
                 tracing::warn!("Snapshot {:?} unreadable: {e}", candidate);
                 continue; // try next generation
             }
             Ok(b) => b,
         };
+
+        // Sealed snapshot? Open with the registered key, or fail closed when
+        // the key is absent (encrypted data without a key is NOT corruption
+        // and NOT a version issue — say exactly that).
+        if bytes.starts_with(crypto::SEAL_MAGIC) {
+            match key_for_file(candidate) {
+                Some(key) => match crypto::open_sealed(&key, &bytes) {
+                    Ok(inner) => bytes = inner,
+                    Err(e) => {
+                        tracing::error!("Snapshot {:?}: sealed but cannot open ({e})", candidate);
+                        continue; // try next generation
+                    }
+                },
+                None => {
+                    tracing::error!(
+                        "Snapshot {:?}: encrypted but no key registered (destroyed key?) — refusing to guess",
+                        candidate
+                    );
+                    continue; // try next generation
+                }
+            }
+        }
 
         // Try to parse the outer envelope first.
         let envelope = match bincode::deserialize::<SnapshotEnvelope>(&bytes) {

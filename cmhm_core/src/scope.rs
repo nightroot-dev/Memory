@@ -21,6 +21,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+use crate::{crypto::Keystore, persistence::register_scope_key};
+
 /// On-disk layout version. Bump when the directory/file scheme changes;
 /// `open()` refuses anything else so old and new code never misread a scope.
 pub const SCOPE_LAYOUT_VERSION: u32 = 1;
@@ -155,7 +157,7 @@ impl ScopeLayout {
         let meta = ScopeMeta {
             version: SCOPE_LAYOUT_VERSION,
             model_id: model_id.into(),
-            key_ref: String::new(),
+            key_ref: "file:key.bin".to_string(),
             epoch: 0,
             owner_host: hostname(),
             created_at: now_secs(),
@@ -169,7 +171,9 @@ impl ScopeLayout {
         use std::io::Write;
         f.write_all(text.as_bytes())?;
         f.sync_all()?;
-        Ok(Self { root, tenant, scope })
+        let layout = Self { root, tenant, scope };
+        layout.ensure_key()?;
+        Ok(layout)
     }
 
     /// Open an existing scope. Refuses version mismatch loudly (fail-closed).
@@ -192,7 +196,17 @@ impl ScopeLayout {
                 scope.as_str()
             );
         }
-        Ok(Self { root, tenant, scope })
+        let layout = Self { root, tenant, scope };
+        layout.ensure_key()?;
+        Ok(layout)
+    }
+
+    /// Ensure a data key exists for this scope and register it for this
+    /// process (so WAL/snapshot calls seal transparently). Idempotent.
+    pub fn ensure_key(&self) -> Result<()> {
+        let key = Keystore::load_or_create(&self.root)?;
+        register_scope_key(&self.root, key);
+        Ok(())
     }
 
     pub fn tenant(&self) -> &TenantId {
@@ -227,7 +241,9 @@ impl ScopeLayout {
             let meta = ScopeMeta {
                 version: SCOPE_LAYOUT_VERSION,
                 model_id: model_id.into(),
-                key_ref: String::new(),
+                // Key file reference. The key itself lives in key.bin next to
+                // meta.json; KMS URIs replace this value later.
+                key_ref: "file:key.bin".to_string(),
                 epoch: 0,
                 owner_host: hostname(),
                 created_at: now_secs(),
@@ -250,6 +266,7 @@ impl ScopeLayout {
                 SCOPE_LAYOUT_VERSION
             );
         }
+        layout.ensure_key()?;
         Ok(layout)
     }
 

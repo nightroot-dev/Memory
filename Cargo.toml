@@ -26,6 +26,8 @@ toml = "0.8"
 serde_json = "1"
 # OS-level file locking (scope writer locks, M1)
 fs2 = "0.4"
+# Authenticated encryption at rest (M3 storage seam)
+aes-gcm = "0.10"
 
 [workspace.package]
 version      = "0.2.0"
