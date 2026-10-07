@@ -7,7 +7,7 @@
 //! Thread-safety: wrapped in Arc<Mutex<ContextRuntime>> by the MCP server.
 
 use anyhow::Result;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::BufRead;
 
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
     engine::{self, EngineHandle, LearnResult},
     node::NodeType,
     retrieval::RetrievalResult,
+    scope::{ScopeId, ScopeLock, ScopeLayout, TenantId},
 };
 use super::{
     ContextId, ContextMeta, ContextType, ContextState, ContextDescriptor,
@@ -26,10 +27,21 @@ use super::{
 /// The name of the automatic default context.
 const DEFAULT_CTX_NAME: &str = "default";
 
+/// File holding the runtime's stable tenant ID (minted once, reused forever).
+const TENANT_ID_FILE: &str = "tenant.id";
+
 pub struct ContextRuntime {
     registry:         Registry,
     cache:            ContextCache,
     cfg:              Config,
+    /// Single-user tenant owning every context in this runtime. Stable across
+    /// restarts (minted once into `tenant.id`). Multi-tenant daemons mint one
+    /// per tenant instead.
+    tenant:           TenantId,
+    /// Exclusive writer-lock guard per loaded scope. A guard is acquired BEFORE
+    /// `engine::start` and held until evict/delete/shutdown — so a second
+    /// engine (same process, another process) can never open the same scope.
+    scope_locks:      HashMap<ContextId, ScopeLock>,
     /// UUID v4 generated at server startup. Constant for the life of the process.
     /// Written into every learn-archive and retrieve-log entry for cross-log joining.
     session_id:       String,
@@ -61,8 +73,9 @@ impl ContextRuntime {
         let max_active = cfg.max_active_contexts;
         let cache = ContextCache::new(max_active);
         let feedback_applied = load_feedback_ledger(&cfg.data_dir);
+        let tenant = load_or_mint_tenant(&cfg.data_dir)?;
 
-        let mut rt = Self { registry, cache, cfg, session_id, feedback_applied };
+        let mut rt = Self { registry, cache, cfg, tenant, scope_locks: HashMap::new(), session_id, feedback_applied };
 
         // Ensure the "default" context always exists for backward-compat
         if rt.registry.find_by_name(DEFAULT_CTX_NAME).is_none() {
@@ -83,7 +96,8 @@ impl ContextRuntime {
     /// Constant for the process lifetime — use to join entries across log files.
     pub fn session_id(&self) -> &str { &self.session_id }
 
-    /// Return the root data directory for this runtime.
+    /// Stable tenant owning this runtime. Minted once, persisted in `tenant.id`.
+    pub fn tenant_id(&self) -> &TenantId { &self.tenant }    /// Return the root data directory for this runtime.
     /// Used by the MCP layer to locate sidecar files (retrieve_log.jsonl, learn_log.jsonl, etc.).
     pub fn data_dir(&self) -> &std::path::Path {
         &self.cfg.data_dir
@@ -204,6 +218,9 @@ impl ContextRuntime {
 
         // Evict from cache (shuts down engine, takes snapshot)
         self.cache.remove(id);
+        // Release the scope lock BEFORE deleting the directory (Windows holds
+        // open file handles; deleting a locked dir fails).
+        self.scope_locks.remove(id);
 
         // Remove data directory
         let ctx_dir = self.cfg.data_dir.join("contexts").join(id.as_str());
@@ -559,6 +576,8 @@ impl ContextRuntime {
         }
         self.cache.checkpoint_all(&self.cfg.data_dir.clone());
         self.cache.shutdown_all();
+        // Release all scope locks last (engines already stopped above).
+        self.scope_locks.clear();
         let _ = self.registry.save();
     }
 
@@ -634,12 +653,31 @@ impl ContextRuntime {
             }
 
             let ctx_dir = self.cfg.data_dir.join("contexts").join(id.as_str());
+            // M1: adopt the context directory as a scope and take the exclusive
+            // writer lock BEFORE the engine opens its WAL. A second holder gets
+            // a loud error here and the engine never starts (fail-closed).
+            let scope_id = ScopeId::import(id.as_str()).map_err(|e| {
+                anyhow::anyhow!("context ID is not a valid scope ID ({id}): {e}")
+            })?;
+            let layout = ScopeLayout::adopt(
+                &ctx_dir,
+                self.tenant.clone(),
+                scope_id,
+                crate::embed::default_model_id(),
+            )?;
+            let guard = layout.acquire_lock().map_err(|e| {
+                tracing::error!("cannot load context {id}: {e}");
+                e
+            })?;
             let mut ctx_cfg = self.cfg.clone();
             ctx_cfg.data_dir = ctx_dir;
 
             let handle = match engine::start(ctx_cfg) {
                 Ok(h) => h,
                 Err(e) => {
+                    // Engine refused to start: release the lock so a retry (or an
+                    // operator fix) is not self-blocked. Guard drops here.
+                    drop(guard);
                     if needs_recovery {
                         if e.downcast_ref::<crate::engine::SchemaMismatchError>().is_some() {
                             // Schema mismatch (fail-closed): engine::start() left both the
@@ -666,7 +704,13 @@ impl ContextRuntime {
             };
 
             let evicted = self.cache.insert(id.clone(), handle);
+            if self.scope_locks.insert(id.clone(), guard).is_some() {
+                tracing::warn!("replaced live scope lock for {id} (reload path)");
+            }
             if let Some(evicted_id) = evicted {
+                // Evicted engine already snapshotted + stopped inside insert;
+                // now release its scope lock.
+                self.scope_locks.remove(&evicted_id);
                 let evicted_state = self.registry.get(&evicted_id)
                     .map(|m| m.state)
                     .unwrap_or(ContextState::Active);
@@ -703,6 +747,36 @@ impl ContextRuntime {
     }
 }
 
+
+// ── Tenant identity ──────────────────────────────────────────────────────────
+
+/// Load the runtime's stable tenant ID, minting `tenant.id` on first start.
+/// Corrupt/unparseable file → loud error (never silently fork an identity).
+fn load_or_mint_tenant(data_dir: &std::path::Path) -> Result<TenantId> {
+    let path = data_dir.join(TENANT_ID_FILE);
+    if path.exists() {
+        let text = std::fs::read_to_string(&path)?;
+        return TenantId::import(text.trim()).map_err(|e| {
+            anyhow::anyhow!("tenant.id corrupt ({}): {e} — refusing to fork identity", path.display())
+        });
+    }
+    let tenant = TenantId::generate();
+    // create_new: two racing first-starts — loser reads the winner's file.
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(mut f) => {
+            use std::io::Write;
+            f.write_all(tenant.as_str().as_bytes())?;
+            let _ = f.sync_all();
+            Ok(tenant)
+        }
+        Err(_) => {
+            let text = std::fs::read_to_string(&path)?;
+            TenantId::import(text.trim()).map_err(|e| {
+                anyhow::anyhow!("tenant.id unreadable after create race: {e}")
+            })
+        }
+    }
+}
 
 // ── Stats ────────────────────────────────────────────────────────────────────
 

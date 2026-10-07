@@ -53,6 +53,7 @@ pub mod scrub;
 pub mod embed;
 pub mod authority;
 pub mod migration;
+pub mod scope;
 
 // Re-export the most commonly used types at crate root
 pub use config::Config;
