@@ -234,9 +234,15 @@ pub fn retrieve(
             raw_candidates
         } else {
             // Fuse for pool membership. Each candidate keeps its REAL dense cosine (computed on
-            // demand for BM25-only hits instead of 0.0) plus a lexical boost for a decisive
-            // BM25 winner, then the pool is re-sorted by that score.
-            let boosts = crate::bm25::lexical_boost(&bm25_candidates, query_text);
+            // demand for BM25-only hits instead of 0.0) plus the identifier boost below, then
+            // the pool is re-sorted by that score.
+            // Identifier channel: boost wanted-type nodes that contain an explicit identifier from
+            // the query. NO injection: rrf_fuse truncates to the 20-cap first and the boost only
+            // reorders inside that pool, so pool membership and truncation are unchanged.
+            let boosts = bm25.identifier_boost(query_text, |id| match seed_type {
+                Some(t) => node_store.get(id).map(|n| n.node_type == t).unwrap_or(false),
+                None => true,
+            });
             let mut fused: Vec<(u64, f32)> = crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, 20)
                 .into_iter()
                 .map(|(id, _rrf_score)| {

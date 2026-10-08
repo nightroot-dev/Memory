@@ -321,50 +321,73 @@ pub fn rrf_fuse(
     fused
 }
 
-/// Max additive bonus (on the cosine scale) a decisive lexical winner can receive.
+/// Max additive bonus (cosine scale) for a node that contains an explicit identifier from
+/// the query. Split evenly when a few nodes of the wanted type contain the same identifier.
 pub const LEX_BOOST_MAX: f32 = 0.7;
-/// Tiny tie-breaker boost for plain natural-language queries (no identifier-like token).
-pub const LEX_BOOST_NATURAL: f32 = 0.05;
-/// BM25 top score at/above which lexical evidence counts as fully strong.
-const LEX_STRONG_SCORE: f32 = 3.0;
+/// An identifier present in more wanted-type nodes than this is not specific enough to boost.
+const IDENT_MAX_DOCS: usize = 3;
 
-/// True if the raw query contains an identifier-like token: length >= 4 and containing a
-/// digit, an underscore, or an interior uppercase letter (camelCase / PascalCase / mixed).
+/// Identifier-like raw token: length >= 4 and containing a digit, an underscore, or an
+/// interior uppercase letter (camelCase / PascalCase / mixed). IDs, error codes, symbols.
+fn is_identifier_like(tok: &str) -> bool {
+    tok.chars().count() >= 4
+        && (tok.chars().any(|c| c.is_ascii_digit() || c == '_')
+            || tok.chars().skip(1).any(|c| c.is_uppercase()))
+}
+
+/// True if the raw query contains at least one identifier-like token.
 pub fn has_identifier_token(text: &str) -> bool {
-    text.split(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .any(|tok| {
-            tok.chars().count() >= 4
-                && (tok.chars().any(|c| c.is_ascii_digit() || c == '_')
-                    || tok.chars().skip(1).any(|c| c.is_uppercase()))
-        })
+    text.split(|c: char| !(c.is_alphanumeric() || c == '_')).any(is_identifier_like)
 }
 
-/// Turn a BM25 ranking into an additive boost on the dense-cosine scale.
-///
-/// RRF alone only decides pool *membership*; the final seed is chosen by cosine, so a
-/// lone exact lexical hit (e.g. a rare ID) was being thrown away. Only the top hit is
-/// boosted, scaled by (a) its margin over the runner-up and (b) absolute BM25 strength.
-/// Ties and weak/common-word matches therefore yield ~0 boost and stay dense-driven.
-pub fn lexical_boost(bm25_ranked: &[(u64, f32)], query_text: &str) -> HashMap<u64, f32> {
-    let mut out = HashMap::new();
-    let Some(&(top_id, top)) = bm25_ranked.first() else { return out; };
-    if top <= 0.0 {
-        return out;
+impl Bm25Index {
+    /// Node ids whose indexed text contains `term` (a term already in index form).
+    fn posting_ids(&self, term: &str) -> Vec<u64> {
+        self.index
+            .get(term)
+            .map(|l| l.postings.iter().map(|&(id, _)| id).collect())
+            .unwrap_or_default()
     }
-    let second = bm25_ranked.get(1).map(|&(_, s)| s).unwrap_or(0.0);
-    let margin = ((top - second) / top).clamp(0.0, 1.0);
-    let strength = (top / LEX_STRONG_SCORE).min(1.0);
-    // Identifier-like queries (IDs, snake_case, camelCase, digits) are exactly what dense
-    // embeddings miss, so lexical evidence is trusted. For plain natural language the
-    // embedder already handles overlap and an accidental shared word must not override it.
-    let max = if has_identifier_token(query_text) { LEX_BOOST_MAX } else { LEX_BOOST_NATURAL };
-    let boost = max * margin * strength;
-    if boost > 0.0 {
-        out.insert(top_id, boost);
-    }
-    out
-}
 
+    /// Identifier evidence channel. For every identifier-like token in the query, find the
+    /// nodes whose text contains it (exact term, via the SAME tokenizer the index was built
+    /// with) and that satisfy `is_wanted` (the requested node type). If only a few qualify
+    /// (<= IDENT_MAX_DOCS) each gets `LEX_BOOST_MAX / count`. Independent of BM25's overall
+    /// ranking, so ordinary query words can never outvote an explicit identifier, and
+    /// action/outcome nodes repeating the identifier cannot dilute the state node.
+    pub fn identifier_boost(&self, query_text: &str, is_wanted: impl Fn(u64) -> bool) -> HashMap<u64, f32> {
+        let mut out: HashMap<u64, f32> = HashMap::new();
+        for raw in query_text.split(|c: char| !(c.is_alphanumeric() || c == '_')) {
+            if !is_identifier_like(raw) {
+                continue;
+            }
+            let terms = tokenize(raw);
+            if terms.is_empty() {
+                continue;
+            }
+            let mut ids: Option<Vec<u64>> = None;
+            for t in &terms {
+                let p = self.posting_ids(t);
+                ids = Some(match ids {
+                    None => p,
+                    Some(prev) => prev.into_iter().filter(|id| p.contains(id)).collect(),
+                });
+            }
+            let wanted: Vec<u64> = ids.unwrap_or_default().into_iter().filter(|&id| is_wanted(id)).collect();
+            if wanted.is_empty() || wanted.len() > IDENT_MAX_DOCS {
+                continue;
+            }
+            let b = LEX_BOOST_MAX / wanted.len() as f32;
+            for id in wanted {
+                let e = out.entry(id).or_insert(0.0);
+                if b > *e {
+                    *e = b;
+                }
+            }
+        }
+        out
+    }
+}
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -557,14 +580,50 @@ mod tests {
         assert!(!has_identifier_token("CI fails without real cause"));
     }
 
+    fn idx(docs: &[(u64, &str)]) -> Bm25Index {
+        let mut b = Bm25Index::new();
+        for (id, t) in docs {
+            b.insert(*id, t);
+        }
+        b
+    }
+
     #[test]
-    fn lexical_boost_only_for_decisive_identifier_hits() {
-        let lone = vec![(7u64, 4.0f32)];
-        let tie = vec![(1u64, 4.0f32), (2u64, 4.0f32)];
-        assert!(lexical_boost(&lone, "what caused zqxrare0007")[&7] > 0.5);
-        assert!(lexical_boost(&tie, "what caused zqxrare0007").is_empty());
-        assert!(lexical_boost(&lone, "users see outdated assets")[&7] < 0.1);
-        assert!(lexical_boost(&[], "anything").is_empty());
+    fn identifier_boost_goes_to_node_containing_token_not_bm25_top() {
+        // Doc 2 matches the ordinary query word; doc 1 holds the identifier. Only doc 1 is boosted.
+        let b = idx(&[(1, "l1rare042 firmware halted"), (2, "health check too strict caused flapping")]);
+        let boost = b.identifier_boost("what caused l1rare042", |_| true);
+        assert_eq!(boost.len(), 1);
+        assert!(boost[&1] > 0.5, "node containing the identifier is boosted");
+        assert!(!boost.contains_key(&2), "a node matching only ordinary words is not boosted");
+    }
+
+    #[test]
+    fn identifier_boost_uses_index_tokenizer() {
+        // Mixed case, underscores and punctuation: query and index spell the identifier differently.
+        let b = idx(&[(1, "Error_Code_E1042 raised by ContextRuntime::open"), (2, "unrelated note")]);
+        for q in ["ERROR_CODE_e1042", "why ContextRuntime fails", "error_code_e1042?"] {
+            let boost = b.identifier_boost(q, |_| true);
+            assert!(boost.contains_key(&1), "query {q:?} must hit node 1 via the shared tokenizer");
+        }
+    }
+
+    #[test]
+    fn identifier_boost_respects_wanted_type_and_specificity() {
+        let b = idx(&[(1, "l1rare7 state text"), (2, "traced l1rare7 action"), (3, "l1rare7 outcome")]);
+        // Only node 1 is the requested type: it alone is boosted, at full strength.
+        let boost = b.identifier_boost("l1rare7", |id| id == 1);
+        assert_eq!(boost.len(), 1);
+        assert!((boost[&1] - LEX_BOOST_MAX).abs() < 1e-6);
+        // Three wanted nodes share the boost evenly.
+        let all = b.identifier_boost("l1rare7", |_| true);
+        assert_eq!(all.len(), 3);
+        assert!(all.values().all(|&v| (v - LEX_BOOST_MAX / 3.0).abs() < 1e-6));
+        // Too many wanted nodes: not specific, so no boost.
+        let b4 = idx(&[(1, "l1rare7 a"), (2, "l1rare7 b"), (3, "l1rare7 c"), (4, "l1rare7 d")]);
+        assert!(b4.identifier_boost("l1rare7", |_| true).is_empty());
+        // Plain natural language: no identifier token, no boost.
+        assert!(b.identifier_boost("users see outdated assets", |_| true).is_empty());
     }
 
     #[test]
