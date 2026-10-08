@@ -12,6 +12,7 @@
 
 #![allow(unused_imports, dead_code, unused_variables, unused_mut)] // L-07: test scaffolding
 use cmhm_core::{Config, ContextRuntime, ContextType, NodeType, ConflictType, CallerRole, SupersessionError};
+use cmhm_core::crypto::{self, Keystore};
 
 
 
@@ -634,13 +635,20 @@ fn e7_v2_snapshot_quarantine_wal_recovery() {
     let snap_path = ctx_dir.join("snapshot.bin");
     let snapshot_was_found = snap_path.exists();
     if snapshot_was_found {
-        // Bincode-serialized SnapshotEnvelope: bytes 0..4 = version (u32 LE).
-        // Overwrite with 2 to simulate a v2 snapshot.
+        // Fabricate a validly-sealed snapshot whose inner envelope claims
+        // version 2. The read path unwraps the seal, sees envelope.version=2
+        // vs SNAPSHOT_VERSION=3, and must quarantine as v2 — NOT the
+        // pre-envelope "found=1" fallback (stomping bytes[0..4] on a sealed
+        // file hits that path and mislabels the quarantine).
         let bytes = std::fs::read(&snap_path).unwrap();
-        if bytes.len() >= 4 {
-            let mut corrupted = bytes;
-            corrupted[0..4].copy_from_slice(&2u32.to_le_bytes());
-            std::fs::write(&snap_path, &corrupted).unwrap();
+        if bytes.starts_with(crypto::SEAL_MAGIC) {
+            let key = Keystore::load_or_create(&ctx_dir).unwrap();
+            let payload = b"fake-v2-payload".to_vec();
+            let mut envelope_bytes = 2u32.to_le_bytes().to_vec();
+            envelope_bytes.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+            envelope_bytes.extend_from_slice(&payload);
+            let sealed = crypto::seal(&key, &envelope_bytes);
+            std::fs::write(&snap_path, &sealed).unwrap();
         }
     }
 
