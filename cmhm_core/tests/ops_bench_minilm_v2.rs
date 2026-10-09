@@ -158,7 +158,8 @@ fn ops_bench_minilm_v2() {
         let d = handle.retrieve(q_nat[i].clone(), MODEL, NodeType::State, "").unwrap();
         let f = handle.retrieve(q_nat[i].clone(), MODEL, NodeType::State, &p.query).unwrap();
         for (r, a) in [(&d, wd.entry(k.clone()).or_default()), (&f, wf.entry(k.clone()).or_default())] {
-            let chain_ok = r.causal_chain.iter().any(|s| s.from_node == t_out[i] || s.to_node == t_out[i]);
+            // A hop must ARRIVE at the outcome (>= 1 edge); starting at it (seed == outcome) is a seed miss.
+            let chain_ok = r.causal_chain.iter().any(|s| s.to_node == t_out[i]);
             a.add(
                 r.seed_id == Some(t_state[i]),
                 r.post_filter_candidates.iter().position(|&id| id == t_state[i]),

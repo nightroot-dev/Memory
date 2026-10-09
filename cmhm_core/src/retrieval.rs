@@ -229,7 +229,22 @@ pub fn retrieve(
     let raw_candidates = if query_text.is_empty() {
         raw_candidates
     } else {
-        let bm25_candidates = bm25.query(query_text, 50);
+        // Type is pool MEMBERSHIP, not ranking: the dense arm is already type-scoped
+        // (nearest_by_type), so the BM25 arm must be too, otherwise a lexically matching
+        // Action/Outcome node enters the pool and can be returned as the seed of a State
+        // request. Over-fetch because the index holds state, action and outcome texts and the
+        // filter drops the other types; the list handed to fusion is still capped at 50.
+        let bm25_candidates: Vec<(u64, f32)> = {
+            let all = bm25.query(query_text, 150);
+            match seed_type {
+                Some(t) => all
+                    .into_iter()
+                    .filter(|(id, _)| node_store.get(*id).map(|n| n.node_type == t).unwrap_or(false))
+                    .take(50)
+                    .collect(),
+                None => all.into_iter().take(50).collect(),
+            }
+        };
         if bm25_candidates.is_empty() {
             raw_candidates
         } else {

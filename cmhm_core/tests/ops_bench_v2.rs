@@ -87,7 +87,10 @@ impl Agg {
 }
 
 fn chain_reaches_outcome(chain: &[cmhm_core::retrieval::ChainStep], outcome_id: u64) -> bool {
-    chain.iter().any(|s| s.from_node == outcome_id || s.to_node == outcome_id)
+    // A hop must ARRIVE at the outcome (>= 1 edge). A chain that merely starts at the outcome
+    // node (seed == outcome) is a seed miss, not a chain hit: counting from_node made a
+    // zero-hop "chain" succeed and inflated the pre-fix chain accuracy (0.38 -> 0.12 honest).
+    chain.iter().any(|s| s.to_node == outcome_id)
 }
 
 #[test]
