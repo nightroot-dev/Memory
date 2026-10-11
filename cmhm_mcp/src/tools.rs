@@ -550,6 +550,81 @@ const KNOWN_PROVENANCE_CLASSES: &[&str] = &[
     "", "inferred", "external_feed", "user_explicit", "corrected", "contradicted",
 ];
 
+/// B1: render resolved node text for the human-readable block. Shares the
+/// core's cap and marker so the two halves never disagree. The structured
+/// JSON carries the full string (lossless).
+fn render_node_text(t: &Option<cmhm_core::retrieval::ChainNodeText>) -> String {
+    match t {
+        None => "[missing from store]".to_string(),
+        Some(n) if n.text.is_empty() => "no text stored".to_string(),
+        Some(n) => {
+            let count = n.text.chars().count();
+            if count > cmhm_core::retrieval::TEXT_RENDER_CAP {
+                let cut: String = n.text.chars().take(cmhm_core::retrieval::TEXT_RENDER_CAP).collect();
+                format!("{cut}…[+{} chars]", count - cmhm_core::retrieval::TEXT_RENDER_CAP)
+            } else {
+                n.text.clone()
+            }
+        }
+    }
+}
+
+/// B1: render one chain step WITH its stored text (replaces the pre-B1
+/// "Node X → Node Y" stub).
+fn render_chain_step(i: usize, step: &cmhm_core::retrieval::ChainStep) -> String {
+    let ts = |t: &Option<cmhm_core::retrieval::ChainNodeText>| t.as_ref().map(|n| n.timestamp).unwrap_or(0);
+    format!(
+        "{}. Node {} \"{}\" (learned {}) → Node {} \"{}\" (learned {}) | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
+        i + 1,
+        step.from_node, render_node_text(&step.from_text), ts(&step.from_text),
+        step.to_node, render_node_text(&step.to_text), ts(&step.to_text),
+        step.mean_weight * 100.0, step.evidence,
+        if step.is_intervention { " [agent intervention]" } else { "" },
+        if step.is_curious { " [uncertain]" } else { "" },
+    )
+}
+
+/// B1: the JSON chain array — text and timestamps per endpoint, lossless.
+fn chain_json(result: &cmhm_core::RetrievalResult) -> Vec<serde_json::Value> {
+    result.causal_chain.iter().map(|s| {
+        let text_of = |t: &Option<cmhm_core::retrieval::ChainNodeText>| -> serde_json::Value {
+            match t {
+                None => serde_json::Value::Null,
+                Some(n) => serde_json::Value::String(n.text.clone()),
+            }
+        };
+        let ts_of = |t: &Option<cmhm_core::retrieval::ChainNodeText>| -> serde_json::Value {
+            match t {
+                None => serde_json::Value::Null,
+                Some(n) => serde_json::json!(n.timestamp),
+            }
+        };
+        serde_json::json!({
+            "from_node":       s.from_node,
+            "from_text":       text_of(&s.from_text),
+            "from_timestamp":  ts_of(&s.from_text),
+            "to_node":         s.to_node,
+            "to_text":         text_of(&s.to_text),
+            "to_timestamp":   ts_of(&s.to_text),
+            "mean_weight":     s.mean_weight,
+            "evidence":        s.evidence,
+            "is_intervention": s.is_intervention,
+            "is_curious":      s.is_curious,
+        })
+    }).collect()
+}
+
+/// B1: (seed_text, seed_timestamp) JSON pair — null when no seed is returned.
+fn seed_text_json(result: &cmhm_core::RetrievalResult) -> (serde_json::Value, serde_json::Value) {
+    match &result.seed_text {
+        None => (serde_json::Value::Null, serde_json::Value::Null),
+        Some(n) => (
+            serde_json::Value::String(n.text.clone()),
+            serde_json::json!(n.timestamp),
+        ),
+    }
+}
+
 /// Convert a `ConflictType` to its machine-readable string representation.
 fn conflict_type_label(ct: &cmhm_core::ConflictType) -> &'static str {
     match ct {
@@ -634,17 +709,21 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             }
 
             if result.causal_chain.is_empty() {
-                text.push_str("No relevant causal history found yet.\n");
+                // B1: with no path, the seed's text is still the answer's
+                // substance - render it explicitly instead of a bare stub.
+                if result.seed_text.is_none() {
+                    text.push_str("No relevant causal history found yet.\n");
+                } else {
+                    text.push_str(&format!(
+                        "**Seed memory**: \"{}\" (learned {}).\n",
+                        render_node_text(&result.seed_text),
+                        result.seed_text.as_ref().map(|n| n.timestamp).unwrap_or(0)
+                    ));
+                }
             } else {
                 text.push_str("### Chain Details\n");
                 for (i, step) in result.causal_chain.iter().enumerate() {
-                    text.push_str(&format!(
-                        "{}. Node {} â†’ Node {} | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
-                        i + 1, step.from_node, step.to_node,
-                        step.mean_weight * 100.0, step.evidence,
-                        if step.is_intervention { " [agent intervention]" } else { "" },
-                        if step.is_curious { " âš  uncertain" } else { "" },
-                    ));
+                    text.push_str(&render_chain_step(i, step));
                 }
                 text.push_str(&format!(
                     "\n_Dense context vector available ({} dims)_",
@@ -655,9 +734,12 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
 
             // Machine-readable JSON block (content[1]) â€” structured fields for tests and agents.
+            let (seed_text_v, seed_ts_v) = seed_text_json(&result);
             let structured = json!({
                 "retrieve_id":       retrieve_id,
                 "seed_id":           result.seed_id,
+                "seed_text":         seed_text_v,
+                "seed_timestamp":    seed_ts_v,
                 "seed_authority":    result.seed_authority,
                 "seed_provenance":   result.seed_provenance,
                 "conflict_detected": result.conflict_detected,
@@ -670,6 +752,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     "conflict_type": conflict_type_label(&c.conflict_type),
                 })).collect::<Vec<_>>(),
                 "causal_chain_len":  result.causal_chain.len(),
+                "causal_chain":      chain_json(&result),
                 "raw_nn_candidates":      result.raw_nn_candidates,
                 "post_filter_candidates": result.post_filter_candidates,
                 "scored_candidates":      result.scored_candidates.iter().map(|(id, score)| json!({
@@ -1093,26 +1176,33 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
             }
 
             if result.causal_chain.is_empty() {
-                text.push_str("No relevant causal history found yet.\n");
+                // B1: with no path, the seed's text is still the answer's
+                // substance - render it explicitly instead of a bare stub.
+                if result.seed_text.is_none() {
+                    text.push_str("No relevant causal history found yet.\n");
+                } else {
+                    text.push_str(&format!(
+                        "**Seed memory**: \"{}\" (learned {}).\n",
+                        render_node_text(&result.seed_text),
+                        result.seed_text.as_ref().map(|n| n.timestamp).unwrap_or(0)
+                    ));
+                }
             } else {
                 text.push_str("### Chain Details\n");
                 for (i, step) in result.causal_chain.iter().enumerate() {
-                    text.push_str(&format!(
-                        "{}. Node {} â†’ Node {} | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
-                        i + 1, step.from_node, step.to_node,
-                        step.mean_weight * 100.0, step.evidence,
-                        if step.is_intervention { " [agent intervention]" } else { "" },
-                        if step.is_curious { " âš  uncertain" } else { "" },
-                    ));
+                    text.push_str(&render_chain_step(i, step));
                 }
             }
             // retrieve_id: copy into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
 
             // Machine-readable JSON block (content[1])
+            let (seed_text_v, seed_ts_v) = seed_text_json(&result);
             let structured = json!({
                 "retrieve_id":       retrieve_id,
                 "seed_id":           result.seed_id,
+                "seed_text":         seed_text_v,
+                "seed_timestamp":    seed_ts_v,
                 "seed_authority":    result.seed_authority,
                 "seed_provenance":   result.seed_provenance,
                 "conflict_detected": result.conflict_detected,
@@ -1125,6 +1215,7 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                     "conflict_type": conflict_type_label(&c.conflict_type),
                 })).collect::<Vec<_>>(),
                 "causal_chain_len":  result.causal_chain.len(),
+                "causal_chain":      chain_json(&result),
                 "raw_nn_candidates":      result.raw_nn_candidates,
                 "post_filter_candidates": result.post_filter_candidates,
                 "scored_candidates":      result.scored_candidates.iter().map(|(id, score)| json!({

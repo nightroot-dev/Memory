@@ -408,3 +408,200 @@ fn test_stale_state_does_not_override_authoritative() {
     );
 }
 
+
+// ════════════════════════════════════════════════════════════════════════
+// B1 — Stored text must come back verbatim (design note approved 2026-10-11)
+//
+// Property: a retrieval reproduces the text that was learned — in the
+// explanation string AND in structured ChainStep fields. Node IDs alone are
+// not memory. Verified defect: format_explanation discarded the node store
+// and emitted "Node(1) -> Node(2) (confidence, evidence)".
+//
+// PRESERVATION RULE applies to every test below: if one fails, fix the
+// production code, not the assertion.
+// ════════════════════════════════════════════════════════════════════════
+
+const B1_TEXT_CAP: usize = 120;
+
+/// The full contract: every learned string must be retrievable verbatim from
+/// the explanation AND from the structured chain fields, with timestamps.
+#[test]
+fn b1_stored_text_returned_verbatim_in_explanation_and_chain_fields() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cfg = test_config(dir.path().to_path_buf());
+    let handle = start(cfg).expect("engine start");
+
+    let state_text   = "LISTENING_PORT was set to 8443";
+    let action_text  = "restarted the reverse proxy service";
+    let outcome_text = "health check returned 200 OK";
+
+    handle
+        .learn_with_text_context(
+            // Related embeddings (cosine > 0.35 between episode nodes) — edge
+            // birth requires similarity above threshold (engine.rs:1576), and a
+            // single learn only chains when State/Action/Outcome are related.
+            unit_vec(10),
+            sparse_unit_vec(&[(10, 0.7), (11, 0.7)]),
+            sparse_unit_vec(&[(10, 0.7), (12, 0.7)]),
+            0.5, 0.5, "hash-128d",
+            0.9, "user_explicit".to_string(), None,
+            cmhm_core::authority::CallerRole::User, None, None,
+            Some((
+                state_text.to_string(),
+                action_text.to_string(),
+                outcome_text.to_string(),
+            )),
+        )
+        .expect("learn with text failed");
+
+    let result = handle
+        .retrieve(unit_vec(10), "hash-128d", NodeType::State, "")
+        .expect("retrieve failed");
+
+    // ── 1. Explanation: the seed text renders verbatim (proves a non-empty
+    //       chain whose head is the seed, rendered with text, not a stub) ──
+    assert!(
+        result.explanation.contains(state_text),
+        "explanation must contain the seed text verbatim; got: {}",
+        result.explanation
+    );
+    // The old stub format must be gone: a bare "Node(<id>)" with no text.
+    assert!(
+        !result.explanation.contains("Node(") || result.explanation.contains(state_text),
+        "explanation still renders the pre-B1 node-id stub: {}",
+        result.explanation
+    );
+
+    // ── 2. Structured fields: every text on the retrieved path round-trips
+    //       verbatim in BOTH halves, with timestamps, and nothing is
+    //       fabricated. The path itself (which terminal the Thompson-sampled
+    //       Dijkstra picks) is engine topology — not this contract. ─────────
+    assert!(
+        !result.causal_chain.is_empty(),
+        "a single learned triple with related embeddings must produce a non-empty chain"
+    );
+    for (i, step) in result.causal_chain.iter().enumerate() {
+        for (label, resolved) in [("from", &step.from_text), ("to", &step.to_text)] {
+            let t = resolved
+                .as_ref()
+                .unwrap_or_else(|| panic!("chain step {i}: {label}_text must be resolved"));
+            assert!(t.timestamp > 0,
+                "chain step {i} {label}: timestamp must be resolved (unix secs > 0)");
+            assert!(!t.text.is_empty(),
+                "chain step {i} {label}: text-path learn must not resolve to empty text");
+            assert!(
+                [state_text, action_text, outcome_text].contains(&t.text.as_str()),
+                "chain step {i} {label}: text {:?} is not any learned string — fabrication",
+                t.text
+            );
+            assert!(
+                result.explanation.contains(&t.text),
+                "chain step {i} {label}: text {:?} must render verbatim in the explanation; got: {}",
+                t.text, result.explanation
+            );
+        }
+    }
+
+    // ── 3. Seed carries its text too, losslessly ─────────────────────────
+    let seed_text = result
+        .seed_text
+        .as_ref()
+        .expect("seed_text must be resolved when a seed is returned");
+    assert_eq!(seed_text.text, state_text, "seed_text must be the seed node's text");
+    assert!(seed_text.timestamp > 0, "seed_text must carry a timestamp");
+}
+
+/// A vector-path learn stores no text. That must be EXPLICIT — the marker
+/// "no text stored" renders, and the structured field resolves as
+/// present-but-empty. Never silently dropped.
+#[test]
+fn b1_vector_learn_without_text_is_marked_explicitly() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cfg = test_config(dir.path().to_path_buf());
+    let handle = start(cfg).expect("engine start");
+
+    handle
+        .learn(
+            unit_vec(10),
+            sparse_unit_vec(&[(10, 0.7), (11, 0.7)]),
+            sparse_unit_vec(&[(10, 0.7), (12, 0.7)]),
+            0.5, 0.5, "hash-128d",
+            0.9, "user_explicit".to_string(), None,
+        )
+        .expect("vector learn failed");
+
+    let result = handle
+        .retrieve(unit_vec(10), "hash-128d", NodeType::State, "")
+        .expect("retrieve failed");
+
+    assert!(
+        result.explanation.contains("no text stored"),
+        "vector-only learn must render the explicit marker; got: {}",
+        result.explanation
+    );
+    for (i, step) in result.causal_chain.iter().enumerate() {
+        let from = step.from_text.as_ref()
+            .unwrap_or_else(|| panic!("step {i}: from_text must resolve even for textless nodes"));
+        let to = step.to_text.as_ref()
+            .unwrap_or_else(|| panic!("step {i}: to_text must resolve even for textless nodes"));
+        assert!(from.text.is_empty() && to.text.is_empty(),
+            "step {i}: textless nodes must resolve to empty text, not fabricated content");
+        assert!(from.timestamp > 0 && to.timestamp > 0,
+            "step {i}: timestamps exist even when text does not");
+    }
+}
+
+/// Long text: the explanation truncates at the cap with a VISIBLE marker;
+/// the structured field keeps the full string. Information loss must never
+/// be silent.
+#[test]
+fn b1_long_text_truncates_visibly_in_explanation_full_in_field() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cfg = test_config(dir.path().to_path_buf());
+    let handle = start(cfg).expect("engine start");
+
+    let long_text = "PORT_CONFIGURATION_AUDIT ".repeat(20); // 420 chars
+    assert!(long_text.len() > B1_TEXT_CAP);
+
+    handle
+        .learn_with_text_context(
+            unit_vec(10),
+            sparse_unit_vec(&[(10, 0.7), (11, 0.7)]),
+            sparse_unit_vec(&[(10, 0.7), (12, 0.7)]),
+            0.5, 0.5, "hash-128d",
+            0.9, "user_explicit".to_string(), None,
+            cmhm_core::authority::CallerRole::User, None, None,
+            Some((long_text.clone(), "short action".to_string(), "short outcome".to_string())),
+        )
+        .expect("learn with long text failed");
+
+    let result = handle
+        .retrieve(unit_vec(10), "hash-128d", NodeType::State, "")
+        .expect("retrieve failed");
+
+    // The cap-length prefix appears verbatim...
+    assert!(
+        result.explanation.contains(&long_text[..B1_TEXT_CAP]),
+        "explanation must contain the first {B1_TEXT_CAP} chars verbatim; got: {}",
+        result.explanation
+    );
+    // ...truncation is marked, not silent...
+    assert!(
+        result.explanation.contains("…[+"),
+        "explanation must carry the visible truncation marker; got: {}",
+        result.explanation
+    );
+    // ...the full tail is NOT in the explanation...
+    assert!(
+        !result.explanation.contains(&long_text[B1_TEXT_CAP..]),
+        "explanation must not silently contain the full untruncated text"
+    );
+    // ...and the structured field is lossless.
+    let seed_text = result.seed_text.as_ref().expect("seed_text must be resolved");
+    assert_eq!(seed_text.text, long_text, "structured field must be lossless");
+    let carries_full = result.causal_chain.iter().any(|s| {
+        s.from_text.as_ref().map_or(false, |t| t.text == long_text)
+            || s.to_text.as_ref().map_or(false, |t| t.text == long_text)
+    });
+    assert!(carries_full, "chain fields must carry the full long text losslessly");
+}

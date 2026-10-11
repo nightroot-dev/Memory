@@ -22,7 +22,30 @@ pub struct ChainStep {
     pub is_intervention: bool,
     /// Is this edge highly uncertain? (flags for optional exploration)
     pub is_curious: bool,
+    /// Resolved text of the from_node at chain-assembly time.
+    /// `None` = node missing from the store (defensive). `Some` with empty
+    /// `text` = the node stores no raw text (vector-path learn) — rendered
+    /// explicitly as "no text stored", never dropped silently.
+    pub from_text: Option<ChainNodeText>,
+    /// Resolved text of the to_node. Same semantics as `from_text`.
+    pub to_text: Option<ChainNodeText>,
 }
+
+/// Resolved human-readable text for one node, snapshotted at retrieval time.
+///
+/// B1: retrieval must reproduce what was learned. `text` is the node's stored
+/// raw text (what BM25 indexes); `timestamp` is the node's creation time in
+/// unix seconds.
+#[derive(Debug, Clone)]
+pub struct ChainNodeText {
+    pub text: String,
+    pub timestamp: i64,
+}
+
+/// Maximum characters of node text rendered in the human-readable
+/// explanation. Longer text is cut with a visible `…[+N chars]` marker; the
+/// structured fields always carry the full string (lossless machine half).
+pub const TEXT_RENDER_CAP: usize = 120;
 
 /// Pre-declared authority-margin threshold for trust-compromised runner-up abstention.
 /// Derived from composite scoring mathematics under hash-128d in Protocol v1.9 Section 14.5.
@@ -78,6 +101,8 @@ pub struct RetrievalResult {
     /// Node ID selected as the causal-chain seed (None if store was empty).
     /// Observability field for integration tests and diagnostics.
     pub seed_id: Option<u64>,
+    /// Resolved text of the seed node (B1). None when no seed is returned.
+    pub seed_text: Option<ChainNodeText>,
     /// NodeType of the seed node (None if store was empty).
     /// Allows tests to verify role-scoping invariants without inspecting the engine's
     /// internal node store through a separate round-trip.
@@ -202,6 +227,7 @@ pub fn retrieve(
                 dense_context:        dense_ctx,
                 explanation:          $explanation.to_string(),
                 seed_id:              None,
+                seed_text:            None,
                 seed_node_type:       None,
                 seed_authority:       0.5,
                 seed_provenance:      String::new(),
@@ -305,6 +331,7 @@ pub fn retrieve(
             dense_context:        dense_ctx,
             explanation:          "All candidate nodes are superseded. No active seed available.".to_string(),
             seed_id:              None,
+            seed_text:            None,
             seed_node_type:       None,
             seed_authority:       0.5,
             seed_provenance:      String::new(),
@@ -522,6 +549,7 @@ pub fn retrieve(
             explanation:         "Abstained: no eligible memory remains after excluding contradicted candidates."
                 .to_string(),
             seed_id:             None,
+            seed_text:           None,
             seed_node_type:      None,
             seed_authority:      0.0,
             seed_provenance:     String::new(),
@@ -540,6 +568,11 @@ pub fn retrieve(
     let seed_node_type = seed_node.map(|n| n.node_type);
     let seed_authority = seed_node.map(|n| n.authority).unwrap_or(0.5);
     let seed_provenance = seed_node.map(|n| n.provenance.clone()).unwrap_or_default();
+    // B1: resolved seed text, snapshotted from the store at selection time.
+    let seed_text = seed_node.map(|n| ChainNodeText {
+        text: n.text.clone(),
+        timestamp: n.timestamp,
+    });
 
     // Step 2f: Abstain if conflict detected and abstain_on_conflict is set.
     if conflict_detected && abstain_on_conflict && detect_abstain {
@@ -549,6 +582,7 @@ pub fn retrieve(
             explanation:         "Abstained: conflicting memories detected; retrieval refused."
                 .to_string(),
             seed_id:             Some(seed_id),
+            seed_text,
             seed_node_type,
             seed_authority,
             seed_provenance,
@@ -618,6 +652,12 @@ pub fn retrieve(
     }
 
     // Step 4: Assemble result
+    let resolve_text = |id: u64| -> Option<ChainNodeText> {
+        node_store.get(id).map(|n| ChainNodeText {
+            text: n.text.clone(),
+            timestamp: n.timestamp,
+        })
+    };
     let chain_steps = if let Some(terminal) = best_terminal {
         terminal.path.iter().filter_map(|(src, tgt)| {
             edge_store.get(*src, *tgt).map(|edge| {
@@ -629,6 +669,8 @@ pub fn retrieve(
                     variance: edge.variance(),
                     is_intervention: edge.is_intervention,
                     is_curious: edge.variance() > curiosity_threshold,
+                    from_text: resolve_text(*src),
+                    to_text: resolve_text(*tgt),
                 }
             })
         }).collect()
@@ -643,6 +685,7 @@ pub fn retrieve(
         dense_context: dense_ctx,
         explanation,
         seed_id: Some(seed_id),
+        seed_text,
         seed_node_type,
         seed_authority,
         seed_provenance,
@@ -660,16 +703,40 @@ fn format_explanation(chain: &[ChainStep], _node_store: &NodeStore) -> String {
     if chain.is_empty() {
         return "No causal path found from seed.".to_string();
     }
+    let render = |node_id: u64, text: &Option<ChainNodeText>| -> String {
+        match text {
+            None => format!("Node({node_id}) [missing from store]"),
+            Some(t) if t.text.is_empty() => {
+                format!("Node({node_id}) \"no text stored\" (learned {})", t.timestamp)
+            }
+            Some(t) => {
+                let shown = if t.text.chars().count() > TEXT_RENDER_CAP {
+                    let cut: String = t.text.chars().take(TEXT_RENDER_CAP).collect();
+                    let omitted = t.text.chars().count() - TEXT_RENDER_CAP;
+                    format!("{cut}…[+{omitted} chars]")
+                } else {
+                    t.text.clone()
+                };
+                format!("Node({node_id}) \"{shown}\" (learned {})", t.timestamp)
+            }
+        }
+    };
     let mut parts = Vec::new();
-    for step in chain {
+    for (i, step) in chain.iter().enumerate() {
         let confidence_pct = (step.mean_weight * 100.0) as u32;
         let causal_marker = if step.is_intervention { " [intervention]" } else { "" };
         let curious_marker = if step.is_curious { " [uncertain]" } else { "" };
+        // The from_node of step i>0 is the to_node of step i-1 — render it once.
+        let head = if i == 0 {
+            format!("{} ", render(step.from_node, &step.from_text))
+        } else {
+            String::new()
+        };
         parts.push(format!(
-            "Node({}) →{}{} Node({}) (confidence: {}%, evidence: {:.1})",
-            step.from_node, causal_marker, curious_marker,
-            step.to_node, confidence_pct, step.evidence
+            "{head}→{causal_marker}{curious_marker} {} (confidence: {}%, evidence: {:.1})",
+            render(step.to_node, &step.to_text),
+            confidence_pct, step.evidence
         ));
     }
-    parts.join(" → ")
+    parts.join(" ")
 }

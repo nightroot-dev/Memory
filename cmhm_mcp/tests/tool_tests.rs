@@ -1809,3 +1809,127 @@ fn promote_valid_event_indexes_node_with_audit_trail() {
 }
 
 
+
+// ════════════════════════════════════════════════════════════════════════
+// B1 — MCP surface must return learned text (design note approved 2026-10-11)
+//
+// The agent-facing complaint that started this: memory_retrieve_text
+// returned "Node(1) → Node(2) (confidence: 50%, evidence: 2.0)" — a stub,
+// not memory. These tests pin the fix at the MCP boundary: the human-readable
+// block AND the machine-readable JSON must both carry the learned text.
+// ════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn b1_mcp_retrieve_text_returns_learned_text_in_block_and_json() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Episode texts share a heavy word/3-gram overlap (hash embedder) so the
+    // edge-birth similarity threshold (0.35, engine.rs) is crossed and a chain
+    // forms; they stay below the near-dup ceiling (0.85) so they birth as
+    // distinct nodes.
+    let state_text   = "nginx port configuration audit 8443";
+    let action_text  = "nginx port configuration audit restarted proxy";
+    let outcome_text = "nginx port configuration audit healthy 200";
+
+    let learn_args = json!({
+        "state":            state_text,
+        "action":           action_text,
+        "outcome":          outcome_text,
+        "prediction_error": 0.1,
+        "auto_tag":         false,
+    });
+    let lr = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+    assert_ne!(lr.isError, Some(true), "learn_text must succeed: {:?}", lr.content);
+
+    // Query with the exact state text — the hash embedder is deterministic, so
+    // this guarantees the learned node is the retrieval seed.
+    let ret = dispatch(
+        "memory_retrieve_text",
+        &rt,
+        &json!({"query": state_text, "retrieval_intent": "state"}),
+    )
+    .unwrap();
+    assert_ne!(ret.isError, Some(true), "retrieve_text must succeed: {:?}", ret.content);
+
+    let text = ret.content.first().map(|c| c.text.as_str()).unwrap_or("");
+
+    // ── Human-readable block: seed text verbatim + no ID-only stub ───────
+    assert!(text.contains(state_text),
+        "human-readable block must contain the seed text verbatim; got:\n{text}");
+    // The pre-B1 stub was "Node(1) → Node(2) (confidence...)" with NO text.
+    // If the text renders, the stub is gone; this guard documents that intent.
+    assert!(
+        !text.contains("Node(") || text.contains(state_text),
+        "human-readable block still renders the pre-B1 node-id stub:\n{text}"
+    );
+
+    // ── Machine-readable JSON: seed + every chain step round-trips ───────
+    let structured = parse_content_json(&ret);
+    let seed_text = structured["seed_text"].as_str()
+        .expect("JSON must carry seed_text as a string");
+    assert_eq!(seed_text, state_text, "JSON seed_text must be the seed's text");
+    let seed_ts = structured["seed_timestamp"].as_i64()
+        .expect("JSON must carry seed_timestamp");
+    assert!(seed_ts > 0, "seed_timestamp must be a unix timestamp > 0");
+
+    let chain = structured["causal_chain"]
+        .as_array()
+        .expect("JSON must carry a causal_chain array");
+    assert!(!chain.is_empty(),
+        "an episode with related texts must produce a non-empty chain; got: {chain:?}");
+    for (i, step) in chain.iter().enumerate() {
+        let from_text = step["from_text"].as_str()
+            .unwrap_or_else(|| panic!("chain[{i}]: from_text must be a string"));
+        let to_text = step["to_text"].as_str()
+            .unwrap_or_else(|| panic!("chain[{i}]: to_text must be a string"));
+        assert!(!from_text.is_empty() && !to_text.is_empty(),
+            "chain[{i}]: text-path learn must not produce empty text fields");
+        assert!(step["from_timestamp"].as_i64().unwrap_or(0) > 0
+            && step["to_timestamp"].as_i64().unwrap_or(0) > 0,
+            "chain[{i}]: timestamps must be present and > 0");
+        // Every text on the path must also appear in the human block.
+        assert!(text.contains(from_text),
+            "chain[{i}]: from_text must render verbatim in the block; got:\n{text}");
+        assert!(text.contains(to_text),
+            "chain[{i}]: to_text must render verbatim in the block; got:\n{text}");
+    }
+}
+
+#[test]
+fn b1_mcp_long_text_full_in_json_truncated_in_block() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Trimmed: the MCP ingestion boundary normalizes trailing whitespace
+    // before storage, so the stored/retrieved text is the trimmed form.
+    let long_text = "PORT_CONFIGURATION_AUDIT ".repeat(20).trim_end().to_string();
+    let learn_args = json!({
+        "state":            long_text,
+        "action":           "short action",
+        "outcome":          "short outcome",
+        "prediction_error": 0.1,
+        "auto_tag":         false,
+    });
+    let lr = dispatch("memory_learn_text", &rt, &learn_args).unwrap();
+    assert_ne!(lr.isError, Some(true), "learn_text must succeed: {:?}", lr.content);
+
+    let ret = dispatch(
+        "memory_retrieve_text",
+        &rt,
+        &json!({"query": long_text, "retrieval_intent": "state"}),
+    )
+    .unwrap();
+
+    // JSON is lossless.
+    let structured = parse_content_json(&ret);
+    assert_eq!(structured["seed_text"].as_str(), Some(long_text.as_str()),
+        "JSON seed_text must be lossless");
+    let json_str = serde_json::to_string(&structured).unwrap();
+    assert!(json_str.contains(&long_text), "JSON must carry the full long text");
+
+    // Human block is truncated with a visible marker.
+    let text = ret.content.first().map(|c| c.text.as_str()).unwrap_or("");
+    assert!(text.contains(&long_text[..120]), "block must contain the 120-char prefix");
+    assert!(text.contains("…[+"), "block must carry the visible truncation marker; got:\n{text}");
+}

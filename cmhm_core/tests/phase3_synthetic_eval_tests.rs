@@ -194,6 +194,7 @@ fn synth_04_abstained_result_has_empty_chain_invariant() {
         dense_context:       [0.0f32; 128],
         explanation:         "abstained".to_string(),
         seed_id:             None,
+        seed_text:           None,
         seed_node_type:      None,
         seed_authority:      0.5,
         seed_provenance:     String::new(),
