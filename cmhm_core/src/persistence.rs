@@ -568,8 +568,17 @@ fn sync_dir(path: &Path) {
 mod tests {
     use super::*;
 
+    /// Unique temp dir per call: fixed names race across parallel tests and
+    /// across runs (Windows lazy-delete + append-mode WAL open), producing
+    /// phantom "failures" from stale files. Counter + thread-id, never time.
     fn tmp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("cmhm_{name}"));
+        static CTR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = CTR.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!(
+            "cmhm_{name}_{:?}_{n}",
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
