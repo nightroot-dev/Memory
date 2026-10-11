@@ -82,3 +82,19 @@
 | ✅ **Preset** | **2** | L-02 (`libm`), L-08 (`thiserror`) — already present in Cargo.toml |
 | 🔄 **Reverted / Stable** | **1** | M-05 (`global_ema` kept in serde layout to preserve bincode positional alignment) |
 | **Total Tracked** | **40** | **34 Fixed + 2 Deferred + 1 Retracted + 2 Preset + 1 Reverted/Stable = 40** |
+
+> Counts above are the `cf10d19` baseline. Post-baseline work is tracked in the session section below.
+
+---
+
+## 🧪 Session 2026-10-11 — Recall v1 seed-selection & measurements (post-baseline)
+
+| ID | Location | Summary / Fix | Status |
+|---|---|---|---|
+| S-01 | `retrieval.rs` (locked, reviewer-approved) | Contradicted nodes remain in diagnostics/conflict pool but are structurally ineligible as seeds; relevance-only seed ordering (query cos + dense cos + bandit 0.10); empty eligible set returns explicit abstention, never an index panic | 🟩 SHIPPED |
+| S-02 | `config.rs` | `retrieval_authority_weight` kept readable for compatibility, deprecated, removed from seed ordering; docs corrected to drop the false claim | 🟩 SHIPPED |
+| S-03 | `tests/retrieval_contract.rs` | `irrelevant_high_authority_node_cannot_displace_relevance_winner` + `all_contradicted_candidates_return_abstained_empty_result`; `test_contradictory_same_role_resolution` rewritten to the intended safety contract | 🟩 SHIPPED |
+| S-04 | `persistence.rs` (tests) | `tmp_dir` stamps counter + thread id — WAL crc-flip test no longer polluted by stale fixed-name dirs | 🟩 FIXED |
+| S-05 | `engine.rs` | WAL replay not idempotent: node count 46→77 across restart (BGE 82→104). Blocks standby/hibernation/migration | 🔴 OPEN |
+| S-06 | measurements | Seed amendment Session L before/after: seed/pool/chain/MRR bit-identical in all 4 groups; safety filtering loses 0 gold; rank-loss (~60% of misses) is **not** caused by authority — next lever is embedder, pool depth, or reranker | 📐 MEASURED NEGATIVE |
+| S-07 | `tests/loadbench.rs` | 10k sweep: p50 32.8ms / p99 42.2ms, 5.0KB/node, 44 learns/s; brute force fails the p50≤100ms gate well before 100k nodes | 📐 MEASURED |
