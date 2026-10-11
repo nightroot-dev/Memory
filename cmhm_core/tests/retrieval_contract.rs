@@ -18,10 +18,10 @@
 //   Gate: seed_node_type == Some(NodeType::State)
 //
 // Test 2 — test_contradictory_same_role_resolution
-//   Property: when two State nodes share a topic, the authoritative one (authority=1.0)
-//             must beat the contradiction (authority=0.0) even if the contradiction has
-//             a higher cosine similarity to the query.
-//   Mechanism: score = query_w*cos + ctx_w*dense_cos + authority_w*node.authority
+//   Property: an explicitly contradicted State cannot be returned as a seed even
+//             when it has a higher cosine similarity to the query.
+//   Mechanism: contradicted provenance is excluded from seed eligibility after
+//              conflict detection has inspected the complete candidate pool.
 //   Gate: seed_id == auth_state_id
 //
 // Test 3 — test_stale_state_does_not_override_authoritative
@@ -162,12 +162,6 @@ fn test_cross_role_seed_isolation() {
 //
 //   cos(e_auth, e_contra) ≈ 0.21 → both nodes pass the birth gate.
 //
-// Score formula:
-//   score = 0.7 * cos + 0.8 * node.authority
-//   auth:   0.7*0.110 + 0.8*1.0 = 0.877
-//   contra: 0.7*0.994 + 0.8*0.0 = 0.696
-//   → auth wins (0.877 > 0.696) by authority_weight=0.8.
-//
 // Expected: seed_id == auth_state_id
 
 #[test]
@@ -217,17 +211,14 @@ fn test_contradictory_same_role_resolution() {
          .retrieve(q, "hash-128d", NodeType::State, "") // declared intent: state query
          .expect("retrieve failed");
 
-    // ── Assertion: authoritative node must win despite lower cosine ─────────
+    // ── Assertion: contradicted node must be structurally ineligible ─────────
     assert_eq!(
         result.seed_id,
         Some(auth_state_id),
         "FAIL [test_contradictory_same_role_resolution]: \
-         expected authoritative State {} (authority=1.0, cos≈0.110) as seed; \
+         expected eligible State {} (cos≈0.110) as seed; \
          got seed_id={:?}. \
-         Contradicting State {} (authority=0.0, cos≈0.994) must NOT win. \
-         Score formula: 0.7*cos + 0.8*authority. \
-         auth:   0.7*0.110 + 0.8*1.0 = 0.877 \
-         contra: 0.7*0.994 + 0.8*0.0 = 0.696 → auth must win.",
+         Contradicting State {} (cos≈0.994) must NOT be eligible as a seed.",
         auth_state_id,
         result.seed_id,
         contra_state_id,
@@ -240,6 +231,62 @@ fn test_contradictory_same_role_resolution() {
         "seed must not be the contradiction node {}",
         contra_state_id,
     );
+}
+
+// ── Recall v1: authority must not displace relevance ─────────────────────────
+
+#[test]
+fn irrelevant_high_authority_node_cannot_displace_relevance_winner() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cfg = test_config(dir.path().to_path_buf());
+    let handle = start(cfg).expect("engine start");
+
+    let relevant = handle
+        .learn(
+            sparse_unit_vec(&[(0, 0.4), (1, 0.9)]), unit_vec(2), unit_vec(3), 0.5, 0.5, "hash-128d",
+            0.2, "inferred".to_string(), None,
+        )
+        .expect("learn relevant state failed");
+    let irrelevant_trusted = handle
+        .learn(
+            unit_vec(6), unit_vec(4), unit_vec(5), 0.5, 0.5, "hash-128d",
+            1.0, "user_explicit".to_string(), None,
+        )
+        .expect("learn irrelevant trusted state failed");
+
+    let result = handle
+        .retrieve(unit_vec(0), "hash-128d", NodeType::State, "")
+        .expect("retrieve failed");
+
+    assert_eq!(result.seed_id, Some(relevant.state_node_id));
+    assert_ne!(result.seed_id, Some(irrelevant_trusted.state_node_id));
+}
+
+// ── Recall v1: no eligible candidate must fail closed ─────────────────────────
+
+#[test]
+fn all_contradicted_candidates_return_abstained_empty_result() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let cfg = test_config(dir.path().to_path_buf());
+    let handle = start(cfg).expect("engine start");
+
+    let contradicted = handle
+        .learn(
+            unit_vec(0), unit_vec(2), unit_vec(3), 0.5, 0.5, "hash-128d",
+            0.0, "contradicted".to_string(), None,
+        )
+        .expect("learn contradicted state failed");
+
+    let result = handle
+        .retrieve(unit_vec(0), "hash-128d", NodeType::State, "")
+        .expect("retrieve failed");
+
+    assert!(result.abstained, "all-ineligible pool must abstain");
+    assert_eq!(result.seed_id, None, "abstention must not expose a seed");
+    assert!(result.causal_chain.is_empty(), "abstention must not build a chain");
+    assert!(result.post_filter_candidates.contains(&contradicted.state_node_id));
+    assert!(result.scored_candidates.is_empty(), "ineligible nodes must not be scored");
+    assert!(result.explanation.contains("eligible"));
 }
 
 // ── Test 3: Stale state does not override authoritative state ─────────────────

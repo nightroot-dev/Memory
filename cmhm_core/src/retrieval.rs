@@ -144,9 +144,8 @@ impl Ord for DijkstraState {
 ///          (assertion_key, polarity, provenance, authority). Detection precedes scoring
 ///          so contradicted D- nodes suppressed by the authority weight are still visible.
 ///          Signal precedence: LogicalContradiction → SupersessionConflict → ProvenancePair → AdversarialPair.
-///    - 2c: Score each active candidate:
-///          `query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)
-///           + authority_weight * node.authority`
+///    - 2c: Score each eligible candidate by relevance:
+///          `query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)`
 ///    - 2d: Seed = highest-scored candidate.
 ///    - 2e/2f: Abstain if conflict detected and `abstain_on_conflict` is set.
 ///    - `emotional_tag` is affective salience only; it does NOT appear in the score.
@@ -168,9 +167,9 @@ pub fn retrieve(
     // None falls back to the unscoped nearest() scan (backward-compat library path).
     // MCP tool handlers always pass Some(node_type) — never None.
     seed_type: Option<NodeType>,
-    // Weight of node.authority in seed scoring. Production default: 0.2 (R2).
-    // Uses node.authority (machine-readable trust level), NOT node.emotional_tag.
-    authority_weight: f32,
+    // Deprecated compatibility argument. Authority no longer contributes to seed
+    // ordering; contradicted provenance is excluded from seed eligibility below.
+    _authority_weight: f32,
     // Score gap below which two candidates trigger conflict_detected = true.
     // Deprecated-in-place as of Protocol v1.9: the score-gap proximity check has been
     // deleted from the decision path. Retained for API/schema compatibility.
@@ -420,19 +419,26 @@ pub fn retrieve(
 
     let conflict_detected = detect_conflict_type.is_some();
 
-    // Step 2c: Composite scoring of post-filter pool.
+    // Step 2c: Relevance scoring of the eligible post-filter pool.
+    //
+    // Nodes explicitly marked "contradicted" remain in `candidates` so conflict
+    // detection above can see them, but they are structurally ineligible to be
+    // returned as a seed. This makes the safety posture fail-closed rather than
+    // relying on an authority bonus to make unsafe results unlikely.
     // score = query_weight * cos(q, node)
     //       + context_weight * cos(dense_ctx, node)
-    //       + authority_weight * node.authority
     //       + BANDIT_WEIGHT * node.thompson_draw(rng)  <- H-03 fix: bandit exploration
     //
     // The Thompson draw theta ∈ (0,1) is sampled from Beta(alpha, beta).
     // New/untested nodes draw from Beta(1,1) = Uniform — exploration bonus.
     // Weight 0.10 keeps exploration bounded relative to cosine similarity.
     const BANDIT_WEIGHT: f32 = 0.10;
-    let mut scored: Vec<(u64, f32)> = candidates.iter().map(|(id, cos)| {
+    let mut scored: Vec<(u64, f32)> = candidates.iter().filter_map(|(id, cos)| {
         let score = match node_store.get(*id) {
             Some(node) => {
+                if node.provenance == "contradicted" {
+                    return None;
+                }
                 // min-len cosine for mixed-dim safety during embedder transition
                 let min_len = dense_ctx.len().min(node.embedding.len());
                 let dense_cos = cosine(&dense_ctx[..min_len], &node.embedding[..min_len]);
@@ -445,12 +451,11 @@ pub fn retrieve(
                 };
                 query_weight * cos
                     + context_weight * dense_cos
-                    + authority_weight * node.authority
                     + BANDIT_WEIGHT * bandit_draw
             }
             None => query_weight * cos,
         };
-        (*id, score)
+        Some((*id, score))
     }).collect();
 
     // Sort descending by score.
@@ -459,16 +464,10 @@ pub fn retrieve(
     // Stage 2: SCORED diagnostic snapshot (passive, unmutated).
     let scored_candidates: Vec<(u64, f32)> = scored.clone();
 
-    // Step 2d: Seed selection (highest scored node).
-    let (seed_id, _seed_score) = scored[0];
-    let seed_node      = node_store.get(seed_id);
-    let seed_node_type = seed_node.map(|n| n.node_type);
-    let seed_authority = seed_node.map(|n| n.authority).unwrap_or(0.5);
-    let seed_provenance = seed_node.map(|n| n.provenance.clone()).unwrap_or_default();
-
-    // Step 2e: Assemble conflict_candidates if conflict was detected.
-    // Backfill scores from the scored output so the struct is complete.
-    // Surfacing the 2 competing nodes that triggered the conflict, sorted descending by score.
+    // Step 2e (moved before the empty check): assemble conflict_candidates
+    // from the detected pair so BOTH return paths identify contradicted
+    // candidates. Backfill scores from the scored output; filtered-out nodes
+    // get 0.0 (they never competed, but callers still see who they are).
     let conflict_candidates: Vec<ConflictCandidate> = if let (Some(ctype), Some((id_a, id_b))) = (&detect_conflict_type, detect_pair) {
         let make_cand = |id: u64| {
             let score = scored.iter()
@@ -490,6 +489,35 @@ pub fn retrieve(
     } else {
         vec![]
     };
+
+    // No safe seed exists when every post-filter candidate is explicitly
+    // contradicted. Return an explicit empty abstention instead of indexing
+    // `scored[0]` and panicking.
+    if scored.is_empty() {
+        return RetrievalResult {
+            causal_chain:        vec![],
+            dense_context:       dense_ctx,
+            explanation:         "Abstained: no eligible memory remains after excluding contradicted candidates."
+                .to_string(),
+            seed_id:             None,
+            seed_node_type:      None,
+            seed_authority:      0.0,
+            seed_provenance:     String::new(),
+            conflict_detected,
+            conflict_candidates,
+            abstained:           true,
+            raw_nn_candidates,
+            post_filter_candidates,
+            scored_candidates,
+        };
+    }
+
+    // Step 2d: Seed selection (highest scored node).
+    let (seed_id, _seed_score) = scored[0];
+    let seed_node      = node_store.get(seed_id);
+    let seed_node_type = seed_node.map(|n| n.node_type);
+    let seed_authority = seed_node.map(|n| n.authority).unwrap_or(0.5);
+    let seed_provenance = seed_node.map(|n| n.provenance.clone()).unwrap_or_default();
 
     // Step 2f: Abstain if conflict detected and abstain_on_conflict is set.
     if conflict_detected && abstain_on_conflict && detect_abstain {
