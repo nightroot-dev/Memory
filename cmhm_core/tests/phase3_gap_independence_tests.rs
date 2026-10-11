@@ -118,11 +118,16 @@ fn test_logical_contradiction_gap_independence() {
         assert_eq!(result.conflict_candidates[0].conflict_type, ConflictType::LogicalContradiction);
 
         let gap = (result.scored_candidates[0].1 - result.scored_candidates[1].1).abs();
-        // R2: authority_weight changed from 0.8 → 0.75. Gap = 0.75*(auth_hi - auth_lo) ≈ 0.49.
-        // Threshold lowered from >0.40 (old 0.8 weights) to >0.10 (conservative floor).
-        // Behavioral invariant unchanged: LC fires and abstains regardless of gap size.
-        assert!(gap > 0.10, "Score gap should be detectable (>0.10), got {gap}");
-        println!("[GAP-TEST PASS] LogicalContradiction at large gap ({gap:.4}) detected and abstained");
+        // S-01 (2026-10-11): scoring is relevance-only (query cos + dense cos +
+        // bandit). The old 0.75*authority term used to manufacture a ~0.49 gap
+        // from the authority spread (1.00 vs 0.35); it is gone, so the gap is
+        // now noise-level like Case A. Detection is pool-based and pre-scoring
+        // (v1.9 deleted the gap check; retrieval.rs ignores
+        // _conflict_detection_threshold), so the safety outcome above is
+        // unchanged. The assertion is inverted on purpose: authority must NOT
+        // create a score gap, and detection must not need one.
+        assert!(gap < 0.01, "Relevance-only scoring: authority spread must not create a gap, got {gap}");
+        println!("[GAP-TEST PASS] LogicalContradiction at large authority spread ({gap:.4}) — gap-independent, detected and abstained");
     }
 }
 
