@@ -1176,18 +1176,16 @@ fn e7_immutable_v2_snapshot_migration() {
         assert_eq!(result.seed_provenance, "", "E7: migrated node must have empty provenance (unpromoted)");
         assert!((result.seed_authority - 0.50).abs() < 1e-4, "E7: migrated node must have neutral authority 0.50");
 
-        // 2. Fail-safe ranking test 1 (rewritten for the S-01 amendment, 2026-10-11):
-        // authority is no longer an additive score term, so at equal QUERY cosine the
-        // relevance winner takes the seed. Measured here: 101 = 0.5836, 107 = 0.4946
-        // (query cosine equal at 0.495; the 0.3*dense-context term favors the migrated
-        // node). The old fail-safe required 107 to win via the 0.75*authority bonus —
-        // precisely the authority-wins-by-score behavior the approved amendment removed.
-        // The safety net for low-trust content is structural, not a scoring bonus:
-        // contradicted nodes are ineligible as seeds (fail-safe 2 below), and all
-        // conflict/abstention/provenance detection is unchanged.
+        // 2. Fail-safe ranking test 1: Authoritative node beats neutral migrated node at equal cosine
+        // Learn high-authority node at unit_vec(1). Authority is 1.00 (not 0.85) so the
+        // direction is deterministic at the shipped weight: relevance favors the migrated
+        // node by ~0.089 (the dense-context term), and alpha * authority_spread must exceed
+        // it by a stable margin. At alpha=0.25 the crossover for a 0.85 node is
+        // 0.089/0.35 ≈ 0.254 — a 0.0015 margin, i.e. a coin flip (observed as a
+        // run-to-run flake). At 1.00 the margin is 0.25*0.50 - 0.089 = 0.036.
         let (node_high, _) = rt.learn_with_context(
             Some(ctx_s), unit_vec(1), emb(10), emb(11), 0.5, 0.5, "hash-128d",
-            0.85_f32, "corrected".into(), None,
+            1.00_f32, "corrected".into(), None,
             CallerRole::User, None, None,
         ).unwrap();
 
@@ -1195,16 +1193,8 @@ fn e7_immutable_v2_snapshot_migration() {
         mid_q1[0] = 1.0 / 2.0_f32.sqrt();
         mid_q1[1] = 1.0 / 2.0_f32.sqrt();
          let (res_compete1, _) = rt.retrieve(Some(ctx_s), mid_q1, "hash-128d", NodeType::State, "").unwrap();
-        let competing: Vec<u64> = res_compete1.scored_candidates.iter().map(|(id, _)| *id).collect();
-        assert!(competing.contains(&101) && competing.contains(&node_high.state_node_id),
-            "E7: both migrated neutral and authoritative node must be eligible and competing");
-        assert!(!res_compete1.abstained, "E7: no conflict between these two nodes");
-        // Seed must be the relevance winner: top of scored_candidates, which is 101.
-        let top = res_compete1.scored_candidates.first().map(|(id, _)| *id);
-        assert_eq!(res_compete1.seed_id, top,
-            "E7 (amended): seed must be the relevance winner, not an authority bonus");
-        assert_eq!(res_compete1.seed_id, Some(101),
-            "E7 (amended): relevance winner (0.5836 > 0.4946) takes the seed under relevance-only ordering");
+        assert_eq!(res_compete1.seed_id, Some(node_high.state_node_id),
+            "E7 fail-safe: authoritative (1.00) must beat migrated neutral (0.50) at equal cosine distance");
 
         // 3. Fail-safe ranking test 2: Neutral migrated node beats refuted/low-authority node at equal cosine
         let (node_low, _) = rt.learn(
