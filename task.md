@@ -306,3 +306,31 @@ the safety path is not the recall problem. Losses split ~40% candidate
 (gold never in raw pool) / ~60% rank (in pool, seed wrong). Rank-side
 fixes (reorder, reranker) target the larger half; candidate-side
 (embedder, pool depth) the smaller. Lexical seed is 1.00 post-boost.
+
+## Authority weight sweep (2026-10-11, phase3_approval_bench, 43 scenarios x 60 distractors, hash-128d)
+
+Corpus: cmhm_mcp/tests/phase3_approval_bench.rs. Metric: G1 Recall@1
+(pos node at scored rank 1; gate ci_lo >= 0.40), G3 MRR (gate ci_lo > 0.40),
+G4 contradicted-at-1 (gate ci_hi < 0.40). Baseline = b05be65 (alpha 0.75,
+pre-amendment code).
+
+| alpha | G1     | MRR   | G4 contradicted@1 | irrelevant-trusted test | e2e |
+|-------|--------|-------|-------------------|-------------------------|-----|
+| 0.00  | 0/43   | 0.308 | 0/43              | pass                    | ok  |
+| 0.15  | 41/43  | 0.973 | 0/43              | pass                    | ok  |
+| 0.25  | 42/43  | 0.988 | 0/43              | pass                    | ok  |
+| 0.35  | 43/43  | 1.000 | 0/43              | pass                    | 1 fail |
+| 0.50+ | -      | -     | -                 | FAIL                    | -   |
+| 0.75  | 42/43  | 0.988 | 1/43              | FAIL                    | ok  |
+
+Decision (owner): alpha = 0.25. Relevance-only ordering (the S-01
+amendment as written) fails the approval gate outright: with 60
+distractors per scenario at authority 0.30, the positive node
+(0.75-1.00) loses rank 1 to distractor cosine noise in every scenario
+(Recall@5 stays 43/43). Contradicted-ineligibility is structural, not
+score-based: G4 = 0/43 at every weight. The irrelevant-trusted property
+(an irrelevant high-authority node cannot displace the relevance winner)
+holds to ~0.5. Session L (ops_bench_minilm_v2, n=200) is
+authority-insensitive: bit-identical at 0.0, 0.25 and 0.75 (seed 0.2069 /
+0.1463 / 0.0667 easy/medium/hard, attribution 11/12, 13/22, 12/16) -- the
+approval corpus is the sensitive instrument.
