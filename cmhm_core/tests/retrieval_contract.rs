@@ -69,14 +69,15 @@ fn sparse_unit_vec(components: &[(usize, f32)]) -> Vec<f32> {
 }
 
 /// Build a minimal Config pointing at a temp directory.
-/// Uses production authority_weight=0.8 (Phase 2 default).
+/// Uses the production authority_weight=0.25 (Recall v1 default, measured sweep).
 fn test_config(data_dir: PathBuf) -> Config {
     Config {
         data_dir: data_dir.clone(),
         projections_dir: data_dir.join("projections"),
         // novelty_threshold: unused by adaptive birth gate; left at default.
-        // retrieval_authority_weight: 0.8 (Phase 2 production default).
-        retrieval_authority_weight: 0.8,
+        // retrieval_authority_weight: 0.25 — matches production default so the
+        // irrelevant-trusted regression is evaluated at the shipped weight.
+        retrieval_authority_weight: 0.25,
         conflict_detection_threshold: 0.02,
         ..Config::default()
     }
