@@ -334,3 +334,21 @@ holds to ~0.5. Session L (ops_bench_minilm_v2, n=200) is
 authority-insensitive: bit-identical at 0.0, 0.25 and 0.75 (seed 0.2069 /
 0.1463 / 0.0667 easy/medium/hard, attribution 11/12, 13/22, 12/16) -- the
 approval corpus is the sensitive instrument.
+
+Boundary note (found post-landing): the e7 fail-safe ("authoritative beats
+migrated neutral at equal cosine") is decided by 0.089 relevance edge vs
+alpha*0.35 authority edge, crossover alpha = 0.254. At the shipped 0.25
+the margin was 0.0015 -- the test passed standalone by luck and flaked in
+the workspace run. Fixed by pinning the authoritative node at authority
+1.00 (margin 0.036, direction restored to pre-amendment) + 4 consecutive
+green runs. Any future alpha change must recompute this margin.
+
+Measurement-provenance note (B1 verification run, 2026-10-11): Session L
+seed Recall@1 and pool_hit are deterministic (identical across every run
+and weight); the chain_ok column is STOCHASTIC by construction -- the
+engine rng is entropy-seeded (engine.rs:1019 SmallRng::from_entropy()), so
+the Thompson-sampled Dijkstra path varies per run. After B1 (scoring and
+traversal untouched): seed and pool bit-identical, chain moved by 1-2
+queries on n=30-41 (medium fused 0.0244 -> 0.0732). Sub-7-pair chain
+deltas are noise; earlier "bit-identical" chain readings across runs were
+coincidence, not a determinism guarantee.
