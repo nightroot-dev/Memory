@@ -1296,8 +1296,20 @@ fn e1p_mcp_contradicted_is_capped_to_0_30() {
     });
     let result = dispatch("memory_retrieve", &rt, &ret_args).unwrap();
     let structured = parse_content_json(&result);
-    assert_eq!(structured["seed_provenance"], "contradicted");
-    assert!((structured["seed_authority"].as_f64().unwrap() - 0.30).abs() < 1e-4, "contradicted must be capped at 0.30");
+    // S-01 (Recall v1): a "contradicted" node is structurally ineligible as a seed,
+    // so an all-contradicted pool abstains instead of returning it. The old assertions
+    // here (seed_provenance == "contradicted", seed_authority == 0.30) pinned the
+    // pre-amendment behavior where the contradicted memory WAS returned as the seed.
+    // The 0.30 authority cap itself is unchanged and unit-verified at learn time in
+    // cmhm_core::authority (clamp_authority(1.0, "contradicted") == 0.30).
+    assert_eq!(structured["abstained"], true,
+        "all-contradicted pool must abstain, not return a contradicted seed");
+    assert!(structured["seed_id"].is_null(),
+        "abstention must not expose a seed: {:?}", structured["seed_id"]);
+    assert_eq!(structured["seed_provenance"], "",
+        "no seed means no seed provenance");
+    assert!(structured["post_filter_candidates"].as_array().map_or(false, |a| !a.is_empty()),
+        "contradicted node must stay visible in post-filter diagnostics");
 }
 
 
