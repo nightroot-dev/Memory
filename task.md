@@ -280,3 +280,29 @@ The old 0.40 was measured on a MiniLM-favouring corpus. Cite L1 now.
 Noise floor on n=200: 1 pair = 0.005 overall; treat sub-0.035 deltas
 (under ~7 pairs) as noise. Per-group floors are higher: lex n=100
 (0.01/pair), easy n=29 (0.034/pair), medium n=41, hard n=30.
+
+## Scale baseline (2026-10, loadbench, hash-128d, Windows)
+
+n=1k: 184 learns/s, retrieve mean 3.05ms/p50 2.98/p99 3.82 (k=200),
+6.9KB/node. n=10k: 44 learns/s, retrieve mean 33.09ms/p50 32.79/p99
+42.19, 5.0KB/node. Retrieval scales ~linearly (brute force): ~3ms at
+800 nodes → ~33ms at 8k → expect ~400ms at 100k. The README "under
+100us" claim is wrong by orders of magnitude; "10ms at 100k" is
+optimistic. Latency gate for shipping: p50 <= 100ms / p99 <= 500ms
+would FAIL at 100k on brute force alone — index work or scope before
+claiming it.
+
+## Stage attribution (2026-10, MiniLM WITH-fused misses, n=200)
+
+| group | lost_candidate | lost_safety | lost_rank | misses |
+|---|---|---|---|---|
+| lexical | 0 | 0 | 0 | 0 |
+| para-easy | 11 | 0 | 12 | 23 |
+| para-medium | 13 | 0 | 22 | 35 |
+| para-hard | 12 | 0 | 16 | 28 |
+
+Safety (conflict/abstain/supersession) eats ZERO gold on this corpus —
+the safety path is not the recall problem. Losses split ~40% candidate
+(gold never in raw pool) / ~60% rank (in pool, seed wrong). Rank-side
+fixes (reorder, reranker) target the larger half; candidate-side
+(embedder, pool depth) the smaller. Lexical seed is 1.00 post-boost.

@@ -151,12 +151,30 @@ fn ops_bench_minilm_v2() {
     let mut wf: HashMap<String, Agg> = HashMap::new();
     let mut wn: HashMap<String, Agg> = HashMap::new();
     let mut wp: HashMap<String, Agg> = HashMap::new();
+    // Stage attribution (WITH-fused only): where is each gold item lost?
+    // candidate = target absent from raw pool; safety = present raw but
+    // filtered/abstained; rank = present post-filter but seed wrong.
+    let mut attr: HashMap<String, (usize, usize, usize, usize)> = HashMap::new();
     for (i, p) in pairs.iter().enumerate() {
         let k = key(p);
         wn.entry(k.clone()).or_default().add(no_nat[i] == Some(0), no_nat[i], false);
         wp.entry(k.clone()).or_default().add(no_prj[i] == Some(0), no_prj[i], false);
         let d = handle.retrieve(q_nat[i].clone(), MODEL, NodeType::State, "").unwrap();
         let f = handle.retrieve(q_nat[i].clone(), MODEL, NodeType::State, &p.query).unwrap();
+        {
+            let e = attr.entry(k.clone()).or_default();
+            e.3 += 1;
+            if f.seed_id == Some(t_state[i]) {
+                // found: no loss to attribute (seed could still be right while
+                // chain misses; that is a separate chain metric, not staged here)
+            } else if !f.raw_nn_candidates.contains(&t_state[i]) {
+                e.0 += 1; // lost at candidate generation
+            } else if f.abstained || !f.post_filter_candidates.contains(&t_state[i]) {
+                e.1 += 1; // lost at safety filtering / abstention
+            } else {
+                e.2 += 1; // lost at final ranking
+            }
+        }
         for (r, a) in [(&d, wd.entry(k.clone()).or_default()), (&f, wf.entry(k.clone()).or_default())] {
             // A hop must ARRIVE at the outcome (>= 1 edge); starting at it (seed == outcome) is a seed miss.
             let chain_ok = r.causal_chain.iter().any(|s| s.to_node == t_out[i]);
@@ -178,6 +196,16 @@ fn ops_bench_minilm_v2() {
             if let Some(a) = m.get(k) {
                 println!("{}  {label}", a.row(k));
             }
+        }
+    }
+    println!();
+    println!("## stage attribution (WITH-fused misses only)");
+    println!("| group          | lost_candidate | lost_safety | lost_rank | n_miss |");
+    println!("|----------------|----------------|-------------|-----------|--------|");
+    for k in ["lexical", "para-easy", "para-medium", "para-hard"] {
+        if let Some((c, s, r, n)) = attr.get(k) {
+            let miss = n - wf.get(k).map(|a| a.seed_p1).unwrap_or(0);
+            println!("| {k:<14} | {c:>14} | {s:>11} | {r:>9} | {miss:>6} |");
         }
     }
 }
