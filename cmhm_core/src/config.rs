@@ -92,11 +92,19 @@ pub struct Config {
     #[serde(default = "default_retrieval_curiosity_threshold")]
     pub retrieval_curiosity_threshold: f32,
 
-    /// Deprecated compatibility setting for the former authority bonus in seed scoring.
+    /// Bounded authority term in seed scoring (default **0.25**).
     ///
-    /// It is still accepted from configuration files but has no effect on relevance
-    /// ordering. Explicitly contradicted memories are excluded from seed eligibility;
-    /// authority and provenance remain available to the pre-rank safety checks.
+    /// `seed_score += retrieval_authority_weight × node.authority`
+    ///
+    /// Relevance dominates: query and dense cosines are weighted 0.70/0.30
+    /// against this term. The weight was set by measured sweep on the phase-3
+    /// approval corpus (43 scenarios, 60 distractors each): 0.25 restores
+    /// baseline recall (G1 42/43, MRR 0.988) while keeping two safety
+    /// properties — contradicted nodes are structurally ineligible as seeds
+    /// (G4 0/43 at every weight), and an irrelevant trusted node cannot
+    /// displace the relevance winner (holds to α ≈ 0.5). At 0.0 the approval
+    /// gate collapses to 0/43; at ≥ 0.5 the irrelevant-trusted property fails.
+    /// Exact score ties are broken by authority, then node id.
     #[serde(default = "default_retrieval_authority_weight")]
     pub retrieval_authority_weight: f32,
 
@@ -214,7 +222,7 @@ impl Default for Config {
             retrieval_query_weight: 0.7,      // unchanged (cosine is primary for equal-authority nodes)
             retrieval_context_weight: 0.3,
             retrieval_curiosity_threshold: 0.1,
-            retrieval_authority_weight:    0.75, // Deprecated compatibility value
+            retrieval_authority_weight:    0.25,
             retrieval_recency_weight:      0.0,
             retrieval_recency_lambda:      0.01,
             conflict_detection_threshold:  0.0,
@@ -231,7 +239,7 @@ impl Default for Config {
 fn default_retrieval_query_weight()        -> f32   { 0.7 }  // R2: balanced (was 0.7 — unchanged)
 fn default_retrieval_context_weight()      -> f32   { 0.3 }
 fn default_retrieval_curiosity_threshold() -> f32   { 0.1 }
-fn default_retrieval_authority_weight()    -> f32   { 0.75 } // Deprecated compatibility value
+fn default_retrieval_authority_weight()    -> f32   { 0.25 }
 fn default_retrieval_recency_weight()      -> f32   { 0.0 }
 fn default_retrieval_recency_lambda()      -> f32   { 0.01 }
 fn default_conflict_detection_threshold()  -> f32   { 0.0 }

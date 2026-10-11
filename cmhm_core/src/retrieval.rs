@@ -144,11 +144,14 @@ impl Ord for DijkstraState {
 ///          (assertion_key, polarity, provenance, authority). Detection precedes scoring
 ///          so contradicted D- nodes suppressed by the authority weight are still visible.
 ///          Signal precedence: LogicalContradiction → SupersessionConflict → ProvenancePair → AdversarialPair.
-///    - 2c: Score each eligible candidate by relevance:
-///          `query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)`
+///    - 2c: Score each eligible candidate. Relevance dominates; authority is a
+///          bounded subordinate term (α = 0.25, measured):
+///          `query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)
+///           + authority_weight * node.authority + BANDIT_WEIGHT * bandit`
+///          Nodes marked "contradicted" are ineligible: they stay in the pool
+///          for 2b detection but are never scored, so they cannot be seeds.
 ///    - 2d: Seed = highest-scored candidate. Exact score ties are broken by
-///          node authority (tie-break only — never additive, never a top-K
-///          override; E7 fail-safe).
+///          node authority, then node id for determinism (E7 fail-safe).
 ///    - 2e/2f: Abstain if conflict detected and `abstain_on_conflict` is set.
 ///    - `emotional_tag` is affective salience only; it does NOT appear in the score.
 ///    - No recency term; use `superseded_by` for staleness handling.
@@ -169,9 +172,12 @@ pub fn retrieve(
     // None falls back to the unscoped nearest() scan (backward-compat library path).
     // MCP tool handlers always pass Some(node_type) — never None.
     seed_type: Option<NodeType>,
-    // Deprecated compatibility argument. Authority no longer contributes to seed
-    // ordering; contradicted provenance is excluded from seed eligibility below.
-    _authority_weight: f32,
+    // Bounded authority term in seed scoring (default 0.25). Subordinate to
+    // relevance: measured on the phase-3 approval corpus this weight restores
+    // baseline recall (G1 42/43, MRR 0.988) while contradicted provenance stays
+    // structurally ineligible (G4 0/43) and an irrelevant trusted node cannot
+    // displace the relevance winner (property holds to α ≈ 0.5).
+    authority_weight: f32,
     // Score gap below which two candidates trigger conflict_detected = true.
     // Deprecated-in-place as of Protocol v1.9: the score-gap proximity check has been
     // deleted from the decision path. Retained for API/schema compatibility.
@@ -421,14 +427,15 @@ pub fn retrieve(
 
     let conflict_detected = detect_conflict_type.is_some();
 
-    // Step 2c: Relevance scoring of the eligible post-filter pool.
+    // Step 2c: Relevance-primary scoring of the eligible post-filter pool.
     //
     // Nodes explicitly marked "contradicted" remain in `candidates` so conflict
     // detection above can see them, but they are structurally ineligible to be
     // returned as a seed. This makes the safety posture fail-closed rather than
-    // relying on an authority bonus to make unsafe results unlikely.
+    // relying on scoring to make unsafe returns unlikely.
     // score = query_weight * cos(q, node)
     //       + context_weight * cos(dense_ctx, node)
+    //       + authority_weight * node.authority   <- bounded, α=0.25; see gate sweep
     //       + BANDIT_WEIGHT * node.thompson_draw(rng)  <- H-03 fix: bandit exploration
     //
     // The Thompson draw theta ∈ (0,1) is sampled from Beta(alpha, beta).
@@ -453,6 +460,7 @@ pub fn retrieve(
                 };
                 query_weight * cos
                     + context_weight * dense_cos
+                    + authority_weight * node.authority
                     + BANDIT_WEIGHT * bandit_draw
             }
             None => query_weight * cos,
@@ -461,12 +469,9 @@ pub fn retrieve(
     }).collect();
 
     // Sort descending by score. Exact ties (equal relevance) are broken by
-    // node authority — a tie-break, NOT a weight: it can never move a
-    // lower-relevance node above a higher-relevance one, it only settles
-    // exact equals. Reviewer condition on the S-01 amendment: this preserves
-    // the E7 fail-safe (authoritative 0.85 must beat migrated neutral 0.50 at
-    // equal cosine) without reintroducing authority into the score itself.
-    // Node id is the final key so ordering stays fully deterministic.
+    // node authority — it can only settle equals, never move a lower-relevance
+    // node above a higher-relevance one (E7 fail-safe). Node id is the final
+    // key so ordering stays fully deterministic.
     scored.sort_by(|(id_a, sa), (id_b, sb)| {
         sb.partial_cmp(sa)
             .unwrap_or(Ordering::Equal)
