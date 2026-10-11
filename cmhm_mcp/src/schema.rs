@@ -286,7 +286,8 @@ pub struct DeleteContextParams {
 }
 
 /// Route a query to the best-matching context(s) using probabilistic scoring.
-/// Returns a ranked list. Call this when you are unsure which context to use.
+/// Returns a ranked list, or an explicit `no_match` when nothing clears
+/// `min_score`. Call this when you are unsure which context to use.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RouteParams {
     /// Plain-text query or keywords. Scored against context names, tags, and descriptions.
@@ -296,6 +297,13 @@ pub struct RouteParams {
     #[serde(default = "default_top_k")]
     #[schemars(default = "default_top_k", range(min = 1.0, max = 20.0))]
     pub top_k: usize,
+
+    /// Minimum score for a usable match (default 0.5). If the best candidate
+    /// scores below this, the response is an explicit `no_match` — a low
+    /// confidence hit is worse than an empty answer. Set 0 to always rank.
+    #[serde(default = "default_min_score")]
+    #[schemars(default = "default_min_score", range(min = 0.0, max = 1.0))]
+    pub min_score: f32,
 }
 
 /// Retrieve statistics for a memory context.
@@ -327,6 +335,10 @@ pub fn default_context_type() -> ContextTypeParam { ContextTypeParam::Project }
 pub fn default_top_k()        -> usize  { 3 }
 pub fn default_true()         -> bool   { true }
 pub fn default_promote_authority() -> f32 { 0.85 }
+/// B3: a routing hit below this score is reported as an explicit `no_match`
+/// instead of a "recommended" context. Override with `min_score: 0` to get the
+/// old always-rank-everything behavior.
+pub fn default_min_score()    -> f32    { 0.5 }
 
 // --- Text-native Tool Schemas ------------------------------------------------
 //

@@ -1933,3 +1933,189 @@ fn b1_mcp_long_text_full_in_json_truncated_in_block() {
     assert!(text.contains(&long_text[..120]), "block must contain the 120-char prefix");
     assert!(text.contains("…[+"), "block must carry the visible truncation marker; got:\n{text}");
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// B3 — Honest, idempotent project setup (build order 2026-10-11)
+//
+// Three defects from the agent-session review:
+//  1. project_detect is pure detection + an instruction to do a 3-call
+//     ceremony; it never returns or reuses a context id.
+//  2. context_route has no threshold: it prints whatever scored highest and
+//     labels it "Recommended" even at 0.20 — below the server's own 0.5 rule.
+//  3. Contexts are not keyed by project identity, so the same project spawns
+//     twin contexts.
+// ════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn b3_context_route_returns_explicit_no_match_below_threshold() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // A real, but unrelated, context exists — a weak lexical match must not
+    // be presented as a recommendation.
+    dispatch("context_create", &rt, &json!({
+        "display_name": "quant trading research",
+        "tags": ["trading", "markets"],
+    })).unwrap();
+
+    let res = dispatch("context_route", &rt,
+        &json!({"query": "completely unrelated kubernetes ingress zzz", "top_k": 3}))
+        .unwrap();
+    assert_ne!(res.isError, Some(true));
+
+    let structured = parse_content_json(&res);
+    assert_eq!(structured["no_match"], true,
+        "a below-threshold best match must be an explicit no_match: {structured}");
+    assert_eq!(structured["matched"], false);
+    let text = res.content.first().map(|c| c.text.as_str()).unwrap_or("");
+    assert!(!text.contains("Recommended contexts"),
+        "below-threshold results must not be presented as recommendations; got:\n{text}");
+    assert!(text.contains("no_match"),
+        "the response must say no_match explicitly; got:\n{text}");
+}
+
+#[test]
+fn b3_context_route_matches_above_threshold_and_reports_id() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+    let created = dispatch("context_create", &rt, &json!({
+        "display_name": "quant trading research",
+        "tags": ["trading", "markets"],
+    })).unwrap();
+    assert_ne!(created.isError, Some(true));
+
+    let res = dispatch("context_route", &rt,
+        &json!({"query": "quant trading", "top_k": 3}))
+        .unwrap();
+    let structured = parse_content_json(&res);
+    assert_eq!(structured["matched"], true,
+        "a genuine lexical match must be reported as matched: {structured}");
+    let best = structured["results"][0]["id"].as_str().expect("top result id");
+    // The routed id must be usable and the score must clear the threshold.
+    let score = structured["results"][0]["score"].as_f64().expect("score");
+    assert!(score >= 0.5, "matched result must clear the default threshold: {score}");
+    let stats = dispatch("memory_stats", &rt, &json!({"context_id": best})).unwrap();
+    assert_ne!(stats.isError, Some(true),
+        "the routed context id must be directly usable: {}", best);
+}
+
+#[test]
+fn b3_project_detect_is_idempotent_and_returns_usable_context_id() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    let first = dispatch("project_detect", &rt, &json!({})).unwrap();
+    assert_ne!(first.isError, Some(true));
+    let s1 = parse_content_json(&first);
+    let id1 = s1["context_id"].as_str().expect("project_detect must return a context_id");
+    assert_eq!(s1["created"], true, "first detection in a fresh store must create: {s1}");
+
+    let second = dispatch("project_detect", &rt, &json!({})).unwrap();
+    let s2 = parse_content_json(&second);
+    let id2 = s2["context_id"].as_str().expect("second detection must return a context_id");
+    assert_eq!(id2, id1, "project_detect must be idempotent for the same project");
+    assert_eq!(s2["created"], false, "second detection must not create a twin: {s2}");
+
+    // The returned id must be directly usable for memory operations.
+    let stats = dispatch("memory_stats", &rt, &json!({"context_id": id1})).unwrap();
+    assert_ne!(stats.isError, Some(true),
+        "the returned context id must be usable: {id1}");
+}
+
+#[test]
+fn b3_project_identity_is_normalized_for_windows_paths() {
+    use cmhm_mcp_lib::tools::normalize_project_identity;
+    // Same path, mixed separators, mixed case, trailing separator — one identity.
+    let a = std::path::Path::new("C:/Games/Projects/Memory");
+    let b = std::path::Path::new(r"c:\games\projects\memory\");
+    let c = std::path::Path::new(r"C:\Games\Projects\Memory");
+    assert_eq!(normalize_project_identity(a), normalize_project_identity(b));
+    assert_eq!(normalize_project_identity(a), normalize_project_identity(c));
+    // Different projects must NOT collide.
+    let d = std::path::Path::new("C:/Games/Projects/Other");
+    assert_ne!(normalize_project_identity(a), normalize_project_identity(d));
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// B5 — Raw-embedding tools hidden from agents by default
+//
+// The agent-session review called the hand-rolled 128-dim embedding path a
+// trap: an LLM cannot produce a real normalized embedding, so agents
+// fabricate vectors that silently corrupt the projection. The tools stay
+// usable behind an explicit flag for tests and embedding-native hosts.
+// ════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn b5_embedding_tools_hidden_from_agents_by_default() {
+    let names: Vec<String> = cmhm_mcp_lib::tools::tool_definitions_for(false)
+        .iter().map(|d| d.name.clone()).collect();
+    assert!(!names.iter().any(|n| n == "memory_learn"),
+        "raw-embedding learn must be hidden by default, got {names:?}");
+    assert!(!names.iter().any(|n| n == "memory_retrieve"),
+        "raw-embedding retrieve must be hidden by default, got {names:?}");
+    // The text-native surface must remain fully available.
+    for keep in ["memory_learn_text", "memory_retrieve_text", "project_detect", "context_route"] {
+        assert!(names.iter().any(|n| n == keep),
+            "tool {keep} must stay visible; got {names:?}");
+    }
+}
+
+#[test]
+fn b5_embedding_tools_visible_when_explicitly_enabled() {
+    let names: Vec<String> = cmhm_mcp_lib::tools::tool_definitions_for(true)
+        .iter().map(|d| d.name.clone()).collect();
+    assert!(names.iter().any(|n| n == "memory_learn"),
+        "embedding hosts must be able to expose memory_learn");
+    assert!(names.iter().any(|n| n == "memory_retrieve"),
+        "embedding hosts must be able to expose memory_retrieve");
+}
+
+#[test]
+fn b5_embedding_flag_rejects_unknown_values_instead_of_defaulting() {
+    use cmhm_mcp_lib::tools::parse_embedding_tool_flag;
+    assert_eq!(parse_embedding_tool_flag(None), Ok(false),
+        "unset must hide the embedding tools");
+    for v in ["1", "true", "TRUE", "yes", "on"] {
+        assert_eq!(parse_embedding_tool_flag(Some(v)), Ok(true), "{v} must enable");
+    }
+    for v in ["0", "false", "no", "off"] {
+        assert_eq!(parse_embedding_tool_flag(Some(v)), Ok(false), "{v} must disable");
+    }
+    for v in ["maybe", "2", "", "enabled", "tru"] {
+        assert!(parse_embedding_tool_flag(Some(v)).is_err(),
+            "{v:?} must be an explicit error, never a silent default");
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// B4 — Instructions must be tiered and lean
+//
+// The agent-session review's core complaint about the standing rules: the
+// every-turn ceremony (detect -> route -> create -> retrieve) produced an
+// empty detour whose output never changed a decision. Trigger retrieval and
+// learning on real events, not on every turn.
+// ════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn b4_instructions_are_tiered_and_drop_the_every_turn_ceremony() {
+    let instr = cmhm_mcp_lib::CMHM_INSTRUCTIONS;
+
+    // Lean: the pre-B4 text was ~3000 chars of mandatory ceremony.
+    assert!(instr.len() < 1700,
+        "instructions must stay lean (<1700 chars), got {}", instr.len());
+
+    // Setup is ONE call now (B3): project_detect returns a usable context id.
+    assert!(instr.contains("project_detect"), "must point at the idempotent setup call");
+    assert!(instr.contains("context_id"), "must tell the agent to use the returned context_id");
+
+    // The old mandatory ceremony must be gone.
+    for banned in ["every turn", "128-dim float32", "Embeddings (advanced", "Rule 0", "Rule 1", "Rule 2"] {
+        assert!(!instr.contains(banned),
+            "instructions still contain the pre-B4 pattern {banned:?}");
+    }
+
+    // Tiered triggers, and honesty about what the numbers mean.
+    assert!(instr.contains("only when"), "retrieval must be gated on real triggers");
+    assert!(instr.contains("no_match"), "must explain the honest routing outcome");
+    assert!(instr.contains("evidence"), "must state what evidence actually means");
+}

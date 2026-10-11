@@ -11,59 +11,7 @@ use cmhm_mcp_lib::schema::{self, JsonRpcRequest, JsonRpcResponse, ToolCallParams
 use cmhm_mcp_lib::tools::{self, SharedRuntime};
 // dispatch() lives in lib.rs — single source of truth, testable
 use cmhm_mcp_lib::dispatch;
-
-/// Standing orders injected into the model's context on every session via MCP initialize.
-/// Written as behavioral rules — the model follows these autonomously, no user prompting.
-const CMHM_INSTRUCTIONS: &str = r#"
-You are connected to a causal memory system (CMHM). Follow these rules automatically on every turn — do not wait for the user to ask.
-
-## Rule 0 — Session start: detect the project automatically
-At the very start of every session, call `project_detect` (no parameters).
-It returns the working directory, project name from manifest (Cargo.toml / package.json / pyproject.toml), git remote, and a recommended action.
-- If it says "is_default_dir: yes" → use the `default` context for the whole session.
-- If it says "is_default_dir: no" → follow its recommended action (route then create if needed).
-Never ask the user for the project name. Always detect it yourself.
-
-## Rule 1 — Before every decision, retrieve memory
-Before writing code, choosing a library, designing an API, or making any non-trivial decision:
-1. Call `context_route` with a 2-5 word description of the current task.
-2. Take the top-ranked context.
-3. Call `memory_retrieve_text` on that context with a plain-text description of the current situation.
-4. Read the causal chain. If it shows a past failure for this approach, prefer the alternative that succeeded.
-
-## Rule 2 — After every action, record the outcome
-After any action whose result is now known (build succeeded/failed, test passed/failed, API call returned, decision proved correct/wrong):
-1. Call `memory_learn_text` with:
-   - `state`:  plain text describing the situation before the action
-   - `action`: plain text describing what you did
-   - `outcome`: plain text describing what happened
-   - `prediction_error`: 0.0 if outcome was expected, 1.0 if complete surprise or failure
-   - `auto_tag`: true (default) — automatically tags the context with keywords for better future routing
-2. Use the same context as the retrieve call.
-
-## Rule 3 — New project or topic = new context
-When `project_detect` returns a project that has no matching context (context_route score < 0.5):
-- Call `context_create` with display_name from project_detect, relevant tags, and a domain description.
-- Use that context's UUID for all memory calls this session.
-
-## Rule 4 — Embeddings (advanced / optional)
-Only use `memory_retrieve` / `memory_learn` (embedding variants) if you have access to a real embedding
-model. Encode text as a 128-dim float32 vector, normalize it, then Base64-encode as little-endian bytes
-(512 bytes total). Use `model_id` to identify the model (e.g. "deepseek", "model-a", "openai").
-For most tasks, the text variants (`memory_retrieve_text` / `memory_learn_text`) are preferred.
-
-## What each tool does
-- `project_detect`        → reads cwd, manifest, git to identify the project. Call first. No parameters.
-- `context_route`         → given a text query, returns ranked contexts by relevance score [0-1]
-- `memory_retrieve_text`  → retrieve causal history using plain text — PREFERRED
-- `memory_learn_text`     → record (state → action → outcome) as plain text — PREFERRED, auto-tags context
-- `memory_retrieve`       → retrieve using a Base64-encoded embedding (advanced)
-- `memory_learn`          → record using Base64-encoded embeddings (advanced)
-- `context_create`        → creates a new isolated memory context (nothing leaks between contexts)
-- `context_list`          → lists all contexts with UUIDs, states, learn counts
-- `context_delete`        → permanently removes a context (irreversible)
-- `memory_stats`          → returns node count, version, whether context is loaded in RAM
-"#;
+use cmhm_mcp_lib::CMHM_INSTRUCTIONS;
 
 fn main() -> Result<()> {
     // Tracing to stderr (stdout is reserved for MCP JSON-RPC)
@@ -157,10 +105,18 @@ fn handle_message(line: &str, rt: &SharedRuntime) -> JsonRpcResponse {
 
         // ── Tool Discovery ─────────────────────────────────────────────
         "tools/list" => {
-            let result = ToolsListResult { tools: tools::tool_definitions() };
-            match serde_json::to_value(result) {
-                Ok(v)  => JsonRpcResponse::ok(id, v),
-                Err(e) => JsonRpcResponse::err(id, -32603, format!("Internal: serialize error: {e}")),
+            // B5: an invalid CMHM_EXPOSE_EMBEDDING_TOOLS value is reported,
+            // never silently defaulted. Raw-embedding tools stay hidden unless
+            // the host explicitly enables them.
+            match tools::tool_definitions_checked() {
+                Ok(defs) => {
+                    let result = ToolsListResult { tools: defs };
+                    match serde_json::to_value(result) {
+                        Ok(v)  => JsonRpcResponse::ok(id, v),
+                        Err(e) => JsonRpcResponse::err(id, -32603, format!("Internal: serialize error: {e}")),
+                    }
+                }
+                Err(e) => JsonRpcResponse::err(id, -32602, format!("tools/list unavailable: {e}")),
             }
         }
 

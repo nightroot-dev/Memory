@@ -534,12 +534,57 @@ const TOOLS: &[ToolEntry] = &[
     },
 ];
 
+/// Raw-embedding tool names, hidden from agents unless explicitly enabled.
+const EMBEDDING_TOOL_NAMES: &[&str] = &["memory_learn", "memory_retrieve"];
+
+/// Parse the `CMHM_EXPOSE_EMBEDDING_TOOLS` flag value.
+///
+/// Hidden by default: an agent cannot produce a real normalized embedding, and
+/// a fabricated vector silently corrupts the projection. An unknown or
+/// misspelled value is an explicit error — never a silent default.
+pub fn parse_embedding_tool_flag(value: Option<&str>) -> Result<bool, String> {
+    match value {
+        None => Ok(false),
+        Some(v) => match v.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => Ok(true),
+            "0" | "false" | "no" | "off" => Ok(false),
+            other => Err(format!(
+                "invalid CMHM_EXPOSE_EMBEDDING_TOOLS={other:?} \
+                 (expected one of: 1/0/true/false/yes/no/on/off)"
+            )),
+        },
+    }
+}
+
+/// Read the environment flag. Propagates an invalid value as an error.
+pub fn embedding_tools_enabled() -> Result<bool, String> {
+    let raw = std::env::var("CMHM_EXPOSE_EMBEDDING_TOOLS").ok();
+    parse_embedding_tool_flag(raw.as_deref())
+}
+
+/// Tool list for agents. `embedding_tools = false` hides the raw-embedding
+/// pair; `true` exposes them for embedding-native hosts and tests.
+pub fn tool_definitions_for(embedding_tools: bool) -> Vec<ToolDefinition> {
+    TOOLS.iter()
+        .filter(|t| embedding_tools || !EMBEDDING_TOOL_NAMES.contains(&t.name))
+        .map(|t| ToolDefinition {
+            name:        t.name.to_string(),
+            description: t.description.to_string(),
+            inputSchema: (t.schema)(),
+        })
+        .collect()
+}
+
+/// Tool list honoring the environment flag. On an invalid flag value the
+/// embedding tools stay hidden and `tool_definitions_checked` reports it.
 pub fn tool_definitions() -> Vec<ToolDefinition> {
-    TOOLS.iter().map(|t| ToolDefinition {
-        name:        t.name.to_string(),
-        description: t.description.to_string(),
-        inputSchema: (t.schema)(),
-    }).collect()
+    tool_definitions_for(embedding_tools_enabled().unwrap_or(false))
+}
+
+/// Strict variant for `tools/list`: an invalid flag value is surfaced to the
+/// client as an error instead of being silently swallowed.
+pub fn tool_definitions_checked() -> Result<Vec<ToolDefinition>, String> {
+    Ok(tool_definitions_for(embedding_tools_enabled()?))
 }
 
 // --- Tool handlers -----------------------------------------------------------
@@ -1025,17 +1070,56 @@ pub fn handle_context_route(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
 
     let rt = rt.lock();
     let results = rt.route_top_k(&params.query, params.top_k);
+    let min_score = params.min_score;
 
+    // B3: an honest router. A weak lexical hit is worse than an empty answer,
+    // so anything below `min_score` is an explicit no_match, never a
+    // "recommended" context.
     if results.is_empty() {
+        let structured = json!({
+            "matched":      false,
+            "no_match":     true,
+            "min_score":    min_score,
+            "best_score":   serde_json::Value::Null,
+            "best_context": serde_json::Value::Null,
+            "results":      Vec::<serde_json::Value>::new(),
+        });
         return ToolCallResult {
-            content: vec![ContentItem::text("No contexts available for routing.")],
+            content: vec![
+                ContentItem::text(
+                    "no_match: no contexts exist to route to.".to_string(),
+                ),
+                ContentItem::json(&structured),
+            ],
+            isError: None,
+        };
+    }
+
+    let (best_desc, best_score) = results[0].clone();
+    if best_score < min_score {
+        let structured = json!({
+            "matched":      false,
+            "no_match":     true,
+            "min_score":    min_score,
+            "best_score":   best_score,
+            "best_context": best_desc.display_name,
+            "results":      Vec::<serde_json::Value>::new(),
+        });
+        let text = format!(
+            "no_match: best candidate **{}** scored {:.3} < min_score {:.2} - not a recommendation.\n\
+             Nothing here matches \"{}\" with confidence. If this work is worth remembering, create a \
+             context with `context_create`; otherwise use the `default` context.",
+            best_desc.display_name, best_score, min_score, params.query
+        );
+        return ToolCallResult {
+            content: vec![ContentItem::text(text), ContentItem::json(&structured)],
             isError: None,
         };
     }
 
     let mut text = format!(
-        "## Context Routing\n**Query**: \"{}\"\n\n**Recommended contexts** (top {}):\n\n",
-        params.query, params.top_k
+        "## Context Routing\n**Query**: \"{}\"\n\n**Matched contexts** (top {}, min_score {:.2}):\n\n",
+        params.query, params.top_k, min_score
     );
     for (i, (desc, score)) in results.iter().enumerate() {
         text.push_str(&format!(
@@ -1051,7 +1135,22 @@ pub fn handle_context_route(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     }
     text.push_str("_Use the ID in the context_id field of memory_retrieve._");
 
-    ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+    let structured = json!({
+        "matched":      true,
+        "no_match":     false,
+        "min_score":    min_score,
+        "best_score":   best_score,
+        "best_context": best_desc.display_name,
+        "results":      results.iter().map(|(d, sc)| json!({
+            "id":           d.id,
+            "display_name": d.display_name,
+            "score":        sc,
+        })).collect::<Vec<_>>(),
+    });
+    ToolCallResult {
+        content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+        isError: None,
+    }
 }
 
 pub fn handle_memory_stats(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
@@ -1425,7 +1524,25 @@ fn ctx_type_from_param(p: &ContextTypeParam) -> ContextType {
 
 // --- project_detect ----------------------------------------------------------
 
-pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResult {
+/// B3: canonical identity for a project path. Windows paths are
+/// case-insensitive and accept mixed separators, so the same project reached
+/// as `C:/Games/Projects/Memory`, `c:\games\projects\memory\` or
+/// `C:\Games\Projects\Memory` must resolve to ONE identity key — otherwise the
+/// same project spawns twin contexts.
+pub fn normalize_project_identity(path: &std::path::Path) -> String {
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let unified = canonical.to_string_lossy().replace('\\', "/");
+    let trimmed = unified.trim_end_matches('/').to_string();
+    if cfg!(windows) { trimmed.to_lowercase() } else { trimmed }
+}
+
+/// Tag stamped on a context so a later `project_detect` finds it by identity
+/// instead of by fuzzy name scoring.
+fn project_identity_tag(identity: &str) -> String {
+    format!("cmhm-project:{identity}")
+}
+
+pub fn handle_project_detect(rt: &SharedRuntime, _args: &Value) -> ToolCallResult {
     let cwd = std::env::current_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."));
 
@@ -1435,7 +1552,7 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
         .unwrap_or("unknown")
         .to_string();
 
-    // Detect generic/home directories â€” agent should use default context for these
+    // Detect generic/home directories - agent should use default context for these
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_default();
@@ -1450,22 +1567,60 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
     // Try to read a project manifest for a canonical name
     let manifest_name = detect_manifest_name(&cwd);
     let project_name = manifest_name.clone().unwrap_or_else(|| dir_name.clone());
-
-    // Try to get git remote origin URL
     let git_remote = detect_git_remote(&cwd);
-
-    // Try to get current git branch
     let git_branch = detect_git_branch(&cwd);
 
-    let recommendation = if is_default_dir {
-        "Use the `default` context â€” this is a generic directory, not a project.".to_string()
-    } else {
-        format!(
-            "Call `context_route` with query \"{project_name}\". \
-            If top score < 0.5, call `context_create` with display_name=\"{project_name}\". \
-            Then use that context for all memory_learn / memory_retrieve calls this session."
-        )
+    // B3: idempotent setup. Detect -> reuse-or-create -> return a usable id.
+    // Calling this twice for the same project must return the SAME context.
+    let identity = normalize_project_identity(&cwd);
+    let tag = project_identity_tag(&identity);
+
+    let mut rt_lock = rt.lock();
+    let existing = rt_lock
+        .list_contexts()
+        .into_iter()
+        .find(|c| c.tags.iter().any(|t| t == &tag));
+
+    let default_ctx = rt_lock
+        .list_contexts()
+        .into_iter()
+        .find(|c| c.display_name == "default");
+
+    let (context_id, created, resolved_name, source) = match existing {
+        Some(c) => (c.id.to_string(), false, c.display_name, "existing project context".to_string()),
+        None if is_default_dir => match default_ctx {
+            Some(c) => (c.id.to_string(), false, c.display_name, "generic directory -> default context".to_string()),
+            None => ("default".to_string(), false, "default".to_string(),
+                     "generic directory -> default context (id unresolved)".to_string()),
+        },
+        None => {
+            let mut tags = vec![tag.clone()];
+            for t in [project_name.as_str(), dir_name.as_str()] {
+                if !t.is_empty() && !tags.iter().any(|e: &String| e == t) {
+                    tags.push(t.to_string());
+                }
+            }
+            let description = format!("Project at {identity}");
+            match rt_lock.create_context(
+                project_name.clone(),
+                ContextType::Project,
+                None,
+                description,
+                tags,
+            ) {
+                Ok(c) => (c.id.to_string(), true, c.display_name, "created for this project".to_string()),
+                Err(e) => (
+                    "default".to_string(), false, "default".to_string(),
+                    format!("context creation failed ({e}) -> default context"),
+                ),
+            }
+        }
     };
+
+    let recommendation = format!(
+        "Use context_id = `{context_id}` ({resolved_name}) for all memory calls this session. \
+         No further setup calls are needed - this is idempotent."
+    );
 
     let text = format!(
         "## Project Detection\n\
@@ -1474,7 +1629,10 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
         **Project name**: {} {}\n\
         **Git remote**: {}\n\
         **Git branch**: {}\n\
-        **Is generic/home dir**: {}\n\n\
+        **Is generic/home dir**: {}\n\
+        **Project identity**: {}\n\
+        **Context ID**: `{}` ({})\n\
+        **Context created now**: {}\n\n\
         **Recommended action**: {}",
         cwd.display(),
         dir_name,
@@ -1483,10 +1641,30 @@ pub fn handle_project_detect(_rt: &SharedRuntime, _args: &Value) -> ToolCallResu
         git_remote.as_deref().unwrap_or("not a git repo"),
         git_branch.as_deref().unwrap_or("unknown"),
         if is_default_dir { "yes" } else { "no" },
+        identity,
+        context_id,
+        resolved_name,
+        created,
         recommendation,
     );
 
-    ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+    let structured = json!({
+        "working_directory": cwd.display().to_string(),
+        "project_name":      project_name,
+        "git_remote":        git_remote,
+        "git_branch":        git_branch,
+        "is_default_dir":    is_default_dir,
+        "identity":          identity,
+        "context_id":        context_id,
+        "context_name":      resolved_name,
+        "created":           created,
+        "source":            source,
+    });
+
+    ToolCallResult {
+        content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+        isError: None,
+    }
 }
 
 /// Read project name from the first manifest found in `dir`.
