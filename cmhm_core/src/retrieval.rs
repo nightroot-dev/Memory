@@ -146,7 +146,9 @@ impl Ord for DijkstraState {
 ///          Signal precedence: LogicalContradiction → SupersessionConflict → ProvenancePair → AdversarialPair.
 ///    - 2c: Score each eligible candidate by relevance:
 ///          `query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)`
-///    - 2d: Seed = highest-scored candidate.
+///    - 2d: Seed = highest-scored candidate. Exact score ties are broken by
+///          node authority (tie-break only — never additive, never a top-K
+///          override; E7 fail-safe).
 ///    - 2e/2f: Abstain if conflict detected and `abstain_on_conflict` is set.
 ///    - `emotional_tag` is affective salience only; it does NOT appear in the score.
 ///    - No recency term; use `superseded_by` for staleness handling.
@@ -458,8 +460,23 @@ pub fn retrieve(
         Some((*id, score))
     }).collect();
 
-    // Sort descending by score.
-    scored.sort_by(|(_, sa), (_, sb)| sb.partial_cmp(sa).unwrap_or(Ordering::Equal));
+    // Sort descending by score. Exact ties (equal relevance) are broken by
+    // node authority — a tie-break, NOT a weight: it can never move a
+    // lower-relevance node above a higher-relevance one, it only settles
+    // exact equals. Reviewer condition on the S-01 amendment: this preserves
+    // the E7 fail-safe (authoritative 0.85 must beat migrated neutral 0.50 at
+    // equal cosine) without reintroducing authority into the score itself.
+    // Node id is the final key so ordering stays fully deterministic.
+    scored.sort_by(|(id_a, sa), (id_b, sb)| {
+        sb.partial_cmp(sa)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| {
+                let auth_a = node_store.get(*id_a).map(|n| n.authority).unwrap_or(0.0);
+                let auth_b = node_store.get(*id_b).map(|n| n.authority).unwrap_or(0.0);
+                auth_b.partial_cmp(&auth_a).unwrap_or(Ordering::Equal)
+            })
+            .then_with(|| id_a.cmp(id_b))
+    });
 
     // Stage 2: SCORED diagnostic snapshot (passive, unmutated).
     let scored_candidates: Vec<(u64, f32)> = scored.clone();
