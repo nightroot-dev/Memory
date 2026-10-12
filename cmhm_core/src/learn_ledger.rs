@@ -21,6 +21,14 @@
 //! so a crash/restart replays already-snapshotted learns through `process_learn`
 //! and appends DUPLICATE ledger entries exactly as it duplicates nodes. No
 //! release ships between B1b and R1 by reviewer rule; R1 owns idempotency.
+//!
+//! R1 (S-05) FIXED at lifecycle: snapshot-side replay watermark
+//! (`CoreState::last_applied_wal_seq`, snapshot v5) + startup skip of
+//! already-applied WAL entries + replay skip-before-append in `process_learn`
+//! (deduped replays don't append). Terminal shutdown compacts the WAL
+//! (snapshot complete, WAL deleted, watermark 0); mid-life checkpoints stamp
+//! the watermark and retain the WAL. Live learns always append (T3
+//! most-recent-wins preserved).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 

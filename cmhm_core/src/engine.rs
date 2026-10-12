@@ -117,6 +117,12 @@ pub enum Command {
         bias: [f32; crate::EMBED_DIM],
         tx: mpsc::SyncSender<Result<()>>,
     },
+    LedgerLen {
+        tx: mpsc::SyncSender<usize>,
+    },
+    LedgerNextSeq {
+        tx: mpsc::SyncSender<u64>,
+    },
     Shutdown {
         tx: mpsc::SyncSender<Result<()>>,
     },
@@ -520,6 +526,26 @@ impl EngineHandle {
         resp_rx.recv().unwrap_or(0.30)
     }
 
+    /// Number of retained learn-ledger episodes. Read-only — no WAL write.
+    /// Returns 0 if the engine has shut down. Used by S-05 tests.
+    pub fn ledger_len(&self) -> usize {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::LedgerLen { tx: resp_tx }).is_err() {
+            return 0;
+        }
+        resp_rx.recv().unwrap_or(0)
+    }
+
+    /// Next learn-ledger sequence. Read-only — no WAL write.
+    /// Returns 1 if the engine has shut down. Used by S-05 tests.
+    pub fn ledger_next_seq(&self) -> u64 {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::LedgerNextSeq { tx: resp_tx }).is_err() {
+            return 1;
+        }
+        resp_rx.recv().unwrap_or(1)
+    }
+
     /// Register a projection matrix at runtime.
     ///
     /// Matrix is row-major with shape [EMBED_DIM x input_dim].
@@ -657,7 +683,9 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
         }
         Err(SnapshotLoadError::VersionMismatch { found, expected, payload }) => {
             // Deterministic migration chain: v2 → v3 (neutral authority
-            // defaults) → v4 (empty learn ledger). v3 → v4 directly.
+            // defaults) → v5 (empty learn ledger, watermark 0). v3 → v5
+            // directly (empty ledger, watermark 0). v4 → v5 (ledger kept,
+            // watermark 0).
             if found == 2 {
                 match crate::migration::migrate_v2_to_v3(&payload) {
                     Ok(mut migrated) => {
@@ -666,8 +694,9 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         // pre-B1b nodes resolve to "no triple recorded").
                         migrated.learn_ledger = crate::learn_ledger::LearnLedger::new();
                         migrated.rebuild_ledger_index();
+                        migrated.last_applied_wal_seq = 0;
                         tracing::info!(
-                            "Snapshot v2→v3→v4 migration succeeded: {} nodes recovered with neutral defaults and an empty learn ledger.",
+                            "Snapshot v2→v3→v5 migration succeeded: {} nodes recovered with neutral defaults and an empty learn ledger.",
                             migrated.node_store.len()
                         );
                         migrated
@@ -703,12 +732,54 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                     }
                 }
             } else if found == 3 {
-                // v3 → v4: identical stores, plus the empty learn ledger.
+                // v3 → v5: identical stores, plus the empty learn ledger and watermark 0.
                 match crate::migration::migrate_v3_to_v4(&payload) {
                     Ok(migrated) => {
                         tracing::info!(
-                            "Snapshot v3→v4 migration succeeded: {} nodes recovered with an empty learn ledger.",
+                            "Snapshot v3→v5 migration succeeded: {} nodes recovered with an empty learn ledger.",
                             migrated.node_store.len()
+                        );
+                        migrated
+                    }
+                    Err(migration_err) => {
+                        tracing::error!(
+                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                             Migration attempt failed: {migration_err}."
+                        );
+
+                        if cfg.allow_incompatible_snapshot_reset {
+                            let quarantine_path = snapshot_path.with_extension(
+                                format!("v{found}.incompatible")
+                            );
+                            let _ = std::fs::rename(&snapshot_path, &quarantine_path);
+                            for n in 1u32..=2 {
+                                let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                                if gen_path.exists() {
+                                    let q = snapshot_path.with_extension(
+                                        format!("v{found}.incompatible.{n}")
+                                    );
+                                    let _ = std::fs::rename(&gen_path, &q);
+                                }
+                            }
+                            CoreState::new(cfg.working_memory_size)
+                        } else {
+                            return Err(anyhow::Error::new(SchemaMismatchError {
+                                found,
+                                expected,
+                                snapshot_path: snapshot_path.clone(),
+                            }));
+                        }
+                    }
+                }
+            } else if found == 4 {
+                // v4 → v5: ledger kept bit-for-bit, watermark 0 (one-time
+                // full-WAL replay on next startup, then watermarks going forward).
+                match crate::migration::migrate_v4_to_v5(&payload) {
+                    Ok(migrated) => {
+                        tracing::info!(
+                            "Snapshot v4→v5 migration succeeded: {} nodes recovered with ledger len {}.",
+                            migrated.node_store.len(),
+                            migrated.learn_ledger.len()
                         );
                         migrated
                     }
@@ -850,8 +921,24 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                 tracing::info!("WAL exists but is empty — no replay needed");
             }
             Ok(entries) => {
-                tracing::info!("Replaying {} WAL entries from {:?}", entries.len(), wal_path);
-                for entry in &entries {
+                // S-05 watermark: the snapshot already includes the first
+                // `last_applied_wal_seq` WAL entries (stamped at the last
+                // mid-life/terminal snapshot). Skip them; replay only the tail.
+                // No WAL format change — snapshot-side high-water mark, same
+                // exactly-once shape as `feedback_seen`.
+                let total = entries.len();
+                let mut skip = state.last_applied_wal_seq as usize;
+                if skip > total {
+                    tracing::warn!(
+                        "WAL shorter than watermark (wal={total} < mark={skip}) — \
+                         WAL was truncated outside the compaction point; replaying all"
+                    );
+                    skip = 0;
+                } else if skip > 0 {
+                    tracing::info!("WAL watermark: skipping {skip}/{total} already-applied entries");
+                }
+                tracing::info!("Replaying {} WAL entries from {:?}", total - skip, wal_path);
+                for entry in entries.iter().skip(skip) {
                     let payload = &entry.payload;
                     if payload.is_empty() {
                         tracing::debug!("WAL: empty payload, skipping");
@@ -873,6 +960,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                          cmd.raw_text.as_ref().map(|(s, _, _)| s.as_str()),
                                          cmd.raw_text.as_ref().map(|(_, a, _)| a.as_str()), // R5
                                          cmd.raw_text.as_ref().map(|(_, _, o)| o.as_str()), // R5
+                                         true,
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -895,6 +983,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::System,
                                          cmd.assertion_key, cmd.polarity, None,
                                          None, None, // R5: no action/outcome text in V3
+                                         true,
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -916,6 +1005,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::Agent,
                                          cmd.assertion_key, cmd.polarity, None,
                                          None, None, // R5: no action/outcome text in V2
+                                         true,
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -936,6 +1026,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::User,
                                          None, None, None,
                                          None, None, // R5: no action/outcome text in V1
+                                         true,
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -999,6 +1090,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::User,
                                          None, None, None,
                                          None, None, // R5: no action/outcome text in untyped legacy
+                                         true,
                                          &cfg,
                                     );
                                     replayed += 1;
@@ -1033,6 +1125,9 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     state.rebuild_ledger_index();
 
     // ── Step 3: Compaction point ──────────────────────────────────────────
+    // Terminal snapshot: the post-replay state includes every WAL entry, the
+    // WAL is deleted, and the watermark resets to 0 for the fresh WAL.
+    state.last_applied_wal_seq = 0;
     write_snapshot(&state, &snapshot_path)?;
     if wal_path.exists() {
         if let Err(e) = std::fs::remove_file(&wal_path) { if e.kind() != std::io::ErrorKind::NotFound { tracing::warn!("WAL delete failed at startup: {e}"); } }
@@ -1090,6 +1185,7 @@ fn worker_loop(
                      raw_text.as_ref().map(|(s, _, _)| s.as_str()),
                      raw_text.as_ref().map(|(_, a, _)| a.as_str()), // R5: action text
                      raw_text.as_ref().map(|(_, _, o)| o.as_str()), // R5: outcome text
+                     false,
                      &cfg,
                 );
                 // Atomic WAL append: ONLY write to WAL if process_learn succeeded!
@@ -1211,6 +1307,16 @@ fn worker_loop(
             }
 
             Command::Snapshot { path, tx } => {
+                // S-05: mid-life checkpoint vs terminal snapshot distinction.
+                // Canonical snapshots (path == snapshot_path) stamp the replay
+                // watermark (current WAL length) and RETAIN the WAL — the WAL
+                // remains the crash-recovery path if this snapshot corrupts
+                // before the next startup verifies it (H-11). Backup snapshots
+                // to other paths leave the watermark untouched.
+                if path == snapshot_path {
+                    let wal_seq = wal.as_ref().map(|w| w.seq).unwrap_or(0);
+                    state.last_applied_wal_seq = wal_seq;
+                }
                 let result = write_snapshot(&state, &path)
                     .map_err(Into::into);
                 let _ = tx.send(result);
@@ -1281,13 +1387,32 @@ fn worker_loop(
                 let _ = tx.send(state.birth_q30);
             }
 
+            Command::LedgerLen { tx } => {
+                // Read-only — no WAL, no state change.
+                let _ = tx.send(state.learn_ledger.len());
+            }
+
+            Command::LedgerNextSeq { tx } => {
+                // Read-only — no WAL, no state change.
+                let _ = tx.send(state.learn_ledger.next_seq);
+            }
+
             Command::RegisterProjection { model_id, input_dim, matrix, bias, tx } => {
                 let result = process_register_projection(&mut state, model_id, input_dim, matrix, bias);
                 let _ = tx.send(result);
             }
 
             Command::Shutdown { tx } => {
+                // S-05 terminal snapshot (watermark commit): stamp the watermark
+                // so a restart skips already-applied WAL entries. WAL retention
+                // vs compaction is decided in the shutdown-semantics commit;
+                // this commit retains the WAL (watermark alone subsumes
+                // correctness — restart skips, no duplication).
                 tracing::info!("Worker shutting down. Taking final snapshot.");
+                {
+                    let wal_seq = wal.as_ref().map(|w| w.seq).unwrap_or(0);
+                    state.last_applied_wal_seq = wal_seq;
+                }
                 let res = write_snapshot(&state, &snapshot_path);
                 let _ = tx.send(res);
                 break;
@@ -1300,11 +1425,18 @@ fn worker_loop(
         // Periodic snapshot every `snapshot_interval_cmds` commands (default 1000).
         // `.max(1)` guards a zero value in user-supplied config (modulo-by-zero panics).
         if cmd_count % cfg.snapshot_interval_cmds.max(1) == 0 {
+            // S-05: periodic snapshots are mid-life checkpoints — stamp the
+            // watermark, retain the WAL (H-11: truncation deferred to startup).
+            {
+                let wal_seq = wal.as_ref().map(|w| w.seq).unwrap_or(0);
+                state.last_applied_wal_seq = wal_seq;
+            }
             if let Err(e) = write_snapshot(&state, &snapshot_path) { tracing::error!("Periodic snapshot failed: {e}"); }
             // H-11 note: WAL truncation is intentionally deferred to startup (Step 3 of
             // `start()`). Mid-session rotation is unsafe: if the snapshot is corrupted
             // before the next startup verifies it, the WAL is the only recovery path.
-            // On startup: load snapshot -> replay WAL -> write new snapshot -> delete WAL -> open fresh WAL.
+            // On startup: load snapshot -> skip watermarked entries -> replay tail ->
+            // write new snapshot (watermark 0) -> delete WAL -> open fresh WAL.
         }
 
         // Consolidation check
@@ -1383,6 +1515,7 @@ fn process_learn(
     text: Option<&str>,           // state text
     action_text: Option<&str>,    // R5: action text for BM25
     outcome_text: Option<&str>,   // R5: outcome text for BM25
+    is_replay: bool,
     cfg: &Config,
 ) -> Result<LearnResult> {
     // Fail-safe validation for non-finite values and out-of-range inputs
@@ -1431,7 +1564,7 @@ fn process_learn(
     // Birth nodes
     // R5: Pass text for all three node types so BM25 indexes action and outcome vocabulary.
     // "How did I fix X?" queries now match action text. "What was the result?" queries match outcome text.
-    let state_id   = birth_node(&mut *state, raw_state.to_vec(),   &state_proj,   model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text);
+    let (state_id, state_birthed)   = birth_node(&mut *state, raw_state.to_vec(),   &state_proj,   model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text);
 
     // B6: Check self-loop immediately before birthing action/outcome nodes so atomicity is preserved
     // and no orphaned action/outcome nodes are inserted into node_store on self-loop rejection.
@@ -1442,8 +1575,8 @@ fn process_learn(
         }
     }
 
-    let action_id  = birth_node(&mut *state, raw_action.to_vec(),  &action_proj,  model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, action_text);
-    let outcome_id = birth_node(&mut *state, raw_outcome.to_vec(), &outcome_proj, model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, outcome_text);
+    let (action_id, action_birthed)  = birth_node(&mut *state, raw_action.to_vec(),  &action_proj,  model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, action_text);
+    let (outcome_id, outcome_birthed) = birth_node(&mut *state, raw_outcome.to_vec(), &outcome_proj, model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, outcome_text);
 
     // Fail-closed: birth_node returns 0 when no projection exists for
     // the model_id. Refuse the whole learn rather than recording
@@ -1481,13 +1614,34 @@ fn process_learn(
     // records its (state, action, outcome) triple here — IDs + timestamp only,
     // no text (resolved live from NodeStore at retrieval).
     //
-    // No new WAL byte: WAL replay funnels through this same `process_learn`,
+    // No new WAL byte: WAL replay funnels through this same `process_learn`
     // so the ledger rebuilds on replay without a schema change.
     //
-    // KNOWN LIMITATION (open S-05, do NOT fix here): WAL replay is not
-    // idempotent, so replayed learns append DUPLICATE ledger entries exactly
-    // as they duplicate nodes. No release ships between B1b and R1.
-    state.learn_ledger.append(state_id, action_id, outcome_id, now as i64);
+    // S-05 idempotency (R1): skip-before-append on replay, NOT append-then-dedup.
+    // A replayed learn whose three births ALL deduped to existing nodes is by
+    // definition already recorded — appending would create a duplicate episode
+    // exactly as replay duplicates nodes. Live learns always append (T3: three
+    // identical live learns share one node but record three episodes with
+    // most-recent-wins) — the skip fires ONLY when `is_replay` is true.
+    //
+    // ESSAY (why dedup was NOT the fix): the birth gate
+    // (`NEAR_DUP_COS=0.85`, adaptive `birth_q30`, `salience>0.70`,
+    // `epsilon>0.5` escape) behaves exactly as specified on live traffic —
+    // high-surprise learns MUST birth (recall needs distinct nodes; T6 pins
+    // weights/thresholds/caps and the approval bench pins G1 42/43, MRR 0.988,
+    // G4 0/43 at α=0.25), and low-surprise repeats MUST dedup (Session L
+    // seed/pool/MRR). Tightening the gate to suppress replay duplicates would
+    // fold ~70% of DISTINCT live memories into their nearest node, silently
+    // discarding text/embeddings and collapsing recall — moving the recall/T6/α
+    // balance the owner explicitly locked. The bug is not that replay births
+    // (it follows the same correct gate) but that already-snapshotted WAL
+    // entries are replayed at all — a LIFECYCLE bug (shutdown compaction +
+    // crash watermark), fixed here and in `start()`/`worker_loop`, leaving the
+    // gate, scoring, weights, and config untouched.
+    let replayed_dedup = is_replay && !state_birthed && !action_birthed && !outcome_birthed;
+    if !replayed_dedup {
+        state.learn_ledger.append(state_id, action_id, outcome_id, now as i64);
+    }
 
     Ok(LearnResult {
         state_node_id: state_id,
@@ -1500,6 +1654,10 @@ fn process_learn(
 
 
 /// Create or find a node for an embedding, following the birth decision logic.
+///
+/// Returns `(id, birthed)`: `birthed=true` when a new node was inserted,
+/// `false` when an existing node was returned (dedup). Projection refusal
+/// returns `(0, false)` — callers treat 0 as fail-closed.
 fn birth_node(
     state: &mut CoreState,
     full_emb: Vec<f32>,
@@ -1514,7 +1672,7 @@ fn birth_node(
      assertion_key: Option<String>,
      polarity: Option<i8>,
      text: Option<&str>,
- ) -> u64 {
+ ) -> (u64, bool) {
     // Salience calculation
     let salience = state.salience_engine.update_and_calc(epsilon, eta) as f32;
 
@@ -1551,7 +1709,7 @@ fn birth_node(
                          refusing to birth node without a 128-dim form",
                         model_id, blended.len()
                     );
-                    return 0;
+                    return (0, false);
                 }
             };
 
@@ -1571,12 +1729,13 @@ fn birth_node(
         // Push to working memory
         state.working_memory.push(id);
 
-        id
+        (id, true)
     } else {
         // Dedup: return the nearest existing node, but APPLY the new learn's corrections.
         // H-12 fix: previously authority, provenance, assertion_key, polarity, and text
         // were silently discarded when dedup returned an existing node. A correction
         // (polarity=-1, provenance="corrected", high authority) would be invisible.
+        let was_empty = nearest.is_empty();
         let existing_id = nearest.first().map(|(id, _)| *id).unwrap_or_else(|| {
             let node = Node::new(full_emb.clone(), model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance.clone())
                 .with_assertion(assertion_key.clone(), polarity)
@@ -1614,7 +1773,8 @@ fn birth_node(
             }
         }
 
-        existing_id
+        // Empty-store insert via the dedup path still birthed a new node.
+        (existing_id, was_empty)
     }
 }
 

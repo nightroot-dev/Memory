@@ -44,6 +44,14 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 ///       `NodeStore`). No new WAL byte: the ledger rebuilds via the single
 ///       `process_learn` append site on WAL replay (with the S-05 duplication
 ///       caveat — replay duplicates ledger entries exactly as nodes).
+///   5 = `CoreState` gains `last_applied_wal_seq: u64` (R1, S-05): crash-safe
+///       replay watermark — number of WAL entries already included in the
+///       snapshot. Mid-life snapshots stamp the current WAL length and retain
+///       the WAL; startup skips the first `last_applied_wal_seq` entries and
+///       replays only the tail. Terminal snapshots (shutdown / startup
+///       compaction) reset to 0 with the WAL deleted. No WAL format change.
+///
+/// Migration from v3 → v4
 ///
 /// Migration from v3 → v4
 /// ───────────────────────
@@ -53,7 +61,7 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 /// "no triple recorded"). Chain: v2 → v3 (`migrate_v2_to_v3`, now attaching an
 /// empty ledger) → v4. See v2→v3 notes above for the WAL path.
 /// Context identity (UUID in the context registry) is preserved across migration.
-pub const SNAPSHOT_VERSION: u32 = 4;
+pub const SNAPSHOT_VERSION: u32 = 5;
 
 
 /// Thin envelope that tags snapshot bytes with a schema version.

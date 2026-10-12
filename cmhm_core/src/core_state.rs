@@ -70,6 +70,20 @@ pub struct CoreState {
     /// A running quantile is self-calibrating across N, dimension, and embedding backends.
     #[serde(default = "default_birth_q30")]
     pub birth_q30: f32,
+
+    /// S-05 crash-safe replay watermark: number of WAL entries whose effects
+    /// are already included in this snapshot.
+    ///
+    /// The WAL is append-only within a session and truncated only at the
+    /// startup compaction point. A mid-life snapshot retains the WAL, so a
+    /// crash restart must skip the first `last_applied_wal_seq` WAL entries
+    /// (already in the snapshot) and replay only the tail. Terminal snapshots
+    /// (shutdown / startup compaction) reset this to 0 because the WAL is
+    /// deleted — the snapshot is complete and the fresh WAL starts empty.
+    /// Follows the `feedback_seen` exactly-once shape: snapshot-side
+    /// high-water mark, no WAL format change.
+    #[serde(default)]
+    pub last_applied_wal_seq: u64,
 }
 
 impl CoreState {
@@ -91,6 +105,7 @@ impl CoreState {
             global_ema: [0.0f32; 128],
             feedback_seen: HashSet::new(),
             birth_q30: default_birth_q30(),
+            last_applied_wal_seq: 0,
         }
     }
  
