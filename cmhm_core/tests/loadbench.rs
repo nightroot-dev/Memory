@@ -24,6 +24,16 @@ fn load_n() -> usize {
         .unwrap_or(1000)
 }
 
+/// B1b latency gate: `CMHM_LOAD_LONGTEXT=1` pads state text to ~400 chars so
+/// the per-candidate text-copy cost is measured with realistic entries, not
+/// just ~40-char L1-length strings. Default off (unchanged behavior).
+fn long_text() -> bool {
+    matches!(
+        std::env::var("CMHM_LOAD_LONGTEXT").as_deref(),
+        Ok("1") | Ok("true") | Ok("yes")
+    )
+}
+
 fn dir_size(path: &std::path::Path) -> u64 {
     let mut total = 0u64;
     if let Ok(rd) = std::fs::read_dir(path) {
@@ -55,9 +65,20 @@ fn load_sweep() {
     let t0 = std::time::Instant::now();
     let handle = engine::start(cfg).unwrap();
     for i in 0..n {
+        let state_s = format!("loadbench state {i} unique token zb{i}");
+        // B1b gate: with CMHM_LOAD_LONGTEXT=1 the state text is padded to
+        // ~400 chars with per-learn-unique filler (same shared prefix, so
+        // lexical behavior stays comparable). Identical padding would
+        // near-dup (cosine >= 0.85) and collapse the bench to ~3 nodes.
+        let state_text = if long_text() {
+            let filler: String = (0..38).map(|j| format!(" pad{i}_{j}abcdefghij")).collect();
+            format!("{state_s}{filler}")
+        } else {
+            state_s
+        };
         handle
             .learn_with_text_context(
-                text_to_embedding(&format!("loadbench state {i} unique token zb{i}")).to_vec(),
+                text_to_embedding(&state_text).to_vec(),
                 text_to_embedding("probed").to_vec(),
                 text_to_embedding("worked").to_vec(),
                 0.2,
@@ -70,7 +91,7 @@ fn load_sweep() {
                 None,
                 None,
                 Some((
-                    format!("loadbench state {i} unique token zb{i}"),
+                    state_text,
                     "probed".into(),
                     "worked".into(),
                 )),
