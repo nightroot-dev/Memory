@@ -112,6 +112,15 @@ pub enum Command {
         limit: usize,
         tx: mpsc::SyncSender<Vec<NodeRecord>>,
     },
+    /// B6b: attach typed metadata to a retained learn episode. Returns true
+    /// when attached, false when the seq is unknown or already evicted (the
+    /// caller surfaces that instead of failing silently). WAL-logged (0x07);
+    /// replay re-inserts idempotently.
+    RecordMeta {
+        seq: u64,
+        meta: crate::learn_ledger::LearnMeta,
+        tx: mpsc::SyncSender<Result<bool>>,
+    },
     /// Read the current adaptive quantile gate value (birth_q30).
     GetBirthQ30 {
         tx: mpsc::SyncSender<f32>,
@@ -271,6 +280,21 @@ const WAL_TYPE_EXPLICIT_EDGE: u8 = 0x05;
 /// Unkeyed feedback is idempotent (no feedback_seen gate for empty key), so duplicate replay is benign.
 const WAL_TYPE_FEEDBACK_UNKEYED: u8 = 0x06;
 
+/// B6b: WAL record for typed episode metadata (LearnMeta by episode seq).
+/// Re-inserted on replay; insert is idempotent for identical content, so
+/// duplicate replay is benign (same posture as unkeyed feedback). Old readers
+/// hit the legacy `_` arm and skip it as an unparsable legacy entry.
+const WAL_TYPE_LEARN_META: u8 = 0x07;
+
+/// B6b: serialisable metadata record for WAL + snapshot paths.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct WalLearnMetaEntry {
+    seq: u64,
+    kind: String,
+    subject: String,
+    tags: Vec<String>,
+}
+
 /// H-07: WAL entry for explicit edge reinforcement (committed S→A→O triple + bandit alpha/beta).
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct WalExplicitEdgeEntry {
@@ -294,6 +318,10 @@ pub struct LearnResult {
     /// Observation only — corrections (H-12) still apply on the dedup path
     /// exactly as before; this field just stops the decision being silent.
     pub disposition: LearnDisposition,
+    /// B6b: ledger episode seq for THIS learn (freshly appended, or the joined
+    /// episode on replay-dedup; 0 only if resolution fails defensively).
+    /// Feed it to `record_meta` to attach typed metadata.
+    pub episode_seq: u64,
 }
 
 /// B6a: outcome of the birth/dedup decision for a learn's state node.
@@ -593,6 +621,15 @@ impl EngineHandle {
         resp_rx.recv().unwrap_or_default()
     }
 
+    /// Attach typed metadata to a retained learn episode (B6b). Returns true
+    /// when attached, false when the seq is unknown or already evicted.
+    /// WAL-logged on success (0x07); replay re-inserts idempotently.
+    pub fn record_meta(&self, seq: u64, meta: crate::learn_ledger::LearnMeta) -> Result<bool> {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        self.tx.send(Command::RecordMeta { seq, meta, tx: resp_tx })?;
+        resp_rx.recv()?
+    }
+
     /// Current value of the adaptive P₀.₃₀ birth gate quantile.
     /// Returns 0.30 (the prior) if the channel is closed.
     /// Read-only — no WAL write. Used by tests to verify quantile convergence.
@@ -856,6 +893,49 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                     Ok(migrated) => {
                         tracing::info!(
                             "Snapshot v4→v5 migration succeeded: {} nodes recovered with ledger len {}.",
+                            migrated.node_store.len(),
+                            migrated.learn_ledger.len()
+                        );
+                        migrated
+                    }
+                    Err(migration_err) => {
+                        tracing::error!(
+                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                             Migration attempt failed: {migration_err}."
+                        );
+
+                        if cfg.allow_incompatible_snapshot_reset {
+                            let quarantine_path = snapshot_path.with_extension(
+                                format!("v{found}.incompatible")
+                            );
+                            let _ = std::fs::rename(&snapshot_path, &quarantine_path);
+                            for n in 1u32..=2 {
+                                let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                                if gen_path.exists() {
+                                    let q = snapshot_path.with_extension(
+                                        format!("v{found}.incompatible.{n}")
+                                    );
+                                    let _ = std::fs::rename(&gen_path, &q);
+                                }
+                            }
+                            CoreState::new(cfg.working_memory_size)
+                        } else {
+                            return Err(anyhow::Error::new(SchemaMismatchError {
+                                found,
+                                expected,
+                                snapshot_path: snapshot_path.clone(),
+                            }));
+                        }
+                    }
+                }
+            } else if found == 5 {
+                // v5 → v6: stores + ledger kept bit-for-bit, empty meta table
+                // (v5 states predate typed metadata; their episodes resolve
+                // unclassified). One-time full-WAL replay, then v6 snapshots.
+                match crate::migration::migrate_v5_to_v6(&payload) {
+                    Ok(migrated) => {
+                        tracing::info!(
+                            "Snapshot v5→v6 migration succeeded: {} nodes recovered with ledger len {}.",
                             migrated.node_store.len(),
                             migrated.learn_ledger.len()
                         );
@@ -1157,6 +1237,23 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                     replayed += 1;
                                 }
                                 Err(e) => tracing::warn!("WAL FeedbackUnkeyed decode error: {e}"),
+                            }
+                        }
+                        WAL_TYPE_LEARN_META => {
+                            // B6b: re-insert episode metadata. Idempotent for
+                            // identical content (same seq+values), so duplicate
+                            // replay is benign. Unknown/evicted seqs skip.
+                            match bincode::deserialize::<WalLearnMetaEntry>(&payload[1..]) {
+                                Ok(m) => {
+                                    let meta = crate::learn_ledger::LearnMeta {
+                                        kind: m.kind,
+                                        subject: m.subject,
+                                        tags: m.tags,
+                                    };
+                                    state.learn_ledger.record_meta(m.seq, meta);
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL LearnMeta decode error: {e}"),
                             }
                         }
                         _ => {
@@ -1502,6 +1599,31 @@ fn worker_loop(
                 let _ = tx.send(state.birth_q30);
             }
 
+            Command::RecordMeta { seq, meta, tx } => {
+                // B6b: attach to the retained episode; WAL-log on success so a
+                // crash replays it (0x07 re-insert is idempotent for identical
+                // content). Unknown/evicted seqs return Ok(false) — surfaced,
+                // never silent.
+                let applied = state.learn_ledger.record_meta(seq, meta.clone());
+                if applied {
+                    if let Some(wal) = &mut wal {
+                        let entry = WalLearnMetaEntry {
+                            seq,
+                            kind: meta.kind.clone(),
+                            subject: meta.subject.clone(),
+                            tags: meta.tags.clone(),
+                        };
+                        if let Ok(payload) = bincode::serialize(&entry) {
+                            let mut tagged = Vec::with_capacity(1 + payload.len());
+                            tagged.push(WAL_TYPE_LEARN_META);
+                            tagged.extend_from_slice(&payload);
+                            if let Err(e) = wal.append(&tagged) { tracing::error!("WAL append failed (LearnMeta): {e}"); }
+                        }
+                    }
+                }
+                let _ = tx.send(Ok(applied));
+            }
+
             Command::LedgerLen { tx } => {
                 // Read-only — no WAL, no state change.
                 let _ = tx.send(state.learn_ledger.len());
@@ -1759,9 +1881,13 @@ fn process_learn(
     // crash watermark), fixed here and in `start()`/`worker_loop`, leaving the
     // gate, scoring, weights, and config untouched.
     let replayed_dedup = is_replay && !state_birthed && !action_birthed && !outcome_birthed;
-    if !replayed_dedup {
-        state.learn_ledger.append(state_id, action_id, outcome_id, now as i64);
-    }
+    // B6b: the episode seq for THIS learn — freshly appended, or the joined
+    // episode when replay deduped (most-recent containing the state node).
+    let episode_seq = if !replayed_dedup {
+        state.learn_ledger.append(state_id, action_id, outcome_id, now as i64)
+    } else {
+        state.learn_ledger.resolve_node(state_id).1.map(|ep| ep.seq).unwrap_or(0)
+    };
 
     Ok(LearnResult {
         state_node_id: state_id,
@@ -1777,6 +1903,7 @@ fn process_learn(
         } else {
             LearnDisposition::DedupedTo(state_id)
         },
+        episode_seq,
     })
 }
 

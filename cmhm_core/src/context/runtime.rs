@@ -597,6 +597,19 @@ impl ContextRuntime {
         Ok(handle.list_node_records(offset, limit))
     }
 
+    /// Attach typed metadata to a retained learn episode in the given context
+    /// (B6b). Returns true when attached, false for unknown/evicted seqs.
+    pub fn record_meta(
+        &mut self,
+        context_id: Option<&str>,
+        seq: u64,
+        meta: crate::learn_ledger::LearnMeta,
+    ) -> Result<bool> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        handle.record_meta(seq, meta)
+    }
+
     /// Current value of the adaptive birth gate quantile (P₀.₃₀ estimator).
     /// Returns 0.30 (the default prior) if the context is not loaded.
     /// Read-only — no WAL write. Used by tests to verify quantile convergence.

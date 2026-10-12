@@ -1,12 +1,12 @@
 // cmhm_core/src/migration.rs
 //! Snapshot migration engine.
 //!
-//! Provides deterministic migration from earlier snapshot formats to current SNAPSHOT_VERSION = 4.
+//! Provides deterministic migration from earlier snapshot formats to current SNAPSHOT_VERSION = 6.
 //! Preserves all node IDs, embeddings, types, timestamps, and causal edges, while populating
 //! new fields with neutral, unpromoted defaults (authority = 0.50, provenance = "",
 //! superseded_by = None, assertion_key = None, polarity = None).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 
@@ -22,7 +22,7 @@ use crate::{
     dense_core::DenseCore,
     consolidation::Cohorts,
     projection::{Projection, ProjectionRegistry},
-    learn_ledger::LearnLedger,
+    learn_ledger::{LearnLedger, LearnEpisode},
 };
 
 /// Serialized Node representation in SNAPSHOT_VERSION = 2.
@@ -227,13 +227,80 @@ pub struct CoreStateV4 {
     pub birth_q30: f32,
 }
 
-/// Migrate a v4 snapshot payload directly to v5 CoreState.
+/// Serialized LearnLedger in SNAPSHOT_VERSION = 5 (pre-B6b layout).
 ///
-/// Preserves every store bit-for-bit (including the B1b learn ledger);
-/// attaches watermark 0 — v4 states predate the replay watermark, so the
-/// next startup replays the whole WAL once (one-time upgrade cost) and then
-/// stamps watermarks going forward. Rebuilds both transient indexes before
-/// returning.
+/// Identical to the v6 ledger minus the `meta` sidecar table: same field
+/// order and types, so bincode positional layout matches v5 bytes exactly.
+/// The transient index/set are `serde(skip)` in both (never on disk).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LearnLedgerV5 {
+    pub episodes: VecDeque<LearnEpisode>,
+    pub next_seq: u64,
+    pub evicted_up_to: u64,
+}
+
+/// Serialized CoreState in SNAPSHOT_VERSION = 5 (pre-B6b layout).
+///
+/// Identical to the v6 [`CoreState`] except its ledger is [`LearnLedgerV5`].
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CoreStateV5 {
+    pub node_store: NodeStore,
+    pub edge_store: EdgeStore,
+    pub working_memory: WorkingMemory,
+    pub episode_log: EpisodeLog,
+    pub salience_engine: SalienceEngine,
+    pub dense_core: DenseCore,
+    pub cohorts: Cohorts,
+    pub projections: ProjectionRegistry,
+    pub learn_ledger: LearnLedgerV5,
+    pub cmd_seq: u64,
+    pub last_consolidation_secs: f64,
+    pub cumulative_reinforce: f32,
+    #[serde(with = "crate::serde_helpers::f32_128")]
+    pub global_ema: [f32; 128],
+    pub feedback_seen: HashSet<u64>,
+    pub birth_q30: f32,
+    pub last_applied_wal_seq: u64,
+}
+
+/// Migrate a v5 snapshot payload directly to v6 CoreState.
+///
+/// Preserves every store bit-for-bit (including ledger episodes); attaches an
+/// EMPTY meta table — v5 states predate typed metadata, so pre-B6b episodes
+/// resolve as unclassified (filters exclude them only when active; unfiltered
+/// retrieval is byte-identical behavior). Rebuilds both transient indexes.
+pub fn migrate_v5_to_v6(v5_payload: &[u8]) -> Result<CoreState> {
+    use crate::learn_ledger::LearnLedger;
+    let v5: CoreStateV5 = bincode::deserialize(v5_payload)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize v5 CoreState: {e}"))?;
+    let mut ledger = LearnLedger::from_episodes_retaining_seqs(
+        v5.learn_ledger.episodes.into_iter().collect(),
+        v5.learn_ledger.next_seq,
+        v5.learn_ledger.evicted_up_to,
+    );
+    let mut state = CoreState {
+        node_store:              v5.node_store,
+        edge_store:              v5.edge_store,
+        working_memory:          v5.working_memory,
+        episode_log:             v5.episode_log,
+        salience_engine:         v5.salience_engine,
+        dense_core:              v5.dense_core,
+        cohorts:                 v5.cohorts,
+        projections:             v5.projections,
+        bm25_index:              crate::bm25::Bm25Index::new(),
+        learn_ledger:            ledger,
+        cmd_seq:                 v5.cmd_seq,
+        last_consolidation_secs: v5.last_consolidation_secs,
+        cumulative_reinforce:    v5.cumulative_reinforce,
+        global_ema:              v5.global_ema,
+        feedback_seen:           v5.feedback_seen,
+        birth_q30:               v5.birth_q30,
+        last_applied_wal_seq:    v5.last_applied_wal_seq,
+    };
+    state.rebuild_bm25_index();
+    state.rebuild_ledger_index();
+    Ok(state)
+}
 pub fn migrate_v4_to_v5(v4_payload: &[u8]) -> Result<CoreState> {
     let v4: CoreStateV4 = bincode::deserialize(v4_payload)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize v4 CoreState: {e}"))?;

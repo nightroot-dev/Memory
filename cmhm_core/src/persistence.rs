@@ -51,6 +51,11 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 ///       replays only the tail. Terminal snapshots (shutdown / startup
 ///       compaction) reset to 0 with the WAL deleted. No WAL format change.
 ///
+///   6 = `LearnLedger` gains `meta: HashMap<u64, LearnMeta>` (B6b): typed
+///       per-episode metadata sidecar. WAL gains record type `0x07` for meta
+///       writes (replay re-inserts idempotently); the ledger table itself
+///       persists inside the snapshot like episodes do.
+///
 /// Migration from v3 → v4
 ///
 /// Migration from v3 → v4
@@ -61,7 +66,7 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 /// "no triple recorded"). Chain: v2 → v3 (`migrate_v2_to_v3`, now attaching an
 /// empty ledger) → v4. See v2→v3 notes above for the WAL path.
 /// Context identity (UUID in the context registry) is preserved across migration.
-pub const SNAPSHOT_VERSION: u32 = 5;
+pub const SNAPSHOT_VERSION: u32 = 6;
 
 
 /// Thin envelope that tags snapshot bytes with a schema version.
