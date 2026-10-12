@@ -2243,3 +2243,58 @@ fn b7_mcp_triple_first_labels_and_link_kinds() {
     // Seed + episode JSON still resolve (B1/B1b surface intact under B7).
     assert!(structured["seed_timestamp"].as_i64().unwrap_or(0) > 0);
 }
+
+#[test]
+fn b2_mcp_list_then_get_roundtrip_verbatim() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    for (tag, act, out) in [
+        ("alpha", "b2 alpha act take", "b2 alpha out come"),
+        ("beta", "b2 beta act make", "b2 beta out go"),
+    ] {
+        let lr = dispatch("memory_learn_text", &rt, &json!({
+            "state": format!("b2 mcp {tag} state text"), "action": act, "outcome": out,
+            "prediction_error": 0.1, "auto_tag": false,
+        })).unwrap();
+        assert_ne!(lr.isError, Some(true));
+    }
+
+    // List: both learned texts present verbatim with usable ids.
+    let listed = dispatch("memory_list", &rt, &json!({})).unwrap();
+    assert_ne!(listed.isError, Some(true));
+    let s = parse_content_json(&listed);
+    let records = s["records"].as_array().expect("records array");
+    assert!(records.len() >= 6, "two learns must list at least 6 nodes, got {}", records.len());
+    let mut ids = Vec::new();
+    for t in ["b2 mcp alpha state text", "b2 mcp beta state text"] {
+        let rec = records.iter().find(|r| r["text"] == t)
+            .unwrap_or_else(|| panic!("learned text {t:?} must be listed: {s}"));
+        let id = rec["node_id"].as_u64().expect("node_id u64");
+        assert!(id > 0);
+        ids.push(id);
+    }
+    // Human block carries the texts too.
+    let text = listed.content.first().map(|c| c.text.as_str()).unwrap_or("");
+    assert!(text.contains("b2 mcp alpha state text"), "block must show listed text");
+
+    // Get: each id returns its verbatim record.
+    for (id, t) in ids.iter().zip(["b2 mcp alpha state text", "b2 mcp beta state text"]) {
+        let got = dispatch("memory_get", &rt, &json!({"node_id": id})).unwrap();
+        assert_ne!(got.isError, Some(true));
+        let g = parse_content_json(&got);
+        assert_eq!(g["text"], t, "get must return verbatim text");
+        assert_eq!(g["node_id"], *id);
+    }
+
+    // Unknown id is an explicit error, never a guess.
+    let missing = dispatch("memory_get", &rt, &json!({"node_id": 999_999_999})).unwrap();
+    assert_eq!(missing.isError, Some(true), "unknown id must error");
+
+    // Pagination: limit=1 returns exactly one id-ordered record.
+    let p1 = parse_content_json(&dispatch("memory_list", &rt, &json!({"limit": 1, "offset": 0})).unwrap());
+    let p2 = parse_content_json(&dispatch("memory_list", &rt, &json!({"limit": 1, "offset": 1})).unwrap());
+    assert_eq!(p1["records"].as_array().unwrap().len(), 1);
+    assert_eq!(p2["records"].as_array().unwrap().len(), 1);
+    assert_ne!(p1["records"][0]["node_id"], p2["records"][0]["node_id"], "pages must advance");
+}

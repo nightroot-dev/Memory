@@ -8,7 +8,7 @@ use crate::{
     EMBED_DIM,
     config::Config,
     core_state::{CoreState, now_secs},
-    node::{Node, NodeType},
+    node::{Node, NodeRecord, NodeType},
     edge::{Edge, EdgeType, EvidenceType},
     dense_core::DenseCore,
     consolidation::run_consolidation,
@@ -91,6 +91,19 @@ pub enum Command {
     GetNodeBeta {
         node_id: u64,
         tx: mpsc::SyncSender<Option<(f32, f32)>>,
+    },
+    /// Read-only: one verbatim node record (B2). None if absent. No WAL,
+    /// no state change. Powers `memory_get`.
+    GetNodeRecord {
+        node_id: u64,
+        tx: mpsc::SyncSender<Option<NodeRecord>>,
+    },
+    /// Read-only: verbatim node records in id order with offset/limit
+    /// pagination (B2). No WAL, no state change. Powers `memory_list`.
+    ListNodeRecords {
+        offset: usize,
+        limit: usize,
+        tx: mpsc::SyncSender<Vec<NodeRecord>>,
     },
     /// Read the current adaptive quantile gate value (birth_q30).
     GetBirthQ30 {
@@ -513,6 +526,25 @@ impl EngineHandle {
             return None;
         }
         resp_rx.recv().unwrap_or(None)
+    }
+
+    /// Verbatim record for one node ID (B2). None if absent. Read-only.
+    pub fn get_node_record(&self, node_id: u64) -> Option<NodeRecord> {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::GetNodeRecord { node_id, tx: resp_tx }).is_err() {
+            return None;
+        }
+        resp_rx.recv().unwrap_or(None)
+    }
+
+    /// Verbatim records in id order with offset/limit pagination (B2).
+    /// Read-only. Empty vec when the offset is past the end.
+    pub fn list_node_records(&self, offset: usize, limit: usize) -> Vec<NodeRecord> {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        if self.tx.send(Command::ListNodeRecords { offset, limit, tx: resp_tx }).is_err() {
+            return vec![];
+        }
+        resp_rx.recv().unwrap_or_default()
     }
 
     /// Current value of the adaptive P₀.₃₀ birth gate quantile.
@@ -1380,6 +1412,37 @@ fn worker_loop(
                 let result = state.node_store.get(node_id)
                     .map(|n| (n.bandit_alpha, n.bandit_beta));
                 let _ = tx.send(result);
+            }
+
+            Command::GetNodeRecord { node_id, tx } => {
+                // Read-only — no WAL, no state change.
+                let result = state.node_store.get(node_id).map(|n| NodeRecord {
+                    id: node_id,
+                    node_type: n.node_type,
+                    text: n.text.clone(),
+                    timestamp: n.timestamp,
+                    authority: n.authority,
+                    provenance: n.provenance.clone(),
+                });
+                let _ = tx.send(result);
+            }
+
+            Command::ListNodeRecords { offset, limit, tx } => {
+                // Read-only — no WAL, no state change. Id-ordered so pages
+                // are stable across calls.
+                let mut ids = state.node_store.all_ids();
+                ids.sort_unstable();
+                let rows = ids.into_iter().skip(offset).take(limit).filter_map(|id| {
+                    state.node_store.get(id).map(|n| NodeRecord {
+                        id,
+                        node_type: n.node_type,
+                        text: n.text.clone(),
+                        timestamp: n.timestamp,
+                        authority: n.authority,
+                        provenance: n.provenance.clone(),
+                    })
+                }).collect();
+                let _ = tx.send(rows);
             }
 
             Command::GetBirthQ30 { tx } => {

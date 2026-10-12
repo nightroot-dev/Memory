@@ -316,6 +316,32 @@ pub struct MemoryStatsParams {
     pub context_id: Option<String>,
 }
 
+/// List stored memory records verbatim (B2). Read-only: no scoring, no WAL.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct MemoryListParams {
+    /// UUID or display name of the context. Omit for the default context.
+    pub context_id: Option<String>,
+
+    /// Maximum records to return. Defaults to 50, capped at 500.
+    #[serde(default = "default_list_limit")]
+    #[schemars(default = "default_list_limit", range(min = 1.0, max = 500.0))]
+    pub limit: usize,
+
+    /// Number of id-ordered records to skip. Defaults to 0.
+    #[serde(default)]
+    pub offset: usize,
+}
+
+/// Fetch one stored memory record verbatim by node ID (B2). Read-only.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct MemoryGetParams {
+    /// UUID or display name of the context. Omit for the default context.
+    pub context_id: Option<String>,
+
+    /// Node ID, as returned in `memory_list` results or learn responses.
+    pub node_id: u64,
+}
+
 /// Detect the current project from the working environment.
 /// No parameters needed — the server reads its own cwd, git, and manifests.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -337,6 +363,10 @@ pub fn default_authority()    -> f32    { 0.5 }
 pub fn default_context_type() -> ContextTypeParam { ContextTypeParam::Project }
 pub fn default_top_k()        -> usize  { 3 }
 pub fn default_true()         -> bool   { true }
+/// B2: default page size for `memory_list`.
+pub fn default_list_limit()   -> usize  { 50 }
+/// B2: hard cap for `memory_list` pages (records stay small, pages bounded).
+pub const MAX_LIST_LIMIT: usize = 500;
 pub fn default_promote_authority() -> f32 { 0.85 }
 /// B3: a routing hit below this score is reported as an explicit `no_match`
 /// instead of a "recommended" context. Override with `min_score: 0` to get the

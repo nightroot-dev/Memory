@@ -563,6 +563,33 @@ impl ContextRuntime {
         handle.get_node_beta(node_id)
     }
 
+    /// Verbatim record for one node ID in the given context (B2).
+    /// `Ok(None)` when the node ID is absent; `Err` when the context is
+    /// unknown. Read-only — no WAL write. Powers `memory_get`.
+    pub fn get_node_record(
+        &mut self,
+        context_id: Option<&str>,
+        node_id: u64,
+    ) -> Result<Option<crate::node::NodeRecord>> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        Ok(handle.get_node_record(node_id))
+    }
+
+    /// Verbatim node records in id order with offset/limit pagination (B2).
+    /// Empty vec when the offset is past the end. Read-only — no WAL write.
+    /// Powers `memory_list`.
+    pub fn list_node_records(
+        &mut self,
+        context_id: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<crate::node::NodeRecord>> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        Ok(handle.list_node_records(offset, limit))
+    }
+
     /// Current value of the adaptive birth gate quantile (P₀.₃₀ estimator).
     /// Returns 0.30 (the default prior) if the context is not loaded.
     /// Read-only — no WAL write. Used by tests to verify quantile convergence.

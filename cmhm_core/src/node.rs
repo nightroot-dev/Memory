@@ -63,6 +63,20 @@ impl NodeType {
 /// ## Backward compatibility
 /// All new fields use `#[serde(default)]` so existing snapshots deserialize with
 /// safe initial values (0 retrievals, 180-day half-life, uniform bandit prior, "hash-128d").
+/// B2: slim verbatim record for raw read tools (`memory_list`/`memory_get`).
+/// Everything a debugger needs, nothing it doesn't: NO embedding bytes —
+/// records stay small by construction (pinned by `b2_read` asserting the
+/// serialized form has no `embedding` key).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NodeRecord {
+    pub id: u64,
+    pub node_type: NodeType,
+    pub text: String,
+    pub timestamp: i64,
+    pub authority: f32,
+    pub provenance: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
     /// L2-normalised embedding vector. Length = embedder.dim().
