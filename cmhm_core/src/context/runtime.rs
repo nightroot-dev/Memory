@@ -406,6 +406,26 @@ impl ContextRuntime {
         Ok((result, desc))
     }
 
+    /// Filtered retrieval (B6b): like `retrieve`, plus an optional metadata
+    /// filter over episode classification. None/inactive = identical behavior.
+    pub fn retrieve_with_filter(
+        &mut self,
+        context_id: Option<&str>,
+        query_emb: Vec<f32>,
+        model_id:  &str,
+        seed_type: NodeType,
+        query_text: &str,
+        meta_filter: Option<crate::learn_ledger::MetaFilter>,
+    ) -> Result<(RetrievalResult, ContextDescriptor)> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        let result = handle.retrieve_with_filter(query_emb, model_id, seed_type, query_text, meta_filter)?;
+        let desc = self.registry.get(&id)
+            .map(ContextDescriptor::from)
+            .ok_or_else(|| anyhow::anyhow!("context vanished after retrieve"))?;
+        Ok((result, desc))
+    }
+
     /// Unscoped retrieval — all NodeType variants compete in the candidate pool.
     ///
     /// Used when `retrieval_intent` is absent from the MCP call, or when a
@@ -425,8 +445,23 @@ impl ContextRuntime {
         Ok((result, desc))
     }
 
-
-    /// Maximum cosine similarity between `query_emb` and existing nodes of `node_type` in a context.
+    /// Unscoped filtered retrieval (B6b). None/inactive filter = identical behavior.
+    pub fn retrieve_unscoped_with_filter(
+        &mut self,
+        context_id: Option<&str>,
+        query_emb: Vec<f32>,
+        model_id:  &str,
+        query_text: &str,
+        meta_filter: Option<crate::learn_ledger::MetaFilter>,
+    ) -> Result<(RetrievalResult, ContextDescriptor)> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        let result = handle.retrieve_unscoped_with_filter(query_emb, model_id, query_text, meta_filter)?;
+        let desc = self.registry.get(&id)
+            .map(ContextDescriptor::from)
+            .ok_or_else(|| anyhow::anyhow!("context vanished after retrieve_unscoped"))?;
+        Ok((result, desc))
+    }
     ///
     /// Used by the shadow gate: `novelty = 1.0 - max_cosine_in_context(...)`.
     /// Pass `NodeType::State` for the standard state-novelty check (role-scoped).

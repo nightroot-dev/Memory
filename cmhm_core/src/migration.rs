@@ -533,6 +533,74 @@ mod tests {
         assert!(ep.is_none());
     }
 
+    #[test]
+    fn test_v5_to_v6_migration_preserves_ledger_and_attaches_empty_meta() {
+        use crate::learn_ledger::{EpisodeStatus, LearnEpisode};
+        use std::collections::VecDeque;
+        // One node + two ledger episodes referencing it (second shares state).
+        let mut nodes = HashMap::new();
+        let mut emb = vec![0.0f32; 128];
+        emb[0] = 1.0;
+        let node = Node::new(
+            emb.clone(),
+            "hash-128d".to_string(),
+            0.85,
+            123456789,
+            0.5,
+            NodeType::State,
+            0.7,
+            "user_explicit".to_string(),
+        );
+        nodes.insert(42u64, node);
+        let node_store = NodeStore {
+            nodes,
+            next_id: 43,
+            global_ema: vec![0.0f32; 128],
+            embed_dim: 128,
+        };
+        let ledger_v5 = LearnLedgerV5 {
+            episodes: VecDeque::from([
+                LearnEpisode { seq: 1, state_id: 42, action_id: 43, outcome_id: 44, timestamp: 100 },
+                LearnEpisode { seq: 2, state_id: 42, action_id: 45, outcome_id: 46, timestamp: 101 },
+            ]),
+            next_seq: 3,
+            evicted_up_to: 0,
+        };
+        let v5_state = CoreStateV5 {
+            node_store,
+            edge_store: EdgeStore::new(),
+            working_memory: WorkingMemory::new(8),
+            episode_log: EpisodeLog::new(),
+            salience_engine: SalienceEngine::new(),
+            dense_core: DenseCore::new(),
+            cohorts: Cohorts::new(),
+            projections: ProjectionRegistry::new(),
+            learn_ledger: ledger_v5,
+            cmd_seq: 10,
+            last_consolidation_secs: 100.0,
+            cumulative_reinforce: 1.5,
+            global_ema: [0.0f32; 128],
+            feedback_seen: HashSet::new(),
+            birth_q30: 0.30,
+            last_applied_wal_seq: 7,
+        };
+        let payload = bincode::serialize(&v5_state).unwrap();
+        let migrated = migrate_v5_to_v6(&payload).unwrap();
+        // Stores + watermark preserved bit-for-bit.
+        assert_eq!(migrated.node_store.len(), 1);
+        assert_eq!(migrated.last_applied_wal_seq, 7);
+        // Ledger episodes keep original seqs; index rebuilt (most-recent wins).
+        assert_eq!(migrated.learn_ledger.len(), 2);
+        assert_eq!(migrated.learn_ledger.next_seq, 3);
+        let (st, ep, shared) = migrated.learn_ledger.resolve_node(42);
+        assert_eq!(st, EpisodeStatus::Found);
+        assert_eq!(ep.unwrap().seq, 2, "most-recent episode wins after migration");
+        assert_eq!(shared, 1);
+        // B6b: meta table starts empty — v5 states predate typed metadata.
+        assert!(migrated.learn_ledger.meta_for_seq(1).is_none());
+        assert!(migrated.learn_ledger.meta_for_seq(2).is_none());
+    }
+
 
     #[test]
     fn test_v2_to_v3_migration_preserves_identity_and_defaults() {

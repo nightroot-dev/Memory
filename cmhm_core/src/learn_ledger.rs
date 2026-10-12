@@ -207,6 +207,28 @@ impl LearnLedger {
         self.meta.get(&seq)
     }
 
+    /// Rebuild a ledger from retained episodes with their ORIGINAL seqs
+    /// (migration path — `append()` would reassign seqs, breaking WAL
+    /// watermarks and node references). The meta table starts empty: migrated
+    /// states predate typed metadata, so their episodes resolve unclassified.
+    /// Rebuilds the transient index before returning.
+    pub fn from_episodes_retaining_seqs(
+        episodes: std::collections::VecDeque<LearnEpisode>,
+        next_seq: u64,
+        evicted_up_to: u64,
+    ) -> Self {
+        let mut ledger = Self {
+            episodes,
+            next_seq,
+            evicted_up_to,
+            node_to_episodes: HashMap::new(),
+            evicted_nodes: HashSet::new(),
+            meta: HashMap::new(),
+        };
+        ledger.rebuild_index();
+        ledger
+    }
+
     /// Number of retained episodes.
     pub fn len(&self) -> usize {
         self.episodes.len()

@@ -29,6 +29,9 @@ pub enum Command {
          seed_type: Option<NodeType>,
          /// Raw query text for BM25 lexical candidates. Empty = dense-only (legacy/tests).
          query_text: String,
+         /// B6b: optional metadata filter (None = unfiltered). Query-time
+         /// option — existing callers pass None, zero behavior change.
+         meta_filter: Option<crate::learn_ledger::MetaFilter>,
          tx: mpsc::SyncSender<Result<RetrievalResult>>,
     },
     Learn {
@@ -385,7 +388,23 @@ impl EngineHandle {
              model_id: model_id.into(),
              seed_type: Some(seed_type),
              query_text: query_text.into(),
+             meta_filter: None,
              tx: resp_tx,
+        })?;
+        resp_rx.recv()?
+    }
+
+    /// Filtered retrieval (B6b): like `retrieve`, plus an optional metadata
+    /// filter over episode classification. None/inactive = identical behavior.
+    pub fn retrieve_with_filter(&self, query_emb: Vec<f32>, model_id: impl Into<String>, seed_type: NodeType, query_text: impl Into<String>, meta_filter: Option<crate::learn_ledger::MetaFilter>) -> Result<RetrievalResult> {
+         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        self.tx.send(Command::Retrieve {
+            query_emb,
+            model_id: model_id.into(),
+            seed_type: Some(seed_type),
+            query_text: query_text.into(),
+            meta_filter,
+            tx: resp_tx,
         })?;
         resp_rx.recv()?
     }
@@ -440,6 +459,7 @@ impl EngineHandle {
              model_id: model_id.into(),
              seed_type: None,
              query_text: query_text.into(),
+             meta_filter: None,
              tx: resp_tx,
          })?;
          resp_rx.recv()?
@@ -498,6 +518,20 @@ impl EngineHandle {
              raw_text: None,
              strict_no_dup,
              tx: resp_tx,
+        })?;
+        resp_rx.recv()?
+    }
+
+    /// Unscoped filtered retrieval (B6b). None/inactive filter = identical behavior.
+    pub fn retrieve_unscoped_with_filter(&self, query_emb: Vec<f32>, model_id: impl Into<String>, query_text: impl Into<String>, meta_filter: Option<crate::learn_ledger::MetaFilter>) -> Result<RetrievalResult> {
+         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        self.tx.send(Command::Retrieve {
+            query_emb,
+            model_id: model_id.into(),
+            seed_type: None,
+            query_text: query_text.into(),
+            meta_filter,
+            tx: resp_tx,
         })?;
         resp_rx.recv()?
     }
@@ -1351,8 +1385,8 @@ fn worker_loop(
         };
 
         match cmd {
-             Command::Retrieve { query_emb, model_id, seed_type, query_text, tx } => {
-                 let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &query_text, &mut rng, &cfg);
+             Command::Retrieve { query_emb, model_id, seed_type, query_text, meta_filter, tx } => {
+                 let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &query_text, meta_filter.as_ref(), &mut rng, &cfg);
                 let _ = tx.send(result);
             }
 
@@ -1706,6 +1740,7 @@ fn process_retrieve(
     model_id: &str,
      seed_type: Option<NodeType>,
      query_text: &str,
+     meta_filter: Option<&crate::learn_ledger::MetaFilter>,
      rng: &mut impl rand::Rng,
     cfg: &Config,
 ) -> Result<RetrievalResult> {
@@ -1731,6 +1766,7 @@ fn process_retrieve(
          &state.bm25_index,
          cfg.retrieval_seed_pool_size,
         &state.learn_ledger,
+        meta_filter,
       ))
  }
 

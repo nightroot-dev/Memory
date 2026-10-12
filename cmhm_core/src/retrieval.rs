@@ -5,7 +5,7 @@ use crate::node::{NodeType};
 use crate::node_store::{NodeStore, cosine};
 /// B1b read-only join types. [`EpisodeStatus`] is re-exported here so callers
 /// match on resolution status via `retrieval::EpisodeStatus`.
-pub use crate::learn_ledger::{EpisodeStatus, LearnLedger, SeedEpisode};
+pub use crate::learn_ledger::{EpisodeStatus, LearnLedger, MetaFilter, SeedEpisode};
 use crate::edge_store::EdgeStore;
 use crate::dense_core::DenseCore;
 use crate::EMBED_DIM;
@@ -301,6 +301,11 @@ impl Ord for DijkstraState {
 ///          (assertion_key, polarity, provenance, authority). Detection precedes scoring
 ///          so contradicted D- nodes suppressed by the authority weight are still visible.
 ///          Signal precedence: LogicalContradiction → SupersessionConflict → ProvenancePair → AdversarialPair.
+///    - 2b½: Metadata filter (B6b, only when active): keep candidates whose
+///          most-recent episode metadata matches every present clause.
+///          Runs after 2b (detection stays fully sighted) and before 2c.
+///          Ledgerless candidates are excluded under an active filter.
+///          Empty pool → explicit abstention naming the filter.
 ///    - 2c: Score each eligible candidate. Relevance dominates; authority is a
 ///          bounded subordinate term (α = 0.25, measured):
 ///          `query_weight * cos(q, node) + context_weight * cos(dense_ctx, node)
@@ -351,6 +356,11 @@ pub fn retrieve(
     // filtering, and ordering above never read it; the join below only
     // resolves text/triples for already-ranked candidates.
     ledger: &LearnLedger,
+    // B6b: optional metadata filter over episode classification. Applied
+    // AFTER conflict detection (Step 2b stays fully sighted — safety first)
+    // and BEFORE scoring: a user query constraint, not a safety rule.
+    // None or inactive = byte-identical unfiltered behavior.
+    meta_filter: Option<&MetaFilter>,
 ) -> RetrievalResult {
     // Step 1: Dense context
     let dense_ctx = dense_core.query(query);
@@ -596,6 +606,70 @@ pub fn retrieve(
     };
 
     let conflict_detected = detect_conflict_type.is_some();
+
+    // B6b (S-19 refined note): metadata filter over episode classification.
+    // Runs AFTER conflict detection (2b stays fully sighted) and BEFORE
+    // scoring (2c): this is a user query constraint, not a safety rule, so it
+    // must not blind detection — but it must shape what competes.
+    // Semantics: a candidate survives iff its MOST-RECENT episode carries
+    // metadata matching every present clause. Ledgerless candidates (pre-B6b,
+    // evicted, WAL-replayed tail without a meta record) are EXCLUDED under an
+    // active filter — documented: a filter cannot match what was never
+    // classified. Inactive/None filter = no-op (unfiltered behavior identical).
+    let mut candidates = candidates;
+    if let Some(f) = meta_filter {
+        if !f.is_inactive() {
+            candidates.retain(|(id, _)| {
+                match ledger.resolve_node(*id) {
+                    (EpisodeStatus::Found, Some(ep), _) => ledger
+                        .meta_for_seq(ep.seq)
+                        .map(|m| f.matches(m))
+                        .unwrap_or(false),
+                    _ => false,
+                }
+            });
+            if candidates.is_empty() {
+                // Filter matched nothing: explicit empty result (never index
+                // scored[0]). Conflict state is preserved as detected — the
+                // pair is named with 0.0 scores (scoring never ran).
+                let conflict_candidates: Vec<ConflictCandidate> =
+                    if let (Some(ctype), Some((id_a, id_b))) = (&detect_conflict_type, detect_pair) {
+                        [id_a, id_b].iter().map(|id| {
+                            let node = node_store.get(*id);
+                            ConflictCandidate {
+                                node_id:      *id,
+                                score:        0.0,
+                                authority:    node.map(|n| n.authority).unwrap_or(0.5),
+                                provenance:   node.map(|n| n.provenance.clone()).unwrap_or_default(),
+                                conflict_type: ctype.clone(),
+                            }
+                        }).collect()
+                    } else {
+                        vec![]
+                    };
+                return RetrievalResult {
+                    causal_chain:        vec![],
+                    dense_context:       dense_ctx,
+                    explanation:         "No memories match the metadata filter."
+                        .to_string(),
+                    seed_id:             None,
+                    seed_text:           None,
+                    seed_node_type:      None,
+                    seed_authority:      0.0,
+                    seed_provenance:     String::new(),
+                    conflict_detected,
+                    conflict_candidates,
+                    abstained:           true,
+                    raw_nn_candidates,
+                    post_filter_candidates,
+                    scored_candidates:    vec![],
+                    candidate_texts:      vec![],
+                    seed_episode:         None,
+                    seed_episode_status:  EpisodeStatus::NoTriple,
+                };
+            }
+        }
+    }
 
     // Step 2c: Relevance-primary scoring of the eligible post-filter pool.
     //

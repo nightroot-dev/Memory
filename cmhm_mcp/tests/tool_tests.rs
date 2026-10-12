@@ -2416,3 +2416,55 @@ fn b6a_mcp_strict_no_dup_skips_corrections() {
         "default policy must raise authority on repeat ({base_auth} -> {raised_auth})"
     );
 }
+
+#[test]
+fn b6b_mcp_typed_learn_and_filtered_retrieve() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Two episodes, shared vocabulary (same pool), different kinds.
+    for (tag, kind) in [("fail", "failure"), ("fact", "fact")] {
+        let lr = dispatch("memory_learn_text", &rt, &json!({
+            "state": format!("b6b mcp port {tag} audit zb6"),
+            "action": format!("b6b mcp port {tag} audit act"),
+            "outcome": format!("b6b mcp port {tag} audit out"),
+            "prediction_error": 0.9, "auto_tag": false,
+            "kind": kind, "subject": "svc",
+        })).unwrap();
+        assert_ne!(lr.isError, Some(true));
+        let s = parse_content_json(&lr);
+        assert_eq!(s["meta_applied"], true, "typed learn must classify: {s}");
+    }
+
+    // kind=failure returns the failure text as seed.
+    let rf = dispatch("memory_retrieve_text", &rt, &json!({
+        "query": "b6b mcp port audit zb6", "retrieval_intent": "state",
+        "kind": "failure",
+    })).unwrap();
+    assert_ne!(rf.isError, Some(true));
+    let sf = parse_content_json(&rf);
+    let seed_text = sf["seed_text"].as_str().unwrap_or("");
+    assert!(seed_text.contains("fail"),
+        "kind=failure must seed the failure episode, got {seed_text:?}");
+
+    // No filter: seed is whichever relevance picks (either episode).
+    let ru = dispatch("memory_retrieve_text", &rt, &json!({
+        "query": "b6b mcp port audit zb6", "retrieval_intent": "state",
+    })).unwrap();
+    let su = parse_content_json(&ru);
+    assert!(su["seed_text"].as_str().unwrap_or("").contains("b6b mcp port"),
+        "unfiltered retrieve must seed one of the two episodes");
+
+    // Invalid kind is an explicit error, never a silent default.
+    let bad = dispatch("memory_retrieve_text", &rt, &json!({
+        "query": "b6b mcp port audit zb6", "retrieval_intent": "state",
+        "kind": "vibe",
+    })).unwrap();
+    assert_eq!(bad.isError, Some(true), "unknown kind must error");
+    let bad_learn = dispatch("memory_learn_text", &rt, &json!({
+        "state": "b6b bad kind state", "action": "b6b bad kind act",
+        "outcome": "b6b bad kind out",
+        "prediction_error": 0.3, "kind": "vibe", "auto_tag": false,
+    })).unwrap();
+    assert_eq!(bad_learn.isError, Some(true), "unknown learn kind must error");
+}

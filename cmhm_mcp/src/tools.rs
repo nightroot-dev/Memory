@@ -869,6 +869,54 @@ fn seed_text_json(result: &cmhm_core::RetrievalResult) -> (serde_json::Value, se
     }
 }
 
+/// B6b: closed episode-kind set, enforced with an explicit error.
+fn validate_kind(kind: Option<&str>) -> Result<Option<String>, String> {
+    const KINDS: &[&str] = &["fact", "failure", "preference", "config"];
+    match kind {
+        None => Ok(None),
+        Some(k) if k.is_empty() => Ok(None),
+        Some(k) if KINDS.contains(&k) => Ok(Some(k.to_string())),
+        Some(k) => Err(format!(
+            "invalid kind {k:?}: must be one of fact|failure|preference|config"
+        )),
+    }
+}
+
+/// B6b: assemble an optional metadata filter from retrieve params.
+/// Empty subject counts as absent; empty tags count as absent.
+/// All-absent returns None (unfiltered).
+fn build_meta_filter(
+    kind: Option<&str>,
+    subject: Option<&str>,
+    tags: &[String],
+) -> Result<Option<cmhm_core::learn_ledger::MetaFilter>, String> {
+    let kinds = validate_kind(kind)?.into_iter().collect();
+    let subject = subject.filter(|s| !s.is_empty()).map(|s| s.to_string());
+    let tags: Vec<String> = tags.iter().filter(|t| !t.is_empty()).cloned().collect();
+    let f = cmhm_core::learn_ledger::MetaFilter { kinds, subject, tags };
+    Ok(if f.is_inactive() { None } else { Some(f) })
+}
+
+/// B6b: assemble optional episode metadata for a learn call. All-absent
+/// returns None (unclassified episode — today's behavior exactly).
+fn build_learn_meta(
+    kind: Option<&str>,
+    subject: Option<&str>,
+    tags: &[String],
+) -> Result<Option<cmhm_core::learn_ledger::LearnMeta>, String> {
+    let kind = validate_kind(kind)?;
+    let subject = subject.filter(|s| !s.is_empty()).map(|s| s.to_string());
+    let tags: Vec<String> = tags.iter().filter(|t| !t.is_empty()).cloned().collect();
+    if kind.is_none() && subject.is_none() && tags.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(cmhm_core::learn_ledger::LearnMeta {
+        kind: kind.unwrap_or_default(),
+        subject: subject.unwrap_or_default(),
+        tags,
+    }))
+}
+
 /// Convert a `ConflictType` to its machine-readable string representation.
 fn conflict_type_label(ct: &cmhm_core::ConflictType) -> &'static str {
     match ct {
@@ -901,11 +949,21 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     // Generate retrieve_id before locking â€” UUID v4, unique per call
     let retrieve_id = Uuid::new_v4().to_string();
 
+    // B6b: assemble the optional metadata filter (closed kind set enforced).
+    let meta_filter = match build_meta_filter(
+        params.kind.as_deref(),
+        params.subject.as_deref(),
+        &params.tags,
+    ) {
+        Ok(f) => f,
+        Err(e) => return error_result(e),
+    };
+
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
 
-     match rt.retrieve(ctx_id, emb, &params.model_id, seed_type, &params.query_text) { // R6
+     match rt.retrieve_with_filter(ctx_id, emb, &params.model_id, seed_type, &params.query_text, meta_filter) { // R6
         Ok((result, ctx)) => {
             // Build chain tuples (from_node, to_node, mean_weight) for log + text
             let chain: Vec<(u64, u64, f32)> = result.causal_chain.iter()
@@ -1025,6 +1083,16 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Err(e) => return error_result(format!("Invalid arguments: {e}")),
     };
 
+    // B6b: validate the episode kind before storing anything.
+    let learn_meta = match build_learn_meta(
+        params.kind.as_deref(),
+        params.subject.as_deref(),
+        &params.tags,
+    ) {
+        Ok(m) => m,
+        Err(e) => return error_result(e),
+    };
+
     let state_emb   = match decode_embedding(&params.state_embedding)   { Ok(e) => e, Err(e) => return error_result(format!("state_embedding: {e}")) };
     let action_emb  = match decode_embedding(&params.action_embedding)  { Ok(e) => e, Err(e) => return error_result(format!("action_embedding: {e}")) };
     let outcome_emb = match decode_embedding(&params.outcome_embedding) { Ok(e) => e, Err(e) => return error_result(format!("outcome_embedding: {e}")) };
@@ -1134,6 +1202,14 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         Ok((result, ctx)) => {
             let outcome_label = if params.prediction_error <= 0.7 { "SUCCESS" } else { "FAILURE" };
             let gate_label = if enforce { "Gate (enforced)" } else { "Gate (shadow)" };
+            // B6b: attach typed metadata to the fresh episode (best-effort:
+            // a false return is reported, never silent).
+            let meta_applied = match learn_meta {
+                Some(ref m) => rt
+                    .record_meta(ctx_id, result.episode_seq, m.clone())
+                    .unwrap_or(false),
+                None => false,
+            };
             let mut text = format!(
                 "## CMHM Learning Signal Processed\n\
                 **Context**: {} ({})\n\
@@ -1152,7 +1228,15 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 ctx.version,
             );
             text.push_str(&learn_disposition_line(&result, params.strict_no_dup));
-            let structured = learn_disposition_json(&result);
+            if learn_meta.is_some() {
+                text.push_str(&format!(
+                    "**Meta**: {} (kind={:?} subject={:?})\n",
+                    if meta_applied { "classified" } else { "NOT stored — see meta_applied=false" },
+                    learn_meta.as_ref().map(|m| m.kind.as_str()),
+                    learn_meta.as_ref().map(|m| m.subject.as_str()),
+                ));
+            }
+            let structured = learn_disposition_json(&result, meta_applied);
             ToolCallResult {
                 content: vec![ContentItem::text(text), ContentItem::json(&structured)],
                 isError: None,
@@ -1512,6 +1596,16 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     // Generate retrieve_id before locking â€” UUID v4, unique per call
     let retrieve_id = Uuid::new_v4().to_string();
 
+    // B6b: assemble the optional metadata filter (closed kind set enforced).
+    let meta_filter = match build_meta_filter(
+        params.kind.as_deref(),
+        params.subject.as_deref(),
+        &params.tags,
+    ) {
+        Ok(f) => f,
+        Err(e) => return error_result(e),
+    };
+
     let mut rt = rt.lock();
     let ctx_id = params.context_id.as_deref();
     let session_id = rt.session_id().to_string();
@@ -1519,8 +1613,8 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
     // text_model_id() = "hash-128d" â€” matches HashEmbedder::model_id() (N3)
     // Dispatch: unscoped when retrieval_intent absent, scoped when present.
      let retrieve_result = match seed_type {
-         None    => rt.retrieve_unscoped(ctx_id, emb, text_model_id(), &params.query),
-         Some(t) => rt.retrieve(ctx_id, emb, text_model_id(), t, &params.query),
+         None    => rt.retrieve_unscoped_with_filter(ctx_id, emb, text_model_id(), &params.query, meta_filter),
+         Some(t) => rt.retrieve_with_filter(ctx_id, emb, text_model_id(), t, &params.query, meta_filter),
      };
     match retrieve_result {
         Ok((result, ctx)) => {
@@ -1638,6 +1732,16 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
     let params: LearnTextParams = match serde_json::from_value(args.clone()) {
         Ok(p)  => p,
         Err(e) => return error_result(format!("Invalid arguments: {e}")),
+    };
+
+    // B6b: validate the episode kind before storing anything.
+    let learn_meta = match build_learn_meta(
+        params.kind.as_deref(),
+        params.subject.as_deref(),
+        &params.tags,
+    ) {
+        Ok(m) => m,
+        Err(e) => return error_result(e),
     };
 
     // Reject non-finite values at the MCP boundary.
@@ -1781,6 +1885,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 String::new()
             };
             let gate_label = if enforce { "Gate (enforced)" } else { "Gate (shadow)" };
+            // B6b: attach typed metadata to the fresh episode (best-effort).
+            let meta_applied = match learn_meta {
+                Some(ref m) => rt_lock
+                    .record_meta(ctx_id, result.episode_seq, m.clone())
+                    .unwrap_or(false),
+                None => false,
+            };
             let mut text = format!(
                 "## Memory Learned (text)\n\
                 **Context**: {} ({})\n\
@@ -1798,7 +1909,15 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 novelty, gate_score, would_index,
             );
             text.push_str(&learn_disposition_line(&result, params.strict_no_dup));
-            let structured = learn_disposition_json(&result);
+            if learn_meta.is_some() {
+                text.push_str(&format!(
+                    "**Meta**: {} (kind={:?} subject={:?})\n",
+                    if meta_applied { "classified" } else { "NOT stored — see meta_applied=false" },
+                    learn_meta.as_ref().map(|m| m.kind.as_str()),
+                    learn_meta.as_ref().map(|m| m.subject.as_str()),
+                ));
+            }
+            let structured = learn_disposition_json(&result, meta_applied);
             ToolCallResult {
                 content: vec![ContentItem::text(text), ContentItem::json(&structured)],
                 isError: None,
@@ -1812,13 +1931,15 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 // The lib target can't see through pub fn handler -> private fn, so suppress here.
 /// B6a: disposition line for the human block + additive JSON fields for the
 /// learn responses. Observation only — nothing about what gets stored changes.
-fn learn_disposition_json(result: &cmhm_core::LearnResult) -> serde_json::Value {
+fn learn_disposition_json(result: &cmhm_core::LearnResult, meta_applied: bool) -> serde_json::Value {
     serde_json::json!({
         "state_node_id":   result.state_node_id,
         "action_node_id":  result.action_node_id,
         "outcome_node_id": result.outcome_node_id,
+        "episode_seq":     result.episode_seq,
         "disposition":     result.disposition.label(),
         "deduped_to":      result.disposition.deduped_to(),
+        "meta_applied":    meta_applied,
     })
 }
 

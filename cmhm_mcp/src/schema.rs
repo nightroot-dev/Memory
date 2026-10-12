@@ -167,6 +167,21 @@ pub struct RetrieveParams {
     /// Unknown values return an `invalid_params` error.
     pub retrieval_intent: String,
 
+    /// B6b: optional episode-kind filter (`fact`, `failure`, `preference`,
+    /// `config`). Restricts seeds to episodes classified with this kind.
+    /// Unknown values return an `invalid_params` error. Omit for unfiltered.
+    #[serde(default)]
+    pub kind: Option<String>,
+
+    /// B6b: optional episode-subject filter (exact match). Omit for unfiltered.
+    #[serde(default)]
+    pub subject: Option<String>,
+
+    /// B6b: optional episode-tag filter (every listed tag must be present).
+    /// Omit or empty for unfiltered.
+    #[serde(default)]
+    pub tags: Vec<String>,
+
     /// Optional natural-language text of the query, used to enable BM25 lexical fusion.
     ///
     /// R6: Previously the vector retrieve path always passed `query_text=""`, disabling BM25.
@@ -238,6 +253,20 @@ pub struct LearnParams {
     /// `deduped` disposition — observation, not suppression.
     #[serde(default)]
     pub strict_no_dup: bool,
+
+    /// B6b: optional episode kind (`fact`, `failure`, `preference`, `config`).
+    /// Stored on the learn's ledger episode for filtered retrieval. Unknown
+    /// values are rejected with an explicit error. Omit for unclassified.
+    #[serde(default)]
+    pub kind: Option<String>,
+
+    /// B6b: optional episode subject (free-form, exact match in filters).
+    #[serde(default)]
+    pub subject: Option<String>,
+
+    /// B6b: optional episode tags (capped at 10 per episode).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 
@@ -455,6 +484,20 @@ pub struct LearnTextParams {
     /// `deduped` disposition — observation, not suppression.
     #[serde(default)]
     pub strict_no_dup: bool,
+
+    /// B6b: optional episode kind (`fact`, `failure`, `preference`, `config`).
+    /// Stored on the learn's ledger episode for filtered retrieval. Unknown
+    /// values are rejected with an explicit error. Omit for unclassified.
+    #[serde(default)]
+    pub kind: Option<String>,
+
+    /// B6b: optional episode subject (free-form, exact match in filters).
+    #[serde(default)]
+    pub subject: Option<String>,
+
+    /// B6b: optional episode tags (capped at 10 per episode).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 
@@ -489,6 +532,19 @@ pub struct RetrieveTextParams {
     /// Unknown non-null values return an `invalid_params` error.
     #[serde(default)]
     pub retrieval_intent: Option<String>,
+
+    /// B6b: optional episode-kind filter (`fact`, `failure`, `preference`,
+    /// `config`). Unknown values return an `invalid_params` error.
+    #[serde(default)]
+    pub kind: Option<String>,
+
+    /// B6b: optional episode-subject filter (exact match).
+    #[serde(default)]
+    pub subject: Option<String>,
+
+    /// B6b: optional episode-tag filter (every listed tag must be present).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 
