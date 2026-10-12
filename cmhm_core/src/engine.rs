@@ -1159,7 +1159,7 @@ fn worker_loop(
     mut wal: Option<WalWriter>,
     cfg: Config,
     snapshot_path: PathBuf,
-    wal_path: PathBuf,
+    _wal_path: PathBuf,
 ) {
     let mut rng = SmallRng::from_entropy();
     let mut cmd_count: u64 = 0;
@@ -1403,28 +1403,17 @@ fn worker_loop(
             }
 
             Command::Shutdown { tx } => {
-                // S-05 terminal snapshot: the snapshot is complete (includes
-                // every WAL entry), so the WAL may be compacted — reset the
-                // watermark to 0 for the fresh WAL and delete the WAL file.
-                // Mid-life checkpoints (Command::Snapshot to the canonical
-                // path, periodic snapshots) instead stamp the watermark and
-                // RETAIN the WAL as the corruption-recovery path (H-11).
-                // Windows: drop the WAL handle before deleting (open handles
-                // block DeleteFile); each append already flush+sync_data, so
-                // nothing is lost.
+                // S-05 terminal snapshot (watermark commit): stamp the watermark
+                // so a restart skips already-applied WAL entries. WAL retention
+                // vs compaction is decided in the shutdown-semantics commit;
+                // this commit retains the WAL (watermark alone subsumes
+                // correctness — restart skips, no duplication).
                 tracing::info!("Worker shutting down. Taking final snapshot.");
-                state.last_applied_wal_seq = 0;
-                let res = write_snapshot(&state, &snapshot_path);
-                if res.is_ok() {
-                    drop(wal.take());
-                    if wal_path.exists() {
-                        if let Err(e) = std::fs::remove_file(&wal_path) {
-                            if e.kind() != std::io::ErrorKind::NotFound {
-                                tracing::warn!("WAL delete failed at shutdown: {e}");
-                            }
-                        }
-                    }
+                {
+                    let wal_seq = wal.as_ref().map(|w| w.seq).unwrap_or(0);
+                    state.last_applied_wal_seq = wal_seq;
                 }
+                let res = write_snapshot(&state, &snapshot_path);
                 let _ = tx.send(res);
                 break;
             }
