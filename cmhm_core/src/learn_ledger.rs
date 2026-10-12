@@ -215,6 +215,26 @@ impl LearnLedger {
         }
     }
 
+    /// B7: do two nodes share at least one retained episode?
+    ///
+    /// `Some(true)` = learned together (state/action/outcome of one learn).
+    /// `Some(false)` = both have retained episodes but share none — a chain
+    /// step between them is a cross-experience link. `None` = unknown (either
+    /// side has no retained episodes: pre-B1b, evicted, or never-recorded).
+    /// Per S-19, unknown means VISIBLE — losing data silently is worse than
+    /// showing a doubtful link.
+    pub fn shares_episode(&self, a: u64, b: u64) -> Option<bool> {
+        let a_seqs = self.node_to_episodes.get(&a)?;
+        if a_seqs.is_empty() {
+            return None;
+        }
+        let b_seqs = self.node_to_episodes.get(&b)?;
+        if b_seqs.is_empty() {
+            return None;
+        }
+        Some(a_seqs.iter().any(|s| b_seqs.contains(s)))
+    }
+
     /// Resolve a node to its most-recent retained episode (most-recent wins).
     /// Returns `(status, episode, shared_count)` where `shared_count` is the
     /// number of OTHER retained episodes containing the node.

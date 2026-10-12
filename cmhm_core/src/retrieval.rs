@@ -32,6 +32,94 @@ pub struct ChainStep {
     pub from_text: Option<ChainNodeText>,
     /// Resolved text of the to_node. Same semantics as `from_text`.
     pub to_text: Option<ChainNodeText>,
+    /// B7 (S-19, refined): what the learn-event ledger says about this step's
+    /// endpoints. Decided at assembly from ledger membership + evidence;
+    /// rendering partitions on it. Scoring/traversal never read it.
+    pub link_kind: LinkKind,
+    /// B7: no rendered chain is a verified causal claim. Always false;
+    /// surfaced so callers (and agents) cannot mistake a related observation
+    /// for causation.
+    pub verified_causation: bool,
+}
+
+/// B7 (S-19, refined direction): ledger-membership class of a chain step.
+///
+/// The learn-event ledger records which nodes were learned together, so it
+/// says whether a step connects two nodes of one experience or two different
+/// ones — something edge evidence (2.0 both for fresh-legitimate and
+/// spurious links) cannot tell apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkKind {
+    /// Endpoints share a retained learn episode: always shown.
+    SameExperience,
+    /// Endpoints have retained episodes but share none, and edge evidence is
+    /// prior-only: hidden in human halves with a visible count marker; kept
+    /// in JSON with the kind label (lossless machine half).
+    CrossExperienceUnverified,
+    /// Endpoints share no episode but the edge was reinforced: shown with a
+    /// "learned association" label.
+    CrossExperienceLearned,
+    /// Either endpoint has no retained episode (pre-B1b, evicted, or never
+    /// recorded): shown with an "unverified" label. Unknown means visible —
+    /// losing data silently is worse than showing a doubtful link.
+    Unknown,
+}
+
+impl LinkKind {
+    /// Machine-readable label for JSON (additive; existing keys untouched).
+    pub fn label(self) -> &'static str {
+        match self {
+            LinkKind::SameExperience => "same_experience",
+            LinkKind::CrossExperienceUnverified => "cross_unverified",
+            LinkKind::CrossExperienceLearned => "cross_learned",
+            LinkKind::Unknown => "unknown",
+        }
+    }
+}
+
+/// B7 (S-19, owner-accepted rider): prior-only evidence tolerance.
+///
+/// Predicate is `evidence <= 2.0 + PRIOR_ONLY_EVIDENCE_EPS`, NEVER `== 2.0`.
+/// Temporal forgetting decays α/β toward a 0.01 floor (`engine.rs`
+/// update_causal_edge), NOT the 1.0 prior — an aged never-reinforced edge
+/// drifts from 2.0 toward 0.02, so exact equality would miss it; float
+/// equality is fragile anyway. Starts at 1e-4; VALIDATED BY TESTS (a freshly
+/// reinforced edge with evidence clearly above the band must render).
+pub const PRIOR_ONLY_EVIDENCE_EPS: f32 = 1e-4;
+
+/// B7: true when an edge carries no observations beyond the starting prior.
+#[inline]
+pub fn is_prior_only_evidence(evidence: f32) -> bool {
+    evidence <= 2.0 + PRIOR_ONLY_EVIDENCE_EPS
+}
+
+/// B7: classify one chain step from ledger membership + edge evidence.
+/// Pure function (deterministic; unit-tested directly).
+pub fn classify_link(
+    ledger: &crate::learn_ledger::LearnLedger,
+    from: u64,
+    to: u64,
+    evidence: f32,
+) -> LinkKind {
+    match ledger.shares_episode(from, to) {
+        Some(true) => LinkKind::SameExperience,
+        Some(false) => {
+            if is_prior_only_evidence(evidence) {
+                LinkKind::CrossExperienceUnverified
+            } else {
+                LinkKind::CrossExperienceLearned
+            }
+        }
+        None => LinkKind::Unknown,
+    }
+}
+
+/// B7: visible count marker for hidden cross-experience prior-only steps.
+/// Never a silent gap: the count always renders.
+#[inline]
+pub fn unverified_links_hidden_marker(hidden: usize) -> String {
+    let noun = if hidden == 1 { "link" } else { "links" };
+    format!("[{hidden} unverified {noun} hidden — prior-only cross-experience steps]")
 }
 
 /// Resolved human-readable text for one node, snapshotted at retrieval time.
@@ -737,16 +825,22 @@ pub fn retrieve(
     let chain_steps = if let Some(terminal) = best_terminal {
         terminal.path.iter().filter_map(|(src, tgt)| {
             edge_store.get(*src, *tgt).map(|edge| {
+                let evidence = edge.alpha + edge.beta;
                 ChainStep {
                     from_node: *src,
                     to_node: *tgt,
                     mean_weight: edge.weight(),
-                    evidence: edge.alpha + edge.beta,
+                    evidence,
                     variance: edge.variance(),
                     is_intervention: edge.is_intervention,
                     is_curious: edge.variance() > curiosity_threshold,
                     from_text: resolve_text(*src),
                     to_text: resolve_text(*tgt),
+                    // B7 (S-19, refined): read-only ledger-membership join.
+                    // Same closure site and pattern as resolve_text above;
+                    // scoring/selection above never read the ledger.
+                    link_kind: classify_link(ledger, *src, *tgt, evidence),
+                    verified_causation: false,
                 }
             })
         }).collect()
@@ -801,10 +895,34 @@ fn format_explanation(chain: &[ChainStep], _node_store: &NodeStore) -> String {
         }
     };
     let mut parts = Vec::new();
-    for (i, step) in chain.iter().enumerate() {
+    // B7 (S-19, refined) RENDER-ONLY partition: hide cross-experience
+    // prior-only steps with a visible count marker, never a silent gap.
+    // Same-experience, learned-association, and unknown steps always render
+    // (with their kind labels). Scoring/traversal above is untouched.
+    let hidden = chain
+        .iter()
+        .filter(|s| s.link_kind == LinkKind::CrossExperienceUnverified)
+        .count();
+    let visible: Vec<&ChainStep> = chain
+        .iter()
+        .filter(|s| s.link_kind != LinkKind::CrossExperienceUnverified)
+        .collect();
+    if visible.is_empty() {
+        return format!(
+            "No verified causal path from seed. {}",
+            unverified_links_hidden_marker(hidden)
+        );
+    }
+    for (i, step) in visible.iter().enumerate() {
         let confidence_pct = (step.mean_weight * 100.0) as u32;
         let causal_marker = if step.is_intervention { " [intervention]" } else { "" };
         let curious_marker = if step.is_curious { " [uncertain]" } else { "" };
+        // B7: learned associations and unverified links carry their kind label.
+        let kind_marker = match step.link_kind {
+            LinkKind::CrossExperienceLearned => " [learned association]",
+            LinkKind::Unknown => " [unverified link]",
+            _ => "",
+        };
         // The from_node of step i>0 is the to_node of step i-1 — render it once.
         let head = if i == 0 {
             format!("{} ", render(step.from_node, &step.from_text))
@@ -812,10 +930,13 @@ fn format_explanation(chain: &[ChainStep], _node_store: &NodeStore) -> String {
             String::new()
         };
         parts.push(format!(
-            "{head}→{causal_marker}{curious_marker} {} (confidence: {}%, evidence: {:.1})",
+            "{head}→{causal_marker}{curious_marker}{kind_marker} {} (confidence: {}%, evidence: {:.1})",
             render(step.to_node, &step.to_text),
             confidence_pct, step.evidence
         ));
+    }
+    if hidden > 0 {
+        parts.push(unverified_links_hidden_marker(hidden));
     }
     parts.join(" ")
 }
