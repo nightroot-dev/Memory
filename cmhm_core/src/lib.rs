@@ -53,6 +53,7 @@ pub mod scrub;
 pub mod embed;
 pub mod authority;
 pub mod migration;
+pub mod learn_ledger;
 pub mod scope;
 pub mod crypto;
 pub mod backup;

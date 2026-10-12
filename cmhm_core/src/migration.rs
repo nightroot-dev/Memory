@@ -1,7 +1,7 @@
 // cmhm_core/src/migration.rs
 //! Snapshot migration engine.
 //!
-//! Provides deterministic migration from earlier snapshot formats to current SNAPSHOT_VERSION = 3.
+//! Provides deterministic migration from earlier snapshot formats to current SNAPSHOT_VERSION = 4.
 //! Preserves all node IDs, embeddings, types, timestamps, and causal edges, while populating
 //! new fields with neutral, unpromoted defaults (authority = 0.50, provenance = "",
 //! superseded_by = None, assertion_key = None, polarity = None).
@@ -22,6 +22,7 @@ use crate::{
     dense_core::DenseCore,
     consolidation::Cohorts,
     projection::{Projection, ProjectionRegistry},
+    learn_ledger::LearnLedger,
 };
 
 /// Serialized Node representation in SNAPSHOT_VERSION = 2.
@@ -133,10 +134,70 @@ pub fn migrate_v2_to_v3(v2_payload: &[u8]) -> Result<CoreState> {
          feedback_seen:           v2.feedback_seen,
          birth_q30:               v2.birth_q30,
          bm25_index:              crate::bm25::Bm25Index::new(),
+         // B1b: v2 states predate the learn ledger → empty ledger (no retained
+         // episodes; pre-B1b nodes resolve to "no triple recorded").
+         learn_ledger:            LearnLedger::new(),
          };
          state.rebuild_bm25_index();
+         state.rebuild_ledger_index();
          state
      })
+}
+
+/// Serialized CoreState in SNAPSHOT_VERSION = 3 (pre-B1b layout).
+///
+/// Identical to the v4 [`CoreState`] minus the learn ledger: same field order
+/// and types, so bincode positional layout matches v3 snapshot bytes exactly.
+/// The BM25 index is `serde(skip)` in both (never on disk).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CoreStateV3 {
+    pub node_store: NodeStore,
+    pub edge_store: EdgeStore,
+    pub working_memory: WorkingMemory,
+    pub episode_log: EpisodeLog,
+    pub salience_engine: SalienceEngine,
+    pub dense_core: DenseCore,
+    pub cohorts: Cohorts,
+    pub projections: ProjectionRegistry,
+    pub cmd_seq: u64,
+    pub last_consolidation_secs: f64,
+    pub cumulative_reinforce: f32,
+    #[serde(with = "crate::serde_helpers::f32_128")]
+    pub global_ema: [f32; 128],
+    pub feedback_seen: HashSet<u64>,
+    pub birth_q30: f32,
+}
+
+/// Migrate a v3 snapshot payload directly to v4 CoreState.
+///
+/// Preserves every store bit-for-bit; attaches an empty learn ledger (v3
+/// states predate B1b, so no episodes were ever recorded — pre-B1b nodes
+/// resolve to "no triple recorded (learned before B1b)"). Rebuilds both
+/// transient indexes (BM25 + ledger) before returning.
+pub fn migrate_v3_to_v4(v3_payload: &[u8]) -> Result<CoreState> {
+    let v3: CoreStateV3 = bincode::deserialize(v3_payload)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize v3 CoreState: {e}"))?;
+    let mut state = CoreState {
+        node_store:              v3.node_store,
+        edge_store:              v3.edge_store,
+        working_memory:          v3.working_memory,
+        episode_log:             v3.episode_log,
+        salience_engine:         v3.salience_engine,
+        dense_core:              v3.dense_core,
+        cohorts:                 v3.cohorts,
+        projections:             v3.projections,
+        bm25_index:              crate::bm25::Bm25Index::new(),
+        cmd_seq:                 v3.cmd_seq,
+        last_consolidation_secs: v3.last_consolidation_secs,
+        cumulative_reinforce:    v3.cumulative_reinforce,
+        global_ema:              v3.global_ema,
+        feedback_seen:           v3.feedback_seen,
+        birth_q30:               v3.birth_q30,
+        learn_ledger:            LearnLedger::new(),
+    };
+    state.rebuild_bm25_index();
+    state.rebuild_ledger_index();
+    Ok(state)
 }
 
 /// Helper to generate a valid v2 snapshot envelope payload for fixture creation and testing.
@@ -284,6 +345,65 @@ pub fn create_test_v2_snapshot_envelope_bytes() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_v3_to_v4_migration_preserves_stores_and_attaches_empty_ledger() {
+        // Build a representative v3 state (all stores populated).
+        let mut nodes = HashMap::new();
+        let mut emb = vec![0.0f32; 128];
+        emb[0] = 1.0;
+        let mut node = Node::new(
+            emb.clone(),
+            "hash-128d".to_string(),
+            0.85,
+            123456789,
+            0.5,
+            NodeType::State,
+            0.7,
+            "user_explicit".to_string(),
+        );
+        node.text = "v3 state text".to_string();
+        nodes.insert(42u64, node);
+        let node_store = NodeStore {
+            nodes,
+            next_id: 43,
+            global_ema: vec![0.0f32; 128],
+            embed_dim: 128,
+        };
+        let v3_state = CoreStateV3 {
+            node_store,
+            edge_store: EdgeStore::new(),
+            working_memory: WorkingMemory::new(8),
+            episode_log: EpisodeLog::new(),
+            salience_engine: SalienceEngine::new(),
+            dense_core: DenseCore::new(),
+            cohorts: Cohorts::new(),
+            projections: ProjectionRegistry::new(),
+            cmd_seq: 10,
+            last_consolidation_secs: 100.0,
+            cumulative_reinforce: 1.5,
+            global_ema: [0.0f32; 128],
+            feedback_seen: HashSet::new(),
+            birth_q30: 0.30,
+        };
+        let payload = bincode::serialize(&v3_state).unwrap();
+        let migrated = migrate_v3_to_v4(&payload).unwrap();
+        // Stores preserved bit-for-bit.
+        assert_eq!(migrated.node_store.len(), 1);
+        let n = migrated.node_store.get(42).expect("node 42 preserved");
+        assert_eq!(n.embedding, emb);
+        assert_eq!(n.text, "v3 state text");
+        assert_eq!(n.authority, 0.7);
+        assert_eq!(n.provenance, "user_explicit");
+        assert_eq!(migrated.cmd_seq, 10);
+        assert_eq!(migrated.birth_q30, 0.30);
+        // B1b: empty ledger, rebuilt (empty) index — pre-B1b nodes are NoTriple.
+        assert_eq!(migrated.learn_ledger.len(), 0);
+        assert_eq!(migrated.learn_ledger.index_len(), 0);
+        let (st, ep, _) = migrated.learn_ledger.resolve_node(42);
+        assert_eq!(st, crate::learn_ledger::EpisodeStatus::NoTriple);
+        assert!(ep.is_none());
+    }
 
 
     #[test]

@@ -38,16 +38,22 @@ const SNAPSHOT_GENERATIONS: u32 = 3;
 ///       `WalLearnEntryV2` written as `WAL_TYPE_LEARN_V3` (type `0x03`) for verified post-normalization writes.
 ///       Legacy `WAL_TYPE_LEARN_V2` (type `0x02`) records replayed conservatively with `CallerRole::Agent`.
 ///       Legacy `WalLearnEntry` (type `0x00`) replayed with neutral defaults.
+///   4 = `CoreState` gains `learn_ledger: LearnLedger` (B1b, S-15): every
+///       `process_learn` triple as `{seq, state_id, action_id, outcome_id,
+///       timestamp}` — IDs + timestamp only, no text (resolved live from
+///       `NodeStore`). No new WAL byte: the ledger rebuilds via the single
+///       `process_learn` append site on WAL replay (with the S-05 duplication
+///       caveat — replay duplicates ledger entries exactly as nodes).
 ///
-/// Migration from v2 → v3
+/// Migration from v3 → v4
 /// ───────────────────────
-/// Snapshot: `VersionMismatch` returned on load. With `allow_incompatible_snapshot_reset = true`
-/// the engine quarantines the snapshot and replays the WAL. Old WAL type-`0x00` entries are
-/// replayed through `process_learn` with `authority=0.5, provenance="", supersedes=None`
-/// (safe defaults). Data is recovered from the WAL. A new v3 snapshot is written at the
-/// next periodic checkpoint or clean shutdown.
+/// Snapshot: `VersionMismatch{found: 3}` returned on load; `engine::start`
+/// migrates via `migration::migrate_v3_to_v4` (stores preserved bit-for-bit,
+/// empty learn ledger — v3 states predate B1b so pre-B1b nodes resolve to
+/// "no triple recorded"). Chain: v2 → v3 (`migrate_v2_to_v3`, now attaching an
+/// empty ledger) → v4. See v2→v3 notes above for the WAL path.
 /// Context identity (UUID in the context registry) is preserved across migration.
-pub const SNAPSHOT_VERSION: u32 = 3;
+pub const SNAPSHOT_VERSION: u32 = 4;
 
 
 /// Thin envelope that tags snapshot bytes with a schema version.

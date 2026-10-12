@@ -3,6 +3,9 @@ use std::cmp::Ordering;
 use rand::Rng;
 use crate::node::{NodeType};
 use crate::node_store::{NodeStore, cosine};
+/// B1b read-only join types. [`EpisodeStatus`] is re-exported here so callers
+/// match on resolution status via `retrieval::EpisodeStatus`.
+pub use crate::learn_ledger::{EpisodeStatus, LearnLedger, SeedEpisode};
 use crate::edge_store::EdgeStore;
 use crate::dense_core::DenseCore;
 use crate::EMBED_DIM;
@@ -42,10 +45,22 @@ pub struct ChainNodeText {
     pub timestamp: i64,
 }
 
+/// B1b: top-3 scored candidate text, in scored order (no rerank).
+///
+/// Read-only join: `node_id` follows `scored_candidates` order exactly;
+/// `text`/`timestamp` are resolved live from the store at retrieval time.
+#[derive(Debug, Clone)]
+pub struct CandidateText {
+    pub node_id: u64,
+    pub text: String,
+    pub timestamp: i64,
+}
+
 /// Maximum characters of node text rendered in the human-readable
 /// explanation. Longer text is cut with a visible `…[+N chars]` marker; the
 /// structured fields always carry the full string (lossless machine half).
 pub const TEXT_RENDER_CAP: usize = 120;
+
 
 /// Pre-declared authority-margin threshold for trust-compromised runner-up abstention.
 /// Derived from composite scoring mathematics under hash-128d in Protocol v1.9 Section 14.5.
@@ -134,6 +149,17 @@ pub struct RetrievalResult {
     /// Passive diagnostic instrumentation: composite-scored candidates sorted descending
     /// with their scores (Stage 2: SCORED).
     pub scored_candidates: Vec<(u64, f32)>,
+    /// B1b read-only join: top-3 of `scored_candidates`, in scored order, with
+    /// live-resolved text. Empty when there are no scored candidates.
+    pub candidate_texts: Vec<CandidateText>,
+    /// B1b read-only join: most-recent learn triple for the seed node
+    /// (most-recent wins on dedup-shared nodes). `None` when the seed has no
+    /// retained episode — see `seed_episode_status` for why.
+    pub seed_episode: Option<SeedEpisode>,
+    /// B1b: why `seed_episode` is present or absent. `Found` = triple returned;
+    /// `Evicted` = "episode record evicted"; `NoTriple` = pre-B1b
+    /// "no triple recorded (learned before B1b)".
+    pub seed_episode_status: EpisodeStatus,
 }
 
 /// Internal Dijkstra state.
@@ -215,11 +241,16 @@ pub fn retrieve(
     // R3: Seed pool size — number of NN candidates to retrieve before scoring.
     // Default 20 (was hardcoded 8). Tunable via Config::retrieval_seed_pool_size.
     seed_pool_size: usize,
+    // B1b: learn-event ledger for the read-only episode join. Scoring,
+    // filtering, and ordering above never read it; the join below only
+    // resolves text/triples for already-ranked candidates.
+    ledger: &LearnLedger,
 ) -> RetrievalResult {
     // Step 1: Dense context
     let dense_ctx = dense_core.query(query);
 
     // Helper closure for empty results (avoids repeating all fields)
+    // B1b: empty sites carry an empty join (no candidates, no triple).
     macro_rules! empty_result {
         ($explanation:expr) => {
             RetrievalResult {
@@ -237,6 +268,9 @@ pub fn retrieve(
                 raw_nn_candidates:    vec![],
                 post_filter_candidates: vec![],
                 scored_candidates:    vec![],
+                candidate_texts:      vec![],
+                seed_episode:         None,
+                seed_episode_status:  EpisodeStatus::NoTriple,
             }
         };
     }
@@ -341,6 +375,9 @@ pub fn retrieve(
             raw_nn_candidates,
             post_filter_candidates,
             scored_candidates:    vec![],
+            candidate_texts:      vec![],
+            seed_episode:         None,
+            seed_episode_status:  EpisodeStatus::NoTriple,
         };
     }
 
@@ -513,6 +550,17 @@ pub fn retrieve(
     // Stage 2: SCORED diagnostic snapshot (passive, unmutated).
     let scored_candidates: Vec<(u64, f32)> = scored.clone();
 
+    // B1b read-only join (candidate half): top-3 of `scored` in scored order.
+    // `scored` is final here — this maps, never sorts, filters, or rescores.
+    let candidate_texts: Vec<CandidateText> = scored.iter().take(3).map(|(id, _)| {
+        let n = node_store.get(*id);
+        CandidateText {
+            node_id: *id,
+            text: n.map(|x| x.text.clone()).unwrap_or_default(),
+            timestamp: n.map(|x| x.timestamp).unwrap_or(0),
+        }
+    }).collect();
+
     // Step 2e (moved before the empty check): assemble conflict_candidates
     // from the detected pair so BOTH return paths identify contradicted
     // candidates. Backfill scores from the scored output; filtered-out nodes
@@ -559,6 +607,9 @@ pub fn retrieve(
             raw_nn_candidates,
             post_filter_candidates,
             scored_candidates,
+            candidate_texts:      vec![],
+            seed_episode:         None,
+            seed_episode_status:  EpisodeStatus::NoTriple,
         };
     }
 
@@ -573,6 +624,10 @@ pub fn retrieve(
         text: n.text.clone(),
         timestamp: n.timestamp,
     });
+    // B1b read-only join (episode half): most-recent triple for the seed node.
+    // Resolved AFTER scoring/selection; never feeds back into ranks.
+    let seed_episode_status = ledger.resolve_node(seed_id).0;
+    let seed_episode = ledger.resolve_node_view(seed_id, node_store);
 
     // Step 2f: Abstain if conflict detected and abstain_on_conflict is set.
     if conflict_detected && abstain_on_conflict && detect_abstain {
@@ -592,6 +647,9 @@ pub fn retrieve(
             raw_nn_candidates,
             post_filter_candidates,
             scored_candidates,
+            candidate_texts,
+            seed_episode,
+            seed_episode_status,
         };
     }
 
@@ -695,6 +753,9 @@ pub fn retrieve(
         raw_nn_candidates,
         post_filter_candidates,
         scored_candidates,
+        candidate_texts,
+        seed_episode,
+        seed_episode_status,
     }
 
 }

@@ -656,12 +656,58 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
             s
         }
         Err(SnapshotLoadError::VersionMismatch { found, expected, payload }) => {
-            // Attempt deterministic v2→v3 migration
+            // Deterministic migration chain: v2 → v3 (neutral authority
+            // defaults) → v4 (empty learn ledger). v3 → v4 directly.
             if found == 2 {
                 match crate::migration::migrate_v2_to_v3(&payload) {
+                    Ok(mut migrated) => {
+                        // v2→v3 output predates the ledger: chain to v4 by
+                        // attaching the empty ledger (no retained episodes, so
+                        // pre-B1b nodes resolve to "no triple recorded").
+                        migrated.learn_ledger = crate::learn_ledger::LearnLedger::new();
+                        migrated.rebuild_ledger_index();
+                        tracing::info!(
+                            "Snapshot v2→v3→v4 migration succeeded: {} nodes recovered with neutral defaults and an empty learn ledger.",
+                            migrated.node_store.len()
+                        );
+                        migrated
+                    }
+                    Err(migration_err) => {
+                        tracing::error!(
+                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                             Migration attempt failed: {migration_err}."
+                        );
+
+                        if cfg.allow_incompatible_snapshot_reset {
+                            let quarantine_path = snapshot_path.with_extension(
+                                format!("v{found}.incompatible")
+                            );
+                            let _ = std::fs::rename(&snapshot_path, &quarantine_path);
+                            for n in 1u32..=2 {
+                                let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                                if gen_path.exists() {
+                                    let q = snapshot_path.with_extension(
+                                        format!("v{found}.incompatible.{n}")
+                                    );
+                                    let _ = std::fs::rename(&gen_path, &q);
+                                }
+                            }
+                            CoreState::new(cfg.working_memory_size)
+                        } else {
+                            return Err(anyhow::Error::new(SchemaMismatchError {
+                                found,
+                                expected,
+                                snapshot_path: snapshot_path.clone(),
+                            }));
+                        }
+                    }
+                }
+            } else if found == 3 {
+                // v3 → v4: identical stores, plus the empty learn ledger.
+                match crate::migration::migrate_v3_to_v4(&payload) {
                     Ok(migrated) => {
                         tracing::info!(
-                            "Snapshot v2→v3 migration succeeded: {} nodes recovered with neutral defaults.",
+                            "Snapshot v3→v4 migration succeeded: {} nodes recovered with an empty learn ledger.",
                             migrated.node_store.len()
                         );
                         migrated
@@ -981,6 +1027,10 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     // immediately after restart. Vector-path / legacy nodes have empty text
     // and are skipped (dense-only, unchanged behavior).
     state.rebuild_bm25_index();
+    // B1b: the learn-ledger node→episode index is likewise never persisted.
+    // Rebuild it from the retained episodes so triple resolution works
+    // immediately after restart.
+    state.rebuild_ledger_index();
 
     // ── Step 3: Compaction point ──────────────────────────────────────────
     write_snapshot(&state, &snapshot_path)?;
@@ -1311,6 +1361,7 @@ fn process_retrieve(
          query_text,
          &state.bm25_index,
          cfg.retrieval_seed_pool_size,
+        &state.learn_ledger,
       ))
  }
 
@@ -1425,6 +1476,18 @@ fn process_learn(
 
     // Update cumulative reinforcement tracker
     state.cumulative_reinforce += (epsilon - 0.5).abs();
+
+    // B1b: single learn-ledger append site. Every successful `process_learn`
+    // records its (state, action, outcome) triple here — IDs + timestamp only,
+    // no text (resolved live from NodeStore at retrieval).
+    //
+    // No new WAL byte: WAL replay funnels through this same `process_learn`,
+    // so the ledger rebuilds on replay without a schema change.
+    //
+    // KNOWN LIMITATION (open S-05, do NOT fix here): WAL replay is not
+    // idempotent, so replayed learns append DUPLICATE ledger entries exactly
+    // as they duplicate nodes. No release ships between B1b and R1.
+    state.learn_ledger.append(state_id, action_id, outcome_id, now as i64);
 
     Ok(LearnResult {
         state_node_id: state_id,

@@ -489,7 +489,7 @@ const TOOLS: &[ToolEntry] = &[
     },
     ToolEntry {
         name: "memory_retrieve_text",
-        description: "Retrieve causal memory using plain text â€” no embeddings needed. \
+        description: "Retrieve causal memory using plain text — no embeddings needed. \
             PREFERRED over memory_retrieve for most agents. \
             Call this BEFORE making a decision to recall what was previously learned \
             about similar situations. The server converts text to an embedding internally.",
@@ -611,6 +611,133 @@ fn render_node_text(t: &Option<cmhm_core::retrieval::ChainNodeText>) -> String {
                 n.text.clone()
             }
         }
+    }
+}
+
+/// B1b: render one learn-triple endpoint whose text was resolved live from the
+/// store (`None` = node missing after consolidation/cull — graceful, never dropped).
+fn render_episode_text(t: &Option<String>) -> String {
+    match t {
+        None => "[missing from store]".to_string(),
+        Some(s) if s.is_empty() => "no text stored".to_string(),
+        Some(s) => {
+            let count = s.chars().count();
+            if count > cmhm_core::retrieval::TEXT_RENDER_CAP {
+                let cut: String = s.chars().take(cmhm_core::retrieval::TEXT_RENDER_CAP).collect();
+                format!("{cut}…[+{} chars]", count - cmhm_core::retrieval::TEXT_RENDER_CAP)
+            } else {
+                s.clone()
+            }
+        }
+    }
+}
+
+/// B1b: human-readable "recalled triple + top candidates" block.
+///
+/// Read-only rendering of the retrieval join: the seed's learn triple
+/// (most-recent wins on dedup-shared nodes, with the "(+N other episodes…)"
+/// marker when shared), then the top-3 scored candidates in scored order.
+/// Ledgerless seeds show the pre-B1b marker; evicted seeds the evicted marker.
+fn render_b1b_block(result: &cmhm_core::RetrievalResult) -> String {
+    use cmhm_core::learn_ledger::{EVICTED_MARKER, NO_TRIPLE_MARKER};
+    let mut out = String::new();
+    match &result.seed_episode {
+        Some(ep) => {
+            out.push_str("\n### Recalled triple (learned S→A→O)\n");
+            out.push_str(&format!(
+                "State #{} \"{}\" → Action #{} \"{}\" → Outcome #{} \"{}\" (learned {})\n",
+                ep.state_id, render_episode_text(&ep.state_text),
+                ep.action_id, render_episode_text(&ep.action_text),
+                ep.outcome_id, render_episode_text(&ep.outcome_text),
+                ep.timestamp,
+            ));
+            if ep.shared_count > 0 {
+                out.push_str(&format!(
+                    "{}\n",
+                    cmhm_core::learn_ledger::shared_marker(ep.shared_count)
+                ));
+            }
+        }
+        None => {
+            let marker = match result.seed_episode_status {
+                cmhm_core::retrieval::EpisodeStatus::Evicted => EVICTED_MARKER,
+                _ => NO_TRIPLE_MARKER,
+            };
+            out.push_str(&format!("\n_Triple: {marker}_\n"));
+        }
+    }
+    if !result.candidate_texts.is_empty() {
+        out.push_str("\n### Top candidates\n");
+        for (i, c) in result.candidate_texts.iter().enumerate() {
+            let shown = if c.text.is_empty() {
+                "no text stored".to_string()
+            } else {
+                let count = c.text.chars().count();
+                if count > cmhm_core::retrieval::TEXT_RENDER_CAP {
+                    let cut: String =
+                        c.text.chars().take(cmhm_core::retrieval::TEXT_RENDER_CAP).collect();
+                    format!("{cut}…[+{} chars]", count - cmhm_core::retrieval::TEXT_RENDER_CAP)
+                } else {
+                    c.text.clone()
+                }
+            };
+            out.push_str(&format!(
+                "{}. Node {} \"{}\" (learned {})\n",
+                i + 1,
+                c.node_id,
+                shown,
+                c.timestamp
+            ));
+        }
+    }
+    out
+}
+
+/// B1b: JSON for the seed episode (object) or null (ledgerless/evicted).
+fn seed_episode_json(result: &cmhm_core::RetrievalResult) -> serde_json::Value {
+    match &result.seed_episode {
+        Some(ep) => {
+            let text_of = |t: &Option<String>| match t {
+                None => serde_json::Value::Null,
+                Some(s) => serde_json::Value::String(s.clone()),
+            };
+            serde_json::json!({
+                "seq":          ep.seq,
+                "state_id":     ep.state_id,
+                "action_id":    ep.action_id,
+                "outcome_id":   ep.outcome_id,
+                "timestamp":    ep.timestamp,
+                "state_text":   text_of(&ep.state_text),
+                "action_text":  text_of(&ep.action_text),
+                "outcome_text": text_of(&ep.outcome_text),
+                "shared_count": ep.shared_count,
+            })
+        }
+        None => serde_json::Value::Null,
+    }
+}
+
+/// B1b: JSON for the top-3 candidate texts (scored order).
+fn candidate_texts_json(result: &cmhm_core::RetrievalResult) -> Vec<serde_json::Value> {
+    result
+        .candidate_texts
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "node_id":   c.node_id,
+                "text":      c.text,
+                "timestamp": c.timestamp,
+            })
+        })
+        .collect()
+}
+
+/// B1b: machine-readable episode status string.
+fn episode_status_label(result: &cmhm_core::RetrievalResult) -> &'static str {
+    match result.seed_episode_status {
+        cmhm_core::retrieval::EpisodeStatus::Found => "found",
+        cmhm_core::retrieval::EpisodeStatus::Evicted => "evicted",
+        cmhm_core::retrieval::EpisodeStatus::NoTriple => "no_triple",
     }
 }
 
@@ -777,6 +904,8 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             }
             // retrieve_id: copy this into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
+            // B1b: recalled triple + top-3 candidates (read-only join rendering).
+            text.push_str(&render_b1b_block(&result));
 
             // Machine-readable JSON block (content[1]) â€” structured fields for tests and agents.
             let (seed_text_v, seed_ts_v) = seed_text_json(&result);
@@ -785,6 +914,10 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 "seed_id":           result.seed_id,
                 "seed_text":         seed_text_v,
                 "seed_timestamp":    seed_ts_v,
+                "seed_episode":        seed_episode_json(&result),
+                "seed_episode_status": episode_status_label(&result),
+                "seed_shared_count":   result.seed_episode.as_ref().map(|e| e.shared_count).unwrap_or(0),
+                "candidate_texts":     candidate_texts_json(&result),
                 "seed_authority":    result.seed_authority,
                 "seed_provenance":   result.seed_provenance,
                 "conflict_detected": result.conflict_detected,
@@ -1294,6 +1427,8 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
             }
             // retrieve_id: copy into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
+            // B1b: recalled triple + top-3 candidates (read-only join rendering).
+            text.push_str(&render_b1b_block(&result));
 
             // Machine-readable JSON block (content[1])
             let (seed_text_v, seed_ts_v) = seed_text_json(&result);
@@ -1302,6 +1437,10 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                 "seed_id":           result.seed_id,
                 "seed_text":         seed_text_v,
                 "seed_timestamp":    seed_ts_v,
+                "seed_episode":        seed_episode_json(&result),
+                "seed_episode_status": episode_status_label(&result),
+                "seed_shared_count":   result.seed_episode.as_ref().map(|e| e.shared_count).unwrap_or(0),
+                "candidate_texts":     candidate_texts_json(&result),
                 "seed_authority":    result.seed_authority,
                 "seed_provenance":   result.seed_provenance,
                 "conflict_detected": result.conflict_detected,

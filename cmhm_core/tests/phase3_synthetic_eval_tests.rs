@@ -204,6 +204,9 @@ fn synth_04_abstained_result_has_empty_chain_invariant() {
         raw_nn_candidates:   vec![],
         post_filter_candidates: vec![],
         scored_candidates:   vec![],
+        candidate_texts:     vec![],
+        seed_episode:        None,
+        seed_episode_status: cmhm_core::retrieval::EpisodeStatus::NoTriple,
     };
 
     assert!(

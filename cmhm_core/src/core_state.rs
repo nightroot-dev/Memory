@@ -9,6 +9,7 @@ use crate::{
     dense_core::DenseCore,
     consolidation::Cohorts,
     projection::ProjectionRegistry,
+    learn_ledger::LearnLedger,
 };
 
 /// Master state struct — owned exclusively by the single worker thread.
@@ -26,6 +27,11 @@ pub struct CoreState {
      /// BM25 lexical index over scrubbed node text (rebuilt from Node.text on load).
      #[serde(skip)]
      pub bm25_index: crate::bm25::Bm25Index,
+     /// B1b learn-event ledger: every `process_learn` triple (IDs + timestamp,
+     /// no text). Persisted in snapshot v4; the node→episode index inside it is
+     /// transient and rebuilt on load.
+     #[serde(default)]
+     pub learn_ledger: LearnLedger,
 
     /// Monotonically increasing command sequence number.
     pub cmd_seq: u64,
@@ -78,6 +84,7 @@ impl CoreState {
             cohorts: Cohorts::new(),
              projections: ProjectionRegistry::new(),
              bm25_index: crate::bm25::Bm25Index::new(),
+            learn_ledger: LearnLedger::new(),
             cmd_seq: 0,
             last_consolidation_secs: 0.0,
             cumulative_reinforce: 0.0,
@@ -100,6 +107,11 @@ impl CoreState {
          }
          self.bm25_index = index;
      }
+    /// Rebuild the transient learn-ledger index after snapshot load or
+    /// migration (the index is never persisted).
+    pub fn rebuild_ledger_index(&mut self) {
+        self.learn_ledger.rebuild_index();
+    }
     /// Check if any consolidation trigger is met.
     pub fn should_consolidate(&self, cfg: &crate::config::Config) -> bool {
         let now = now_secs();
