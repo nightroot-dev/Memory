@@ -467,3 +467,77 @@ fn b1b_t7_learned_date_is_readable_utc() {
     // Pre-epoch degrades gracefully, never panics.
     assert_eq!(fmt_learned_date(-1).len(), 10);
 }
+
+// â”€â”€ T8: snapshot â†’ restart â†’ retrieve the triple â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Owner review gap: migration (T5) covers ledgerless loads, but nothing
+// proved a retained triple survives a snapshot round-trip. Learn with text,
+// shut down (writes the v4 snapshot), start again on the SAME dir (loads the
+// snapshot, replays the WAL), retrieve, assert Found + verbatim texts.
+// Robust to open S-05 by design: replay may duplicate ledger entries exactly
+// as it duplicates nodes, so this asserts resolution status and texts â€”
+// never exact ledger length or shared_count.
+#[test]
+fn b1b_t8_snapshot_restart_retrieves_triple() {
+    let tmp = tmpdir("t8");
+    let dir = tmp.path().to_path_buf();
+
+    let s_txt = "b1b t8 state roundtrip zb-t8-s";
+    let a_txt = "b1b t8 action roundtrip zb-t8-a";
+    let o_txt = "b1b t8 outcome roundtrip zb-t8-o";
+    let (sid, aid, oid);
+    {
+        let handle = engine::start(test_cfg(&dir)).unwrap();
+        let lr = handle
+            .learn_with_text_context(
+                cmhm_core::text_to_embedding(s_txt).to_vec(),
+                cmhm_core::text_to_embedding(a_txt).to_vec(),
+                cmhm_core::text_to_embedding(o_txt).to_vec(),
+                0.9,
+                0.5,
+                "hash-128d",
+                0.5,
+                String::new(),
+                None,
+                CallerRole::User,
+                None,
+                None,
+                Some((s_txt.to_string(), a_txt.to_string(), o_txt.to_string())),
+            )
+            .unwrap();
+        sid = lr.state_node_id;
+        aid = lr.action_node_id;
+        oid = lr.outcome_node_id;
+        handle.shutdown().unwrap();
+    }
+    {
+        let handle = engine::start(test_cfg(&dir)).unwrap();
+        let r = handle
+            .retrieve(
+                cmhm_core::text_to_embedding(s_txt).to_vec(),
+                "hash-128d",
+                NodeType::State,
+                s_txt,
+            )
+            .unwrap();
+        assert_eq!(
+            r.seed_episode_status,
+            EpisodeStatus::Found,
+            "T8: triple must survive snapshot round-trip"
+        );
+        let ep = r
+            .seed_episode
+            .as_ref()
+            .expect("T8: Found status must carry the episode view");
+        assert_eq!(ep.state_id, sid, "T8: state id must survive restart");
+        assert_eq!(ep.action_id, aid, "T8: action id must survive restart");
+        assert_eq!(ep.outcome_id, oid, "T8: outcome id must survive restart");
+        assert_eq!(ep.state_text.as_deref(), Some(s_txt), "T8: state text verbatim");
+        assert_eq!(ep.action_text.as_deref(), Some(a_txt), "T8: action text verbatim");
+        assert_eq!(
+            ep.outcome_text.as_deref(),
+            Some(o_txt),
+            "T8: outcome text verbatim"
+        );
+        handle.shutdown().unwrap();
+    }
+}
