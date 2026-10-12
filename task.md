@@ -352,3 +352,41 @@ traversal untouched): seed and pool bit-identical, chain moved by 1-2
 queries on n=30-41 (medium fused 0.0244 -> 0.0732). Sub-7-pair chain
 deltas are noise; earlier "bit-identical" chain readings across runs were
 coincidence, not a determinism guarantee.
+
+## B1b measurement record (2026-10-12, gates per S-15)
+
+Corpus/metric/provenance for every number below. Pre = worktree at 397a84b
+(pre-B1b code, same bench harness copied in); post = B1b+B1c tree.
+Approval bench: cmhm_mcp/tests/phase3_approval_bench.rs, 43 scenarios.
+Session L: cmhm_core/tests/ops_bench_minilm_v2.rs, n=200, MSVC+onnx, 3 runs
+per condition (chain is entropy-seeded Thompson sampling — mean+range, never
+single readings). Loadbench: cmhm_core/tests/loadbench.rs, CMHM_LOAD_N=10000,
+k=200 retrieves, short (~40-char) + long (~400-char, per-learn-unique filler)
+texts. Identical-padding long text was tried first and collapsed to 3 nodes
+via the 0.85 near-dup gate — discarded as a broken design, not a result.
+
+### Ranking invariance (Session L WITH-fused, seed | pool | chain | MRR)
+
+PRE:  easy 0.2069 | 0.6207 | 0.0345/0.1034/0.1034 (mean 0.0805) | 0.2667
+      med  0.1463 | 0.6829 | 0.0488/0.0732/0.0244 (mean 0.0488) | 0.2553
+      hard 0.0667 | 0.6000 | 0.0000/0.0000/0.0667 (mean 0.0222) | 0.1689
+POST: easy 0.2069 | 0.6207 | 0.0345/0.0690/0.0690 (mean 0.0575) | 0.2667
+      med  0.1463 | 0.6829 | 0.0488/0.0488/0.0488 (mean 0.0488) | 0.2553
+      hard 0.0667 | 0.6000 | 0.0333/0.0667/0.0333 (mean 0.0444) | 0.1689
+
+Seed/pool/MRR bit-identical across all 6 runs. All 3 post chain means sit
+inside the pre run-to-run ranges. Gate PASSED.
+
+### Latency (10k nodes; ship gates p50 <= 100ms, p99 <= 500ms)
+
+| condition | pre p50 | post p50 | delta | pre p99 | post p99 | delta |
+|---|---|---|---|---|---|---|
+| short text | 30.06ms | 32.06ms | +6.6% | 45.52ms | 50.48ms | +10.9% |
+| long text  | 32.97ms | 34.36ms | +4.2% | 46.51ms | 51.00ms | +9.7% |
+Honest caveat: single runs per cell, no warm-up; identical-code machine
+variance measured at ~9% (pre-short 30.06 vs historical 32.79 on the same
+code), so the +4–7% p50 deltas sit inside machine noise. What is firm: the
+absolute ship gates pass at ~1/3 budget on both text lengths, and disk grows
+5.0KB/node short / 8.0KB/node long (pre-long 7977B vs post-long 8111B).
+Learn throughput 45→35/s short (ledger append+index per learn; no gate).
+Gate PASSED with the stated caveat.
