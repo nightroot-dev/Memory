@@ -17,10 +17,19 @@ use std::path::{Path, PathBuf};
 
 /// One audit entry. `detail` carries small structured facts (node counts,
 /// redaction counts, error classes) — never text content, queries, or keys.
+///
+/// `ts_millis` is an INTEGER (not float) on purpose: the original `ts_secs:
+/// f64` design hashed raw float bits, but an f64 → JSON → f64 round-trip is
+/// not bit-stable through every parser (proven: serde_json parses
+/// "1791781224.7492247" to different bits than it serialized, failing
+/// verification ~20% of timestamp lottery draws). Integers round-trip
+/// exactly, so the chain is deterministic. Pre-fix local audit.log files
+/// (float `ts_secs`) no longer verify — expected and documented: those
+/// chains were already probabilistically unverifiable, which is the bug.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditEntry {
     pub seq: u64,
-    pub ts_secs: f64,
+    pub ts_millis: u64,
     pub principal_id: String,
     pub tenant_id: String,
     pub op: String,
@@ -34,7 +43,7 @@ pub struct AuditEntry {
 fn entry_hash(e: &AuditEntry) -> String {
     let mut h = Sha256::new();
     h.update(e.seq.to_be_bytes());
-    h.update(e.ts_secs.to_be_bytes());
+    h.update(e.ts_millis.to_be_bytes());
     h.update(e.principal_id.as_bytes());
     h.update(e.tenant_id.as_bytes());
     h.update(e.op.as_bytes());
@@ -61,7 +70,7 @@ pub fn append(
     let seq = next_seq(&path);
     let mut e = AuditEntry {
         seq,
-        ts_secs: now_secs(),
+        ts_millis: now_millis(),
         principal_id: principal_id.to_string(),
         tenant_id: tenant_id.to_string(),
         op: op.to_string(),
@@ -119,11 +128,11 @@ pub fn verify(tenant_dir: &Path) -> Result<usize> {
     Ok(entries.len())
 }
 
-fn now_secs() -> f64 {
+fn now_millis() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
