@@ -61,6 +61,24 @@ pub struct CandidateText {
 /// structured fields always carry the full string (lossless machine half).
 pub const TEXT_RENDER_CAP: usize = 120;
 
+/// B1c: render a unix-seconds timestamp as `YYYY-MM-DD` (UTC) for the
+/// human-readable halves. Std-only on purpose — no `chrono`/`time`/`jiff`
+/// dependency (B1c approval condition). Uses Howard Hinnant's days-to-civil
+/// algorithm; negative inputs degrade to their calendar date, never panic.
+pub fn fmt_learned_date(ts: i64) -> String {
+    let days = ts.div_euclid(86_400);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    format!("{year:04}-{m:02}-{d:02}")
+}
 
 /// Pre-declared authority-margin threshold for trust-compromised runner-up abstention.
 /// Derived from composite scoring mathematics under hash-128d in Protocol v1.9 Section 14.5.
@@ -768,7 +786,7 @@ fn format_explanation(chain: &[ChainStep], _node_store: &NodeStore) -> String {
         match text {
             None => format!("Node({node_id}) [missing from store]"),
             Some(t) if t.text.is_empty() => {
-                format!("Node({node_id}) \"no text stored\" (learned {})", t.timestamp)
+                format!("Node({node_id}) \"no text stored\" (first recorded {})", fmt_learned_date(t.timestamp))
             }
             Some(t) => {
                 let shown = if t.text.chars().count() > TEXT_RENDER_CAP {
@@ -778,7 +796,7 @@ fn format_explanation(chain: &[ChainStep], _node_store: &NodeStore) -> String {
                 } else {
                     t.text.clone()
                 };
-                format!("Node({node_id}) \"{shown}\" (learned {})", t.timestamp)
+                format!("Node({node_id}) \"{shown}\" (first recorded {})", fmt_learned_date(t.timestamp))
             }
         }
     };

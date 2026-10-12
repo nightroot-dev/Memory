@@ -459,3 +459,11 @@ fn b1b_evict_oldest_first_index_consistent() {
     );
 }
 
+#[test]
+fn b1b_t7_learned_date_is_readable_utc() {
+    use cmhm_core::retrieval::fmt_learned_date;
+    assert_eq!(fmt_learned_date(0), "1970-01-01");
+    assert_eq!(fmt_learned_date(1791746816), "2026-10-11");
+    // Pre-epoch degrades gracefully, never panics.
+    assert_eq!(fmt_learned_date(-1).len(), 10);
+}
