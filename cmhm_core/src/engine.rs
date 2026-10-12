@@ -52,6 +52,13 @@ pub enum Command {
          polarity: Option<i8>,
          /// Optional scrubbed raw text (state/action/outcome) for BM25 indexing.
          raw_text: Option<(String, String, String)>,
+        /// B6a opt-in: when true, a deduped node keeps its stored values —
+        /// H-12 corrections (authority/assertion/BM25-text backfill) are
+        /// skipped. NOT persisted in WAL (replay defaults false; the R1
+        /// watermark makes the un-compacted-tail window tiny). Documented
+        /// deviation, not silent: replay of a strict learn may apply
+        /// corrections the original refused.
+        strict_no_dup: bool,
         tx: mpsc::SyncSender<Result<LearnResult>>,
     },
     ExplicitEdge {
@@ -283,6 +290,37 @@ pub struct LearnResult {
     pub effective_authority: f32,
     /// Effective provenance after role-based normalization — this is what was durably stored.
     pub effective_provenance: String,
+    /// B6a: what the birth gate actually did with the STATE node.
+    /// Observation only — corrections (H-12) still apply on the dedup path
+    /// exactly as before; this field just stops the decision being silent.
+    pub disposition: LearnDisposition,
+}
+
+/// B6a: outcome of the birth/dedup decision for a learn's state node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LearnDisposition {
+    /// A new node was inserted for the state embedding.
+    Birthed,
+    /// The state folded into an existing node (id). H-12 corrections applied
+    /// per the default policy.
+    DedupedTo(u64),
+}
+
+impl LearnDisposition {
+    /// Machine-readable label for JSON/human surfaces.
+    pub fn label(self) -> &'static str {
+        match self {
+            LearnDisposition::Birthed => "birthed",
+            LearnDisposition::DedupedTo(_) => "deduped",
+        }
+    }
+    /// The folded-into node id, when deduped.
+    pub fn deduped_to(self) -> Option<u64> {
+        match self {
+            LearnDisposition::Birthed => None,
+            LearnDisposition::DedupedTo(id) => Some(id),
+        }
+    }
 }
 
 /// Result of an InspectGate query for ingestion gating.
@@ -345,6 +383,9 @@ impl EngineHandle {
         assertion_key: Option<String>,
         polarity: Option<i8>,
         raw_text: Option<(String, String, String)>,
+        // B6a opt-in: skip H-12 corrections when deduping. See
+        // `Command::Learn::strict_no_dup` for the documented WAL deviation.
+        strict_no_dup: bool,
     ) -> Result<LearnResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         self.tx.send(Command::Learn {
@@ -354,6 +395,7 @@ impl EngineHandle {
              authority, provenance, supersedes,
              caller_role, assertion_key, polarity,
              raw_text,
+             strict_no_dup,
              tx: resp_tx,
         })?;
         resp_rx.recv()?
@@ -396,6 +438,7 @@ impl EngineHandle {
             crate::authority::CallerRole::User,
             None,
             None,
+            false,
         )
     }
 
@@ -414,6 +457,8 @@ impl EngineHandle {
         caller_role: crate::authority::CallerRole,
         assertion_key: Option<String>,
         polarity: Option<i8>,
+        // B6a opt-in: skip H-12 corrections when deduping.
+        strict_no_dup: bool,
     ) -> Result<LearnResult> {
         let (resp_tx, resp_rx) = mpsc::sync_channel(1);
         self.tx.send(Command::Learn {
@@ -423,6 +468,7 @@ impl EngineHandle {
              authority, provenance, supersedes,
              caller_role, assertion_key, polarity,
              raw_text: None,
+             strict_no_dup,
              tx: resp_tx,
         })?;
         resp_rx.recv()?
@@ -992,6 +1038,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                          cmd.raw_text.as_ref().map(|(s, _, _)| s.as_str()),
                                          cmd.raw_text.as_ref().map(|(_, a, _)| a.as_str()), // R5
                                          cmd.raw_text.as_ref().map(|(_, _, o)| o.as_str()), // R5
+                                         false,
                                          true,
                                          &cfg,
                                     );
@@ -1015,6 +1062,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::System,
                                          cmd.assertion_key, cmd.polarity, None,
                                          None, None, // R5: no action/outcome text in V3
+                                         false,
                                          true,
                                          &cfg,
                                     );
@@ -1037,6 +1085,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::Agent,
                                          cmd.assertion_key, cmd.polarity, None,
                                          None, None, // R5: no action/outcome text in V2
+                                         false,
                                          true,
                                          &cfg,
                                     );
@@ -1058,6 +1107,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::User,
                                          None, None, None,
                                          None, None, // R5: no action/outcome text in V1
+                                         false,
                                          true,
                                          &cfg,
                                     );
@@ -1122,6 +1172,7 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                         crate::authority::CallerRole::User,
                                          None, None, None,
                                          None, None, // R5: no action/outcome text in untyped legacy
+                                         false,
                                          true,
                                          &cfg,
                                     );
@@ -1208,7 +1259,7 @@ fn worker_loop(
                 let _ = tx.send(result);
             }
 
-             Command::Learn { state_emb, action_emb, outcome_emb, prediction_error, emotional_tag, model_id, authority, provenance, supersedes, caller_role, assertion_key, polarity, raw_text, tx } => {
+             Command::Learn { state_emb, action_emb, outcome_emb, prediction_error, emotional_tag, model_id, authority, provenance, supersedes, caller_role, assertion_key, polarity, raw_text, strict_no_dup, tx } => {
                 let result = process_learn(
                     &mut state, &state_emb, &action_emb, &outcome_emb,
                     prediction_error, emotional_tag, &model_id,
@@ -1217,6 +1268,7 @@ fn worker_loop(
                      raw_text.as_ref().map(|(s, _, _)| s.as_str()),
                      raw_text.as_ref().map(|(_, a, _)| a.as_str()), // R5: action text
                      raw_text.as_ref().map(|(_, _, o)| o.as_str()), // R5: outcome text
+                     strict_no_dup,
                      false,
                      &cfg,
                 );
@@ -1578,6 +1630,8 @@ fn process_learn(
     text: Option<&str>,           // state text
     action_text: Option<&str>,    // R5: action text for BM25
     outcome_text: Option<&str>,   // R5: outcome text for BM25
+    // B6a opt-in: skip H-12 corrections on the dedup path.
+    strict_no_dup: bool,
     is_replay: bool,
     cfg: &Config,
 ) -> Result<LearnResult> {
@@ -1627,7 +1681,8 @@ fn process_learn(
     // Birth nodes
     // R5: Pass text for all three node types so BM25 indexes action and outcome vocabulary.
     // "How did I fix X?" queries now match action text. "What was the result?" queries match outcome text.
-    let (state_id, state_birthed)   = birth_node(&mut *state, raw_state.to_vec(),   &state_proj,   model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text);
+    let (state_id, state_birthed)   = birth_node(&mut *state, raw_state.to_vec(),   &state_proj,   model_id, epsilon as f64, eta as f64, NodeType::State,   now as i64, authority, provenance.clone(), assertion_key, polarity, text,
+             strict_no_dup);
 
     // B6: Check self-loop immediately before birthing action/outcome nodes so atomicity is preserved
     // and no orphaned action/outcome nodes are inserted into node_store on self-loop rejection.
@@ -1638,8 +1693,10 @@ fn process_learn(
         }
     }
 
-    let (action_id, action_birthed)  = birth_node(&mut *state, raw_action.to_vec(),  &action_proj,  model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, action_text);
-    let (outcome_id, outcome_birthed) = birth_node(&mut *state, raw_outcome.to_vec(), &outcome_proj, model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, outcome_text);
+    let (action_id, action_birthed)  = birth_node(&mut *state, raw_action.to_vec(),  &action_proj,  model_id, epsilon as f64, eta as f64, NodeType::Action,  now as i64, 0.5, String::new(), None, None, action_text,
+             strict_no_dup);
+    let (outcome_id, outcome_birthed) = birth_node(&mut *state, raw_outcome.to_vec(), &outcome_proj, model_id, epsilon as f64, eta as f64, NodeType::Outcome, now as i64, 0.5, String::new(), None, None, outcome_text,
+             strict_no_dup);
 
     // Fail-closed: birth_node returns 0 when no projection exists for
     // the model_id. Refuse the whole learn rather than recording
@@ -1712,6 +1769,14 @@ fn process_learn(
         outcome_node_id: outcome_id,
         effective_authority,
         effective_provenance,
+        // B6a: report the state node's fate. The dedup corrections above
+        // already ran (or didn't) — this exposes what happened instead of
+        // leaving the caller to infer it from returned ids.
+        disposition: if state_birthed {
+            LearnDisposition::Birthed
+        } else {
+            LearnDisposition::DedupedTo(state_id)
+        },
     })
 }
 
@@ -1735,6 +1800,8 @@ fn birth_node(
      assertion_key: Option<String>,
      polarity: Option<i8>,
      text: Option<&str>,
+     // B6a opt-in: skip H-12 corrections on the dedup path.
+     strict_no_dup: bool,
  ) -> (u64, bool) {
     // Salience calculation
     let salience = state.salience_engine.update_and_calc(epsilon, eta) as f32;
@@ -1807,30 +1874,35 @@ fn birth_node(
         });
 
         // Apply updates to the existing node:
-        if let Some(existing) = state.node_store.get_mut(existing_id) {
-            let is_correction = provenance == "corrected";
-            // Authority: only increase (never demote a more-trusted node with a low-authority repeat).
-            if authority > existing.authority {
-                existing.authority = authority;
-                existing.provenance = provenance;
+        // B6a opt-in (`strict_no_dup`): skip every H-12 correction — the node
+        // keeps exactly what it had. The learn still returns the existing id
+        // with DedupedTo disposition (observation, not suppression).
+        if !strict_no_dup {
+            if let Some(existing) = state.node_store.get_mut(existing_id) {
+                let is_correction = provenance == "corrected";
+                // Authority: only increase (never demote a more-trusted node with a low-authority repeat).
+                if authority > existing.authority {
+                    existing.authority = authority;
+                    existing.provenance = provenance;
+                }
+                // Assertion: updates if authority is equal/higher, or if explicitly marked as a correction.
+                // Low-authority near-duplicates cannot clobber a higher-authority node's assertion.
+                if assertion_key.is_some() && (authority >= existing.authority || is_correction) {
+                    existing.assertion_key = assertion_key.clone();
+                    existing.polarity = polarity;
+                }
             }
-            // Assertion: updates if authority is equal/higher, or if explicitly marked as a correction.
-            // Low-authority near-duplicates cannot clobber a higher-authority node's assertion.
-            if assertion_key.is_some() && (authority >= existing.authority || is_correction) {
-                existing.assertion_key = assertion_key.clone();
-                existing.polarity = polarity;
-            }
-        }
-        // BM25: index text if the existing node had none and the new learn provides it.
-        if let Some(t) = text {
-            if !t.is_empty() {
-                let has_text = state.node_store.get(existing_id)
-                    .map(|n| !n.text.is_empty())
-                    .unwrap_or(false);
-                if !has_text {
-                    state.bm25_index.insert(existing_id, t);
-                    if let Some(n) = state.node_store.get_mut(existing_id) {
-                        n.text = t.to_string();
+            // BM25: index text if the existing node had none and the new learn provides it.
+            if let Some(t) = text {
+                if !t.is_empty() {
+                    let has_text = state.node_store.get(existing_id)
+                        .map(|n| !n.text.is_empty())
+                        .unwrap_or(false);
+                    if !has_text {
+                        state.bm25_index.insert(existing_id, t);
+                        if let Some(n) = state.node_store.get_mut(existing_id) {
+                            n.text = t.to_string();
+                        }
                     }
                 }
             }

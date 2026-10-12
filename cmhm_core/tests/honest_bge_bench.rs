@@ -192,6 +192,7 @@ fn honest_bge_without_vs_with() {
                     format!("investigated incident {idx}"),
                     format!("service restored after incident {idx}"),
                 )),
+            false,
             )
             .unwrap();
         target_ids.push(r.state_node_id);

@@ -67,6 +67,7 @@ fn b2_list_contains_learned_records_verbatim() {
                 None,
                 None,
                 Some((t.to_string(), "act".to_string(), "out".to_string())),
+            false,
             )
             .expect("learn");
         ids.push(r.state_node_id);
@@ -116,6 +117,7 @@ fn b2_list_pagination_stable() {
             CallerRole::User,
             None,
             None,
+        false,
         )
         .expect("learn");
     }
@@ -181,6 +183,7 @@ fn b2_get_record_verbatim_and_unknown_is_none() {
                 "b2 get action text".to_string(),
                 "b2 get outcome text".to_string(),
             )),
+        false,
         )
         .expect("learn");
     let rec = rt

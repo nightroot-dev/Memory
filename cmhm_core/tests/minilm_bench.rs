@@ -163,6 +163,7 @@ fn run_bench(embedder: &dyn Embedder, scenarios: &[(String, String, bool)]) -> M
             s, a, o, 0.3, 0.5, embedder.model_id(), 0.5, String::new(), None,
             CallerRole::User, None, None,
             Some((sit.clone(), "action".into(), "outcome".into())),
+        false,
         ).unwrap();
         target_ids.push(r.state_node_id);
     }

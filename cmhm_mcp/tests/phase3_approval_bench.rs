@@ -1064,6 +1064,7 @@ fn learn_text(
         CallerRole::User,
         key.map(|s| s.to_string()),
         polarity,
+    false,
     ).expect("learn_text");
     res.state_node_id
 }
@@ -1082,6 +1083,7 @@ fn learn_distractor(rt: &mut ContextRuntime, ctx_id: &str, seed: u64) -> u64 {
         CallerRole::User,
         None,
         None,
+    false,
     ).expect("learn_distractor");
     res.state_node_id
 }

@@ -60,7 +60,7 @@ pub mod backup;
 
 // Re-export the most commonly used types at crate root
 pub use config::Config;
-pub use engine::{start, EngineHandle, LearnResult, GateInspectionResult, SchemaMismatchError, SupersessionError};
+pub use engine::{start, EngineHandle, LearnResult, LearnDisposition, GateInspectionResult, SchemaMismatchError, SupersessionError};
 pub use retrieval::{RetrievalResult, ChainStep, ConflictCandidate, ConflictType, TRUST_COMPROMISE_DELTA};
 
 pub use node::{NodeType, NodeRecord};

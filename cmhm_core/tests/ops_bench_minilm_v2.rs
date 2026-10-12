@@ -134,6 +134,7 @@ fn ops_bench_minilm_v2() {
                 0.9, 0.5, MODEL, 0.5, String::new(), None,
                 CallerRole::Agent, None, None,
                 Some((p.situation.clone(), p.action.clone(), p.outcome.clone())),
+            false,
             )
             .unwrap();
         t_state.push(r.state_node_id);

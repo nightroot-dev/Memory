@@ -54,6 +54,7 @@ fn learn_with_384_dim_after_registering_projection_succeeds() {
             "test action text".to_string(),
             "test outcome text".to_string(),
         )),
+    false,
     );
 
     assert!(

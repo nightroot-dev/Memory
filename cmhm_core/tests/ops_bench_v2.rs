@@ -151,6 +151,7 @@ fn ops_bench_v2_honest() {
                 None,
                 None,
                 Some((p.situation.clone(), p.action.clone(), p.outcome.clone())),
+            false,
             )
             .unwrap();
         target_state.push(r.state_node_id);

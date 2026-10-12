@@ -452,6 +452,7 @@ fn b1_stored_text_returned_verbatim_in_explanation_and_chain_fields() {
                 action_text.to_string(),
                 outcome_text.to_string(),
             )),
+        false,
         )
         .expect("learn with text failed");
 
@@ -573,6 +574,7 @@ fn b1_long_text_truncates_visibly_in_explanation_full_in_field() {
             0.9, "user_explicit".to_string(), None,
             cmhm_core::authority::CallerRole::User, None, None,
             Some((long_text.clone(), "short action".to_string(), "short outcome".to_string())),
+        false,
         )
         .expect("learn with long text failed");
 

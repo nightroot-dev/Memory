@@ -51,6 +51,7 @@ fn learn_with_384_dim_and_no_projection_fails_closed() {
             "action text".to_string(),
             "outcome text".to_string(),
         )),
+    false,
     );
     let err = res.unwrap_err();
     let pe = err.downcast_ref::<cmhm_core::projection::ProjectionError>();
@@ -91,6 +92,7 @@ fn learn_with_128_dim_and_no_projection_succeeds_via_identity() {
             "action text".to_string(),
             "outcome text".to_string(),
         )),
+    false,
     );
     assert!(res.is_ok(), "128-dim learn must succeed via identity path");
     assert!(

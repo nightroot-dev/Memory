@@ -1188,6 +1188,7 @@ fn e1l_direct_internal_rust_runtime_preserves_user_explicit() {
         None, s_emb.clone(), a_emb, o_emb, 0.5, 0.5, "hash-128d",
         1.0, "user_explicit".to_string(), None,
         cmhm_core::CallerRole::User, None, None,
+    false,
     ).unwrap();
     assert!(learn_res.state_node_id > 0);
 
@@ -1443,6 +1444,7 @@ fn e1u_mcp_wal_recovery_preserves_agent_ceiling() {
             0.5, 0.5, "hash-128d",
             0.85, "corrected".into(), None,
             cmhm_core::CallerRole::User, None, None,
+        false,
         ).unwrap();
         assert!(legit.state_node_id > 0);
 
@@ -2297,4 +2299,120 @@ fn b2_mcp_list_then_get_roundtrip_verbatim() {
     assert_eq!(p1["records"].as_array().unwrap().len(), 1);
     assert_eq!(p2["records"].as_array().unwrap().len(), 1);
     assert_ne!(p1["records"][0]["node_id"], p2["records"][0]["node_id"], "pages must advance");
+}
+
+#[test]
+fn b6a_mcp_disposition_visible_in_block_and_json() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Low surprise (pe <= 0.5) so the epsilon>0.5 escape hatch cannot force a
+    // birth; the second identical learn must fold into the first.
+    let st = "b6a mcp nginx port configuration audit 8443";
+    let act = "b6a mcp nginx port configuration audit restarted proxy";
+    let out = "b6a mcp nginx port configuration audit healthy 200";
+    let common = json!({
+        "state": st, "action": act, "outcome": out,
+        "prediction_error": 0.3, "auto_tag": false,
+    });
+
+    let first = dispatch("memory_learn_text", &rt, &common).unwrap();
+    assert_ne!(first.isError, Some(true));
+    let s1 = parse_content_json(&first);
+    assert_eq!(s1["disposition"], "birthed", "novel learn must report birthed: {s1}");
+
+    let second = dispatch("memory_learn_text", &rt, &common).unwrap();
+    assert_ne!(second.isError, Some(true));
+    let s2 = parse_content_json(&second);
+    assert_eq!(s2["disposition"], "deduped", "identical repeat must report deduped: {s2}");
+    let folded = s2["deduped_to"].as_u64().expect("deduped_to must be a node id");
+    let original = s1["state_node_id"].as_u64().expect("first state node id");
+    assert_eq!(folded, original, "dedup must name the ORIGINAL node");
+    let block2 = second.content.first().map(|c| c.text.as_str()).unwrap_or("");
+    assert!(block2.contains("deduped"),
+        "human block must carry the disposition; got:\n{block2}");
+
+    // Vector path reports it too.
+    let v1 = dispatch("memory_learn", &rt, &json!({
+        "state_embedding": dummy_embedding(3),
+        "action_embedding": dummy_embedding(4),
+        "outcome_embedding": dummy_embedding(5),
+        "prediction_error": 0.3,
+    })).unwrap();
+    assert_eq!(parse_content_json(&v1)["disposition"], "birthed");
+    let v2 = dispatch("memory_learn", &rt, &json!({
+        "state_embedding": dummy_embedding(3),
+        "action_embedding": dummy_embedding(4),
+        "outcome_embedding": dummy_embedding(5),
+        "prediction_error": 0.3,
+    })).unwrap();
+    let sv2 = parse_content_json(&v2);
+    assert_eq!(sv2["disposition"], "deduped");
+    assert_eq!(sv2["deduped_to"], parse_content_json(&v1)["state_node_id"]);
+}
+
+#[test]
+fn b6a_mcp_strict_no_dup_skips_corrections() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Low-authority learn first (Agent role clamps high claims to 0.60, so
+    // all assertions below are relative, never absolute).
+    let st = "b6a strict mcp nginx port configuration audit 8443";
+    let first = dispatch("memory_learn_text", &rt, &json!({
+        "state": st, "action": "b6a strict mcp act one",
+        "outcome": "b6a strict mcp out one",
+        "prediction_error": 0.3, "authority": 0.2, "auto_tag": false,
+    })).unwrap();
+    assert_ne!(first.isError, Some(true));
+    let base_auth = parse_content_json(
+        &dispatch("memory_get", &rt, &json!({
+            "node_id": parse_content_json(&first)["state_node_id"].as_u64().unwrap(),
+        })).unwrap(),
+    )["authority"]
+        .as_f64()
+        .unwrap();
+
+    // Same state, higher authority, strict=true: same node, values kept.
+    let strict = dispatch("memory_learn_text", &rt, &json!({
+        "state": st, "action": "b6a strict mcp act two",
+        "outcome": "b6a strict mcp out two",
+        "prediction_error": 0.3, "authority": 0.9,
+        "strict_no_dup": true, "auto_tag": false,
+    })).unwrap();
+    assert_ne!(strict.isError, Some(true));
+    let ss = parse_content_json(&strict);
+    assert_eq!(ss["disposition"], "deduped");
+    let block = strict.content.first().map(|c| c.text.as_str()).unwrap_or("");
+    assert!(block.contains("SKIPPED"),
+        "strict dedup must say corrections were skipped; got:\n{block}");
+    let kept_auth = parse_content_json(
+        &dispatch("memory_get", &rt, &json!({
+            "node_id": ss["deduped_to"].as_u64().unwrap(),
+        })).unwrap(),
+    )["authority"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        (kept_auth - base_auth).abs() < 1e-4,
+        "strict repeat must keep stored authority {base_auth}, got {kept_auth}"
+    );
+
+    // Control: same repeat WITHOUT strict applies corrections (authority rises).
+    let loose = dispatch("memory_learn_text", &rt, &json!({
+        "state": st, "action": "b6a strict mcp act three",
+        "outcome": "b6a strict mcp out three",
+        "prediction_error": 0.3, "authority": 0.9, "auto_tag": false,
+    })).unwrap();
+    let raised_auth = parse_content_json(
+        &dispatch("memory_get", &rt, &json!({
+            "node_id": parse_content_json(&loose)["state_node_id"].as_u64().unwrap(),
+        })).unwrap(),
+    )["authority"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        raised_auth > base_auth,
+        "default policy must raise authority on repeat ({base_auth} -> {raised_auth})"
+    );
 }

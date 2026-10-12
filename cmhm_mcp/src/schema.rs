@@ -231,6 +231,13 @@ pub struct LearnParams {
     /// Optional epistemic polarity: `+1` (assert/true), `-1` (refute/false), or `None` (neutral).
     #[serde(default)]
     pub polarity: Option<i8>,
+
+    /// B6a opt-in: when a near-duplicate folds into an existing node, keep the
+    /// stored values untouched (skip H-12 authority/assertion/text corrections).
+    /// Default false. The learn still returns the existing node ids with a
+    /// `deduped` disposition — observation, not suppression.
+    #[serde(default)]
+    pub strict_no_dup: bool,
 }
 
 
@@ -441,6 +448,13 @@ pub struct LearnTextParams {
     /// Optional epistemic polarity: `+1` (assert/true), `-1` (refute/false), or `None` (neutral).
     #[serde(default)]
     pub polarity: Option<i8>,
+
+    /// B6a opt-in: when a near-duplicate folds into an existing node, keep the
+    /// stored values untouched (skip H-12 authority/assertion/text corrections).
+    /// Default false. The learn still returns the existing node ids with a
+    /// `deduped` disposition — observation, not suppression.
+    #[serde(default)]
+    pub strict_no_dup: bool,
 }
 
 

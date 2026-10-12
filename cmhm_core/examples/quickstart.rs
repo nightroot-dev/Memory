@@ -44,6 +44,7 @@ fn main() -> anyhow::Result<()> {
             0.5, String::new(), None,
             CallerRole::User, None, None,
             Some((state.to_string(), action.to_string(), outcome.to_string())),
+        false,
         )?;
         println!(
             "[quickstart] learned: state={} action={} outcome={}",

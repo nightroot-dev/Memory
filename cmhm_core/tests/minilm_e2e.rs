@@ -95,6 +95,7 @@ fn minilm_paraphrase_retrieval_end_to_end() {
                 target_action_text.to_string(),
                 target_outcome_text.to_string(),
             )),
+        false,
         )
         .expect("learn target");
     eprintln!(

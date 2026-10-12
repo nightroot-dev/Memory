@@ -36,6 +36,7 @@ fn learn_secret(handle: &cmhm_core::engine::EngineHandle) {
             None,
             None,
             Some((SECRET.into(), "probed it".into(), "it worked".into())),
+        false,
         )
         .unwrap();
 }

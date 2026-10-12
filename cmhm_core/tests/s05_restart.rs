@@ -79,6 +79,7 @@ fn s05_high_surprise_restart_idempotent() {
                     CallerRole::User,
                     None,
                     None,
+                false,
                 )
                 .unwrap();
         }
@@ -131,6 +132,7 @@ fn s05_low_surprise_control_flat() {
                     CallerRole::User,
                     None,
                     None,
+                false,
                 )
                 .unwrap();
         }
@@ -178,6 +180,7 @@ fn s05_crash_path_watermark() {
                     CallerRole::User,
                     None,
                     None,
+                false,
                 )
                 .unwrap();
         }

@@ -48,6 +48,7 @@ fn minilm_dense_only_retrieval_finds_paraphrase() {
         0.2, 0.5, MODEL, 0.5, String::new(), None,
         CallerRole::User, None, None,
         Some((target_sit.into(), "renewed bundle".into(), "logins resumed".into())),
+    false,
     ).expect("learn target");
 
     // Distractors: no shared tokens with the query.

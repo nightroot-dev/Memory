@@ -29,6 +29,7 @@ fn learn(h: &EngineHandle, state: &str, action: &str, outcome: &str) {
         None,
         None,
         Some((state.to_string(), action.to_string(), outcome.to_string())),
+    false,
     )
     .unwrap();
 }

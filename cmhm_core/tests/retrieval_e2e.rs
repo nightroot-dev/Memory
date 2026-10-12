@@ -834,6 +834,7 @@ fn e4f_ordinary_caller_claims_user_explicit_is_downgraded() {
         ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
         1.0_f32, "user_explicit".into(), None,
         CallerRole::Agent, None, None,
+    false,
     ).unwrap();
     assert!(res.state_node_id > 0);
 
@@ -861,6 +862,7 @@ fn e4g_trusted_caller_preserves_user_explicit() {
         ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
         1.0_f32, "user_explicit".into(), None,
         CallerRole::User, None, None,
+    false,
     ).unwrap();
     assert!(res.state_node_id > 0);
 
@@ -890,6 +892,7 @@ fn e5d_conflict_type_logical_contradiction_opposing_polarities() {
         ctx, unit_vec(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
         0.85_f32, "user_explicit".into(), None,
         CallerRole::User, Some("db_pool_size".into()), Some(1),
+    false,
     ).unwrap();
 
     // Node B negates assertion "db_pool_size" (polarity = -1)
@@ -897,6 +900,7 @@ fn e5d_conflict_type_logical_contradiction_opposing_polarities() {
         ctx, unit_vec(1), emb(3), emb(4), 0.5, 0.5, "hash-128d",
         0.85_f32, "user_explicit".into(), None,
         CallerRole::User, Some("db_pool_size".into()), Some(-1),
+    false,
     ).unwrap();
 
     let mut q = vec![0.0f32; 128];
@@ -1187,6 +1191,7 @@ fn e7_immutable_v2_snapshot_migration() {
             Some(ctx_s), unit_vec(1), emb(10), emb(11), 0.5, 0.5, "hash-128d",
             1.00_f32, "corrected".into(), None,
             CallerRole::User, None, None,
+        false,
         ).unwrap();
 
         let mut mid_q1 = vec![0.0f32; 128];
@@ -1293,6 +1298,7 @@ fn e8_wal_recovery_preserves_authority_ceiling() {
             Some(uuid.as_str()), emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
             1.0_f32, "user_explicit".into(), None,
             CallerRole::Agent, None, None,
+        false,
         ).unwrap();
         assert!(res.state_node_id > 0);
 
@@ -1354,6 +1360,7 @@ fn e9_non_finite_authority_is_sanitized_not_propagated() {
         ctx, emb(0), emb(1), emb(2), 0.5, 0.5, "hash-128d",
         f32::NAN, "inferred".into(), None,
         CallerRole::User, None, None,
+    false,
     ).unwrap();
     assert!(res_nan.state_node_id > 0, "E9: learn with NaN authority must not crash");
     assert!(res_nan.effective_authority.is_finite(), "E9: effective authority must be finite after NaN input");
@@ -1368,6 +1375,7 @@ fn e9_non_finite_authority_is_sanitized_not_propagated() {
         ctx, emb(3), emb(4), emb(5), 0.5, 0.5, "hash-128d",
         f32::INFINITY, "user_explicit".into(), None,
         CallerRole::User, None, None,
+    false,
     ).unwrap();
     assert!(res_inf.effective_authority.is_finite(), "E9: effective authority must be finite after +Inf input");
     assert!(res_inf.effective_authority <= 1.0, "E9: authority must be ≤1.0 after +Inf, got {}", res_inf.effective_authority);
@@ -1499,12 +1507,14 @@ fn e12_non_finite_inputs_rejected_at_engine_boundary() {
     let err_nan_pe = rt.learn_with_context(
         ctx, emb(0), emb(1), emb(2), f32::NAN, 0.5, "hash-128d",
         0.5, "inferred".into(), None, CallerRole::User, None, None,
+    false,
     );
     assert!(err_nan_pe.is_err(), "E12: NaN prediction_error must be rejected");
 
     let err_inf_pe = rt.learn_with_context(
         ctx, emb(0), emb(1), emb(2), f32::INFINITY, 0.5, "hash-128d",
         0.5, "inferred".into(), None, CallerRole::User, None, None,
+    false,
     );
     assert!(err_inf_pe.is_err(), "E12: +Inf prediction_error must be rejected");
 
@@ -1512,6 +1522,7 @@ fn e12_non_finite_inputs_rejected_at_engine_boundary() {
     let err_nan_eta = rt.learn_with_context(
         ctx, emb(0), emb(1), emb(2), 0.5, f32::NAN, "hash-128d",
         0.5, "inferred".into(), None, CallerRole::User, None, None,
+    false,
     );
     assert!(err_nan_eta.is_err(), "E12: NaN emotional_tag must be rejected");
 
@@ -1521,6 +1532,7 @@ fn e12_non_finite_inputs_rejected_at_engine_boundary() {
     let err_nan_emb = rt.learn_with_context(
         ctx, bad_emb, emb(1), emb(2), 0.5, 0.5, "hash-128d",
         0.5, "inferred".into(), None, CallerRole::User, None, None,
+    false,
     );
     assert!(err_nan_emb.is_err(), "E12: Embedding containing NaN must be rejected");
 
@@ -1529,6 +1541,7 @@ fn e12_non_finite_inputs_rejected_at_engine_boundary() {
     let err_inf_emb = rt.learn_with_context(
         ctx, inf_emb, emb(1), emb(2), 0.5, 0.5, "hash-128d",
         0.5, "inferred".into(), None, CallerRole::User, None, None,
+    false,
     );
     assert!(err_inf_emb.is_err(), "E12: Embedding containing +Inf must be rejected");
 

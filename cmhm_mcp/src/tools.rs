@@ -1094,6 +1094,7 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             "## CMHM Learning Signal Gated (Suppressed)\n\
             **Context**: {} ({})\n\
             **Outcome**: SUPPRESSED (e = {:.3})\n\
+            **Disposition**: gated — experience suppressed by admission gate to prevent redundant node clutter.\n\
             **Gate (enforced)**: novelty={:.3} verifiability={:.3} score={:.3} threshold={:.3} would_index=false\n\n\
             Experience suppressed by admission gate to prevent redundant node clutter.\n\
             Raw event was durably archived to Tier 0 learn_log.",
@@ -1127,12 +1128,13 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         params.prediction_error, params.emotional_tag, &params.model_id,
         params.authority, provenance, params.supersedes,
         caller_role, params.assertion_key, params.polarity,
+        params.strict_no_dup,
     ) {
 
         Ok((result, ctx)) => {
             let outcome_label = if params.prediction_error <= 0.7 { "SUCCESS" } else { "FAILURE" };
             let gate_label = if enforce { "Gate (enforced)" } else { "Gate (shadow)" };
-            let text = format!(
+            let mut text = format!(
                 "## CMHM Learning Signal Processed\n\
                 **Context**: {} ({})\n\
                 **Outcome**: {} (e = {:.3})\n\
@@ -1149,7 +1151,12 @@ pub fn handle_learn(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 result.state_node_id, result.action_node_id, result.outcome_node_id,
                 ctx.version,
             );
-            ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+            text.push_str(&learn_disposition_line(&result, params.strict_no_dup));
+            let structured = learn_disposition_json(&result);
+            ToolCallResult {
+                content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+                isError: None,
+            }
         }
         Err(e) => error_result(format!("Learn failed: {e}")),
     }
@@ -1753,6 +1760,7 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
         params.authority, provenance, params.supersedes,
         caller_role, params.assertion_key, params.polarity,
         Some((state_clean, action_clean, outcome_clean)),
+        params.strict_no_dup,
     ) {
 
 
@@ -1773,7 +1781,7 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 String::new()
             };
             let gate_label = if enforce { "Gate (enforced)" } else { "Gate (shadow)" };
-            let text = format!(
+            let mut text = format!(
                 "## Memory Learned (text)\n\
                 **Context**: {} ({})\n\
                 **Outcome**: {} (prediction_error: {:.2})\n\
@@ -1789,7 +1797,12 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 redaction_note,
                 novelty, gate_score, would_index,
             );
-            ToolCallResult { content: vec![ContentItem::text(text)], isError: None }
+            text.push_str(&learn_disposition_line(&result, params.strict_no_dup));
+            let structured = learn_disposition_json(&result);
+            ToolCallResult {
+                content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+                isError: None,
+            }
         }
         Err(e) => error_result(format!("Learn failed: {e}")),
     }
@@ -1797,6 +1810,30 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
 
 // Called by every handler that produces an error response.
 // The lib target can't see through pub fn handler -> private fn, so suppress here.
+/// B6a: disposition line for the human block + additive JSON fields for the
+/// learn responses. Observation only — nothing about what gets stored changes.
+fn learn_disposition_json(result: &cmhm_core::LearnResult) -> serde_json::Value {
+    serde_json::json!({
+        "state_node_id":   result.state_node_id,
+        "action_node_id":  result.action_node_id,
+        "outcome_node_id": result.outcome_node_id,
+        "disposition":     result.disposition.label(),
+        "deduped_to":      result.disposition.deduped_to(),
+    })
+}
+
+fn learn_disposition_line(result: &cmhm_core::LearnResult, strict_no_dup: bool) -> String {
+    match result.disposition.deduped_to() {
+        Some(id) if strict_no_dup => format!(
+            "**Disposition**: deduped - state folded into existing node {id} (corrections SKIPPED: strict_no_dup)\n",
+        ),
+        Some(id) => format!(
+            "**Disposition**: deduped - state folded into existing node {id} (corrections still applied per policy)\n",
+        ),
+        None => "**Disposition**: birthed - new nodes created\n".to_string(),
+    }
+}
+
 #[allow(dead_code)]
 fn error_result(msg: impl Into<String>) -> ToolCallResult {
     ToolCallResult {
@@ -2278,6 +2315,7 @@ pub fn handle_memory_promote(rt: &SharedRuntime, args: &Value) -> ToolCallResult
         caller_role,
         None,
         None,
+        false,
     ) {
         Ok((result, ctx)) => {
             // Auto-tagging: add promotion provenance to context routing tags if requested

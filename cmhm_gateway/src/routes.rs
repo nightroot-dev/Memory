@@ -355,6 +355,7 @@ async fn learn(
             None,
             None,
             Some((state, action, outcome)),
+            false,
         )
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let resp = LearnResp {

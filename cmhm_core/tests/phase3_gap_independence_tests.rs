@@ -69,6 +69,7 @@ fn learn_node(
         CallerRole::User,
         assertion_key.map(|s| s.to_string()),
         polarity,
+    false,
     ).expect("learn_with_context");
     result.state_node_id
 }

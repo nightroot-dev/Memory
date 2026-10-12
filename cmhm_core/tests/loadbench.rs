@@ -95,6 +95,7 @@ fn load_sweep() {
                     "probed".into(),
                     "worked".into(),
                 )),
+            false,
             )
             .unwrap();
     }

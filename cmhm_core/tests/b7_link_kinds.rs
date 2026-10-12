@@ -81,6 +81,7 @@ fn learn_triple(
             None,
             None,
             Some((st, at, ot)),
+        false,
         )
         .expect("learn failed")
 }

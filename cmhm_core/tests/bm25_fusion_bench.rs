@@ -184,6 +184,7 @@ fn bm25_fusion_reports_recall_delta() {
                     format!("investigated incident {i}"),
                     format!("service restored after incident {i}"),
                 )),
+            false,
             )
             .expect("bench learn");
         mirror.insert(res.state_node_id, &item.situation);

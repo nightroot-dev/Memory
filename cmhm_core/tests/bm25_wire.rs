@@ -82,6 +82,7 @@ fn seed_store(rt: &mut ContextRuntime, ctx: Option<&str>) -> u64 {
                 "set pool size to 32".to_string(),
                 "connection errors stopped".to_string(),
             )),
+        false,
         )
         .expect("target learn_text_with_context");
     let target_state = res.state_node_id;
@@ -209,6 +210,7 @@ fn wal_v4_replay_preserves_text_for_bm25() {
                     "set pool size to 32".to_string(),
                     "connection errors stopped".to_string(),
                 )),
+            false,
             )
             .expect("text learn");
         target_state = res.state_node_id;

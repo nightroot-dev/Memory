@@ -89,6 +89,7 @@ fn hardcore_fusion_bench() {
                 0.5, 0.5, "hash-128d", 0.85, String::new(), None,
                 CallerRole::User, None, None,
                 Some((situation.to_string(), action.to_string(), outcome.to_string())),
+            false,
             )
             .unwrap();
         gold_lex.push((r.state_node_id, situation.to_string(), tok.to_string()));
@@ -103,6 +104,7 @@ fn hardcore_fusion_bench() {
                 0.5, 0.5, "hash-128d", 0.85, String::new(), None,
                 CallerRole::User, None, None,
                 Some((situation.to_string(), action.to_string(), outcome.to_string())),
+            false,
             )
             .unwrap();
         gold_para.push((r.state_node_id, query.to_string(), situation.to_string()));

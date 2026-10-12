@@ -302,6 +302,7 @@ impl ContextRuntime {
             crate::authority::CallerRole::User,
             None,
             None,
+            false,
         )
     }
 
@@ -321,6 +322,8 @@ impl ContextRuntime {
         caller_role: crate::authority::CallerRole,
         assertion_key: Option<String>,
         polarity: Option<i8>,
+        // B6a opt-in: skip H-12 corrections when deduping.
+        strict_no_dup: bool,
     ) -> Result<(LearnResult, ContextDescriptor)> {
         let id = self.resolve_context(context_id)?;
         let handle = self.ensure_loaded(&id)?;
@@ -329,6 +332,7 @@ impl ContextRuntime {
             prediction_error, emotional_tag, model_id,
             authority, provenance, supersedes,
             caller_role, assertion_key, polarity,
+            strict_no_dup,
         )?;
         self.registry.record_learn(&id);
         let desc = self.registry.get(&id)
@@ -359,6 +363,8 @@ impl ContextRuntime {
         assertion_key: Option<String>,
         polarity: Option<i8>,
         raw_text: Option<(String, String, String)>,
+        // B6a opt-in: skip H-12 corrections when deduping.
+        strict_no_dup: bool,
     ) -> Result<(LearnResult, ContextDescriptor)> {
         let id = self.resolve_context(context_id)?;
         let handle = self.ensure_loaded(&id)?;
@@ -368,6 +374,7 @@ impl ContextRuntime {
             authority, provenance, supersedes,
             caller_role, assertion_key, polarity,
             raw_text,
+            strict_no_dup,
         )?;
         self.registry.record_learn(&id);
         let desc = self.registry.get(&id)

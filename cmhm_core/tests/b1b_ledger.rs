@@ -93,6 +93,7 @@ fn b1b_t1_triple_roundtrip() {
             None,
             None,
             Some((s_txt.to_string(), a_txt.to_string(), o_txt.to_string())),
+        false,
         )
         .unwrap();
 
@@ -150,6 +151,7 @@ fn b1b_t2_top3_scored_order_no_rerank() {
                 None,
                 None,
                 Some((s, a, o)),
+            false,
             )
             .unwrap();
     }
@@ -227,6 +229,7 @@ fn b1b_t3_dedup_shared_most_recent_wins() {
                 } else {
                     None
                 },
+            false,
             )
             .unwrap();
         ids.push((lr.state_node_id, lr.action_node_id, lr.outcome_node_id));
@@ -272,6 +275,7 @@ fn b1b_t4_consolidation_graceful() {
                 "b1b t4 action".to_string(),
                 "b1b t4 outcome".to_string(),
             )),
+        false,
         )
         .unwrap();
     // This retrieve triggers the consolidation check; fresh nodes are never culled
@@ -359,6 +363,7 @@ fn b1b_t5_ledgerless_vs_vector_only_markers() {
             CallerRole::User,
             None,
             None,
+        false,
         )
         .unwrap();
     let r = handle.retrieve(emb(7001), "hash-128d", NodeType::State, "").unwrap();
@@ -502,6 +507,7 @@ fn b1b_t8_snapshot_restart_retrieves_triple() {
                 None,
                 None,
                 Some((s_txt.to_string(), a_txt.to_string(), o_txt.to_string())),
+            false,
             )
             .unwrap();
         sid = lr.state_node_id;

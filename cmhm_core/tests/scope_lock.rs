@@ -75,6 +75,7 @@ fn second_runtime_is_refused_loudly() {
             None,
             None,
             Some(("s".into(), "a".into(), "o".into())),
+        false,
         )
         .unwrap();
 

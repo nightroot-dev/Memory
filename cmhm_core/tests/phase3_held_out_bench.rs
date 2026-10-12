@@ -562,6 +562,7 @@ fn test_phase3_fresh_held_out_operational_benchmark() {
             0.50, "distractor".into(), None,
             cmhm_core::CallerRole::Agent,
             None, None,
+        false,
         ).expect("learn distractor");
     }
 
@@ -580,6 +581,7 @@ fn test_phase3_fresh_held_out_operational_benchmark() {
             scn.hard_neg_authority, scn.hard_neg_provenance.into(), None,
             cmhm_core::CallerRole::Agent,
             Some(scn.assertion_key.into()), Some(-1),
+        false,
         ).expect("learn hard negative");
         neg_node_ids.insert(scn.id, neg_learn.state_node_id);
 
@@ -594,6 +596,7 @@ fn test_phase3_fresh_held_out_operational_benchmark() {
             scn.positive_authority, scn.positive_provenance.into(), supersedes_arg,
             cmhm_core::CallerRole::User,
             Some(scn.assertion_key.into()), Some(1),
+        false,
         ).expect("learn positive");
         pos_node_ids.insert(scn.id, pos_learn.state_node_id);
     }
@@ -740,6 +743,7 @@ fn test_phase3_conflict_detection_and_safe_abstention() {
         0.80, "user_explicit".into(), None,
         cmhm_core::CallerRole::User,
         Some("redis_fsync".into()), Some(1),
+    false,
     ).expect("learn pos");
 
     let neg_text = "redis append only file fsync policy setting disabled";
@@ -751,6 +755,7 @@ fn test_phase3_conflict_detection_and_safe_abstention() {
         0.80, "user_explicit".into(), None,
         cmhm_core::CallerRole::User,
         Some("redis_fsync".into()), Some(-1),
+    false,
     ).expect("learn neg");
 
      let (result, _) = rt.retrieve(

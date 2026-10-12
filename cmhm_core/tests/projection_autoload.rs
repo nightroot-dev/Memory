@@ -58,6 +58,7 @@ fn engine_start_autoloads_projection_from_dir() {
             "autoload action text".to_string(),
             "autoload outcome text".to_string(),
         )),
+    false,
     );
 
     assert!(
@@ -97,6 +98,7 @@ fn engine_start_survives_corrupt_projection_file() {
         None,
         None,
         None,
+    false,
     );
     assert!(
         result.is_err(),

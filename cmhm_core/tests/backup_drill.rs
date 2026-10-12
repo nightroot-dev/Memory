@@ -41,6 +41,7 @@ fn backup_restore_drill() {
                 None,
                 None,
                 Some((format!("drill state {i}"), "probed".into(), "worked".into())),
+            false,
             )
             .unwrap();
     }
