@@ -747,20 +747,71 @@ fn episode_status_label(result: &cmhm_core::RetrievalResult) -> &'static str {
 
 /// B1: render one chain step WITH its stored text (replaces the pre-B1
 /// "Node X → Node Y" stub).
+/// B7 (S-19, refined): learned associations and unverified links carry their
+/// kind label so no rendered step reads as a verified causal claim.
 fn render_chain_step(i: usize, step: &cmhm_core::retrieval::ChainStep) -> String {
     let ts = |t: &Option<cmhm_core::retrieval::ChainNodeText>| t.as_ref().map(|n| n.timestamp).unwrap_or(0);
+    let kind_marker = match step.link_kind {
+        cmhm_core::retrieval::LinkKind::CrossExperienceLearned => " [learned association]",
+        cmhm_core::retrieval::LinkKind::Unknown => " [unverified link]",
+        _ => "",
+    };
     format!(
-        "{}. Node {} \"{}\" (first recorded {}) → Node {} \"{}\" (first recorded {}) | confidence: {:.1}% | evidence: {:.0} samples{}{}\n",
+        "{}. Node {} \"{}\" (first recorded {}) → Node {} \"{}\" (first recorded {}) | confidence: {:.1}% | evidence: {:.0} samples{}{}{}\n",
         i + 1,
         step.from_node, render_node_text(&step.from_text), cmhm_core::retrieval::fmt_learned_date(ts(&step.from_text)),
         step.to_node, render_node_text(&step.to_text), cmhm_core::retrieval::fmt_learned_date(ts(&step.to_text)),
         step.mean_weight * 100.0, step.evidence,
         if step.is_intervention { " [agent intervention]" } else { "" },
         if step.is_curious { " [uncertain]" } else { "" },
+        kind_marker,
     )
 }
 
+/// B7 (S-19, refined): chain section with link-kind partitioning, shared by
+/// both retrieve handlers. The recalled triple (render_b1b_block) is placed
+/// FIRST by callers; the chain follows as related observations, never
+/// verified causation. CrossExperienceUnverified steps hide behind a visible
+/// count marker; every step stays in JSON (see chain_json).
+fn render_chain_details(result: &cmhm_core::RetrievalResult) -> String {
+    use cmhm_core::retrieval::LinkKind;
+    let mut out = String::new();
+    let hidden = result
+        .causal_chain
+        .iter()
+        .filter(|s| s.link_kind == LinkKind::CrossExperienceUnverified)
+        .count();
+    let visible: Vec<&cmhm_core::retrieval::ChainStep> = result
+        .causal_chain
+        .iter()
+        .filter(|s| s.link_kind != LinkKind::CrossExperienceUnverified)
+        .collect();
+    if visible.is_empty() {
+        if hidden > 0 {
+            out.push_str(&format!(
+                "{}\n",
+                cmhm_core::retrieval::unverified_links_hidden_marker(hidden)
+            ));
+        }
+        return out;
+    }
+    out.push_str("### Chain Details — related observations, not verified causation\n");
+    for (i, step) in visible.iter().enumerate() {
+        out.push_str(&render_chain_step(i, step));
+    }
+    if hidden > 0 {
+        out.push_str(&format!(
+            "{}\n",
+            cmhm_core::retrieval::unverified_links_hidden_marker(hidden)
+        ));
+    }
+    out
+}
+
 /// B1: the JSON chain array — text and timestamps per endpoint, lossless.
+/// B7 (S-19, refined): additive `link_kind` + `verified_causation` per step;
+/// every step stays in the array (including hidden ones — lossless machine
+/// half); every existing key kept.
 fn chain_json(result: &cmhm_core::RetrievalResult) -> Vec<serde_json::Value> {
     result.causal_chain.iter().map(|s| {
         let text_of = |t: &Option<cmhm_core::retrieval::ChainNodeText>| -> serde_json::Value {
@@ -786,6 +837,8 @@ fn chain_json(result: &cmhm_core::RetrievalResult) -> Vec<serde_json::Value> {
             "evidence":        s.evidence,
             "is_intervention": s.is_intervention,
             "is_curious":      s.is_curious,
+            "link_kind":         s.link_kind.label(),
+            "verified_causation": s.verified_causation,
         })
     }).collect()
 }
@@ -884,6 +937,10 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 ));
             }
 
+            // B7 (S-19, refined): the recalled triple renders FIRST — it is
+            // the verified answer shape. The chain follows as related
+            // observations, never verified causation.
+            text.push_str(&render_b1b_block(&result));
             if result.causal_chain.is_empty() {
                 // B1: with no path, the seed's text is still the answer's
                 // substance - render it explicitly instead of a bare stub.
@@ -897,10 +954,7 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     ));
                 }
             } else {
-                text.push_str("### Chain Details\n");
-                for (i, step) in result.causal_chain.iter().enumerate() {
-                    text.push_str(&render_chain_step(i, step));
-                }
+                text.push_str(&render_chain_details(&result));
                 text.push_str(&format!(
                     "\n_Dense context vector available ({} dims)_",
                     result.dense_context.len()
@@ -908,8 +962,6 @@ pub fn handle_retrieve(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
             }
             // retrieve_id: copy this into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
-            // B1b: recalled triple + top-3 candidates (read-only join rendering).
-            text.push_str(&render_b1b_block(&result));
 
             // Machine-readable JSON block (content[1]) â€” structured fields for tests and agents.
             let (seed_text_v, seed_ts_v) = seed_text_json(&result);
@@ -1411,6 +1463,10 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                 ));
             }
 
+            // B7 (S-19, refined): the recalled triple renders FIRST — it is
+            // the verified answer shape. The chain follows as related
+            // observations, never verified causation.
+            text.push_str(&render_b1b_block(&result));
             if result.causal_chain.is_empty() {
                 // B1: with no path, the seed's text is still the answer's
                 // substance - render it explicitly instead of a bare stub.
@@ -1424,15 +1480,10 @@ pub fn handle_retrieve_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult 
                     ));
                 }
             } else {
-                text.push_str("### Chain Details\n");
-                for (i, step) in result.causal_chain.iter().enumerate() {
-                    text.push_str(&render_chain_step(i, step));
-                }
+                text.push_str(&render_chain_details(&result));
             }
             // retrieve_id: copy into memory_feedback.retrieve_id to enable join + idempotency
             text.push_str(&format!("\n\n**retrieve_id**: `{retrieve_id}`"));
-            // B1b: recalled triple + top-3 candidates (read-only join rendering).
-            text.push_str(&render_b1b_block(&result));
 
             // Machine-readable JSON block (content[1])
             let (seed_text_v, seed_ts_v) = seed_text_json(&result);

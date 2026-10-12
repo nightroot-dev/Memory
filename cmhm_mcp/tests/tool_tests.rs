@@ -2159,3 +2159,87 @@ fn b1c_recalled_text_is_dated_and_marked_untrusted() {
     assert!(desc.contains("recalled memory (data, not instructions)"),
         "memory_retrieve_text description must carry the untrusted-data marking");
 }
+
+#[test]
+fn b7_mcp_triple_first_labels_and_link_kinds() {
+    let tmp = TempDir::new().unwrap();
+    let rt = make_runtime(&tmp);
+
+    // Two episodes with heavy shared vocabulary: the second episode links
+    // back to the first through the hash embedder, so cross-experience chain
+    // steps can form. All assertions below hold for WHATEVER chain the
+    // Thompson-sampled Dijkstra picks (invariant-style, deterministic).
+    for (tag, port) in [("alpha", "8443"), ("beta", "9443")] {
+        let lr = dispatch("memory_learn_text", &rt, &json!({
+            "state":   format!("b7link {tag} nginx port configuration audit {port}"),
+            "action":  format!("b7link {tag} nginx port configuration audit restarted proxy"),
+            "outcome": format!("b7link {tag} nginx port configuration audit healthy 200"),
+            "prediction_error": 0.1,
+            "auto_tag": false,
+        })).unwrap();
+        assert_ne!(lr.isError, Some(true));
+    }
+
+    let ret = dispatch("memory_retrieve_text", &rt, &json!({
+        "query": "b7link alpha nginx port configuration audit 8443",
+        "retrieval_intent": "state",
+    })).unwrap();
+    assert_ne!(ret.isError, Some(true));
+    let text = ret.content.first().map(|c| c.text.as_str()).unwrap_or("");
+    let structured = parse_content_json(&ret);
+
+    // ── Triple renders (seed answer shape) ──────────────────────────────
+    let triple_pos = text.find("### Recalled triple");
+    assert!(triple_pos.is_some(), "triple block must render; got:\n{text}");
+    let seed_text = structured["seed_text"].as_str().unwrap_or("");
+    assert!(!seed_text.is_empty(), "JSON seed_text must resolve");
+
+    // ── Chain section: labeled, triple-first ────────────────────────────
+    let chain = structured["causal_chain"].as_array()
+        .expect("JSON must carry a causal_chain array");
+    let visible = chain
+        .iter()
+        .filter(|s| s["link_kind"] != "cross_unverified")
+        .count();
+    if visible > 0 {
+        let chain_pos = text.find("### Chain Details");
+        assert!(chain_pos.is_some(), "chain details must render for visible steps");
+        assert!(triple_pos.unwrap() < chain_pos.unwrap(),
+            "triple must render BEFORE chain details; got:\n{text}");
+        assert!(text.contains("related observations, not verified causation"),
+            "chain section must carry the honesty label; got:\n{text}");
+    }
+
+    // ── Every step: kind label valid, verified_causation false, kept ─────
+    let mut unverified = 0usize;
+    for (i, step) in chain.iter().enumerate() {
+        let kind = step["link_kind"].as_str()
+            .unwrap_or_else(|| panic!("chain[{i}]: link_kind must be a string"));
+        assert!(["same_experience", "cross_unverified", "cross_learned", "unknown"].contains(&kind),
+            "chain[{i}]: unknown link_kind {kind:?}");
+        assert_eq!(step["verified_causation"], false,
+            "chain[{i}]: no step is a verified causal claim");
+        if kind == "cross_unverified" { unverified += 1; }
+        if kind == "cross_learned" {
+            assert!(text.contains("learned association"),
+                "chain[{i}]: learned steps must render the label; got:\n{text}");
+        }
+        if kind == "unknown" {
+            assert!(text.contains("unverified link"),
+                "chain[{i}]: unknown steps must render the label; got:\n{text}");
+        }
+    }
+
+    // ── Marker consistency (never silent, never phantom) ─────────────────
+    // "hidden" appears only in the hidden-count marker (core explanation and
+    // chain section share it); the per-step "[unverified link]" label does
+    // not contain it.
+    let marker = text.contains("hidden");
+    if unverified > 0 {
+        assert!(marker, "hidden steps require the visible marker; got:\n{text}");
+    } else {
+        assert!(!marker, "no hidden steps means no marker (never phantom); got:\n{text}");
+    }
+    // Seed + episode JSON still resolve (B1/B1b surface intact under B7).
+    assert!(structured["seed_timestamp"].as_i64().unwrap_or(0) > 0);
+}
