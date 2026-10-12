@@ -92,6 +92,57 @@ pub struct SeedEpisode {
     pub shared_count: usize,
 }
 
+/// B6b: caller-supplied typed metadata for one learn episode. Stored ONCE in
+/// the ledger's sidecar table keyed by episode seq — never duplicated into
+/// node text (texts stay verbatim). All fields optional at the API level;
+/// an absent table entry means "unclassified", never a default kind.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LearnMeta {
+    /// Recommended closed set: fact|failure|preference|config. The MCP
+    /// boundary validates; core stores what it is given.
+    pub kind: String,
+    /// Free-form subject, e.g. "db_pool_size".
+    pub subject: String,
+    /// Free-form tags; capped at [`MAX_META_TAGS`] per episode.
+    pub tags: Vec<String>,
+}
+
+/// B6b: per-episode tag cap (aligned with `extract_tags(..., 10)`).
+pub const MAX_META_TAGS: usize = 10;
+
+/// B6b: query-side filter over episode metadata. All present clauses must
+/// match (AND); `kinds` matches any-of. An empty filter (no kinds, no
+/// subject, no tags) is INACTIVE and changes nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct MetaFilter {
+    pub kinds: Vec<String>,
+    pub subject: Option<String>,
+    pub tags: Vec<String>,
+}
+
+impl MetaFilter {
+    /// True when no clause is set — retrieval must behave exactly as unfiltered.
+    pub fn is_inactive(&self) -> bool {
+        self.kinds.is_empty() && self.subject.is_none() && self.tags.is_empty()
+    }
+
+    /// True when `meta` satisfies every present clause. Tag clause needs ALL
+    /// listed tags present on the episode.
+    pub fn matches(&self, meta: &LearnMeta) -> bool {
+        if !self.kinds.is_empty() && !self.kinds.iter().any(|k| k == &meta.kind) {
+            return false;
+        }
+        if let Some(s) = &self.subject {
+            if s != &meta.subject {
+                return false;
+            }
+        }
+        if !self.tags.iter().all(|t| meta.tags.contains(t)) {
+            return false;
+        }
+        true
+    }
+}
 /// Learn-event ledger with a transient node→episode index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LearnLedger {
@@ -112,6 +163,12 @@ pub struct LearnLedger {
     /// counted in [`memory_bytes`].
     #[serde(skip)]
     evicted_nodes: HashSet<u64>,
+    /// B6b: typed metadata by episode seq. PERSISTED (unlike the index above).
+    /// Entries die with their episode: the append-time eviction loop removes
+    /// the evicted seq's meta, so the table never outgrows the ledger.
+    /// Absent entry = unclassified episode (pre-B6b learns, WAL-replayed tail
+    /// learns whose meta record never arrived — documented, never backfilled).
+    pub meta: HashMap<u64, LearnMeta>,
 }
 
 impl Default for LearnLedger {
@@ -128,7 +185,26 @@ impl LearnLedger {
             evicted_up_to: 0,
             node_to_episodes: HashMap::new(),
             evicted_nodes: HashSet::new(),
+            meta: HashMap::new(),
         }
+    }
+
+    /// B6b: attach typed metadata to a RETAINED episode. Returns false (and
+    /// stores nothing) when the seq is unknown or already evicted — the
+    /// caller surfaces that instead of failing silently. Tags are capped at
+    /// [`MAX_META_TAGS`] (extras dropped from the tail, documented).
+    pub fn record_meta(&mut self, seq: u64, mut meta: LearnMeta) -> bool {
+        if self.get(seq).is_none() {
+            return false;
+        }
+        meta.tags.truncate(MAX_META_TAGS);
+        self.meta.insert(seq, meta);
+        true
+    }
+
+    /// B6b: metadata for one episode, if classified.
+    pub fn meta_for_seq(&self, seq: u64) -> Option<&LearnMeta> {
+        self.meta.get(&seq)
     }
 
     /// Number of retained episodes.
@@ -176,6 +252,9 @@ impl LearnLedger {
         while self.episodes.len() > MAX_LEARN_EPISODES {
             if let Some(old) = self.episodes.pop_front() {
                 self.evicted_up_to = self.evicted_up_to.max(old.seq);
+                // B6b: metadata dies with its episode — the table can never
+                // outgrow the ledger.
+                self.meta.remove(&old.seq);
                 for id in [old.state_id, old.action_id, old.outcome_id] {
                     if let Some(v) = self.node_to_episodes.get_mut(&id) {
                         v.retain(|s| *s != old.seq);
@@ -335,8 +414,8 @@ impl LearnLedger {
     ///
     /// Estimate (64-bit): episode = 40 B (5×8 B fields); per indexed node key
     /// ≈ 8 (id) + 24 (Vec overhead) + 8×n_seqs + 16 (HashMap entry); per
-    /// evicted node ≈ 24 B. Backing-store capacity beyond `len` is not counted
-    /// (under-estimate favours the budget).
+    /// evicted node ≈ 24 B; per meta entry ≈ 64 B + string bytes. Backing-store
+    /// capacity beyond `len` is not counted (under-estimate favours the budget).
     pub fn memory_bytes(&self) -> usize {
         let episodes = self.episodes.len() * std::mem::size_of::<LearnEpisode>();
         let index: usize = self
@@ -345,7 +424,14 @@ impl LearnLedger {
             .map(|(_, v)| 8 + 24 + v.len() * 8 + 16)
             .sum();
         let evicted = self.evicted_nodes.len() * 24;
-        episodes + index + evicted + 64
+        let meta: usize = self
+            .meta
+            .iter()
+            .map(|(_, m)| {
+                64 + m.kind.len() + m.subject.len() + m.tags.iter().map(|t| t.len()).sum::<usize>()
+            })
+            .sum();
+        episodes + index + evicted + meta + 64
     }
 }
 
@@ -376,5 +462,65 @@ mod tests {
         assert_eq!(st, EpisodeStatus::Found);
         assert_eq!(ep.unwrap().seq, 2);
         assert_eq!(shared, 1);
+    }
+
+    fn meta(kind: &str, subject: &str, tags: &[&str]) -> LearnMeta {
+        LearnMeta {
+            kind: kind.to_string(),
+            subject: subject.to_string(),
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn meta_attaches_only_to_retained_episodes() {
+        let mut l = LearnLedger::new();
+        l.append(1, 2, 3, 100);
+        assert!(l.record_meta(1, meta("failure", "db", &["pool"])));
+        assert_eq!(l.meta_for_seq(1).unwrap().kind, "failure");
+        assert!(!l.record_meta(999, meta("fact", "x", &[])), "unknown seq refuses");
+        assert!(l.meta_for_seq(999).is_none());
+    }
+
+    #[test]
+    fn meta_tags_truncate_at_cap() {
+        let mut l = LearnLedger::new();
+        l.append(1, 2, 3, 100);
+        let tags: Vec<String> = (0..30).map(|i| format!("t{i}")).collect();
+        let refs: Vec<&str> = tags.iter().map(|s| s.as_str()).collect();
+        assert!(l.record_meta(1, meta("fact", "s", &refs)));
+        assert_eq!(l.meta_for_seq(1).unwrap().tags.len(), MAX_META_TAGS);
+    }
+
+    #[test]
+    fn meta_dies_with_evicted_episode() {
+        let mut l = LearnLedger::new();
+        for k in 0..(MAX_LEARN_EPISODES + 1) {
+            let b = 1_000_000u64 + k as u64;
+            l.append(b, b + 400_000, b + 800_000, 100);
+        }
+        // seq 1 evicted with its episode; newest retained keeps meta.
+        assert!(!l.record_meta(1, meta("fact", "old", &[])), "evicted seq refuses");
+        let newest = l.next_seq - 1;
+        assert!(l.record_meta(newest, meta("fact", "new", &[])));
+        assert!(l.meta_for_seq(1).is_none(), "evicted seq has no meta");
+        assert!(l.meta_for_seq(newest).is_some(), "retained seq keeps its meta");
+        // Budget counts the table.
+        assert!(l.memory_bytes() > (l.len() * std::mem::size_of::<LearnEpisode>()));
+    }
+
+    #[test]
+    fn meta_filter_matches_clauses() {
+        let m = meta("failure", "db_pool", &["pool", "timeout"]);
+        let any = MetaFilter::default();
+        assert!(any.is_inactive());
+        assert!(any.matches(&m), "inactive filter matches everything");
+        assert!(MetaFilter { kinds: vec!["failure".into()], ..Default::default() }.matches(&m));
+        assert!(!MetaFilter { kinds: vec!["fact".into()], ..Default::default() }.matches(&m));
+        assert!(MetaFilter { kinds: vec!["fact".into(), "failure".into()], ..Default::default() }.matches(&m));
+        assert!(MetaFilter { subject: Some("db_pool".into()), ..Default::default() }.matches(&m));
+        assert!(!MetaFilter { subject: Some("other".into()), ..Default::default() }.matches(&m));
+        assert!(MetaFilter { tags: vec!["pool".into(), "timeout".into()], ..Default::default() }.matches(&m));
+        assert!(!MetaFilter { tags: vec!["pool".into(), "missing".into()], ..Default::default() }.matches(&m));
     }
 }
