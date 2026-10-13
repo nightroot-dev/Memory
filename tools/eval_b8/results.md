@@ -116,3 +116,16 @@ Caveats (read before citing):
 # Net: latency gates PASS big; all three recall gates MISS. CMHM is fast
 # enough by 2 orders of magnitude and not knowledgeable enough by ~20-50
 # points — the binding constraint is the hash embedder on paraphrase.
+#
+# B10 Step 1 (2026-10-14, gates pre-registered in b10-minilm-step1.md):
+# Control rerun bit-identical to the table above (chain variance excluded,
+# expected). MiniLM leg (MSVC+onnx, ops_bench_minilm_v2) WITH-fused:
+#   lex 1.0000/1.0000, easy 0.2069/0.6207, med 0.1463/0.6829, hard 0.0667/0.6000
+# (seedP@1/poolRec) — all four cells bit-identical to the task.md record.
+# Step-1 gates: reproduce PASS, improve PASS (overall seedP@1 114/200 =
+# 0.570 vs hash 0.505, gate ≥0.540). Shipping gates on MiniLM: R@1 0.570
+# MISS (≥0.70), hard R@1 0.067 MISS (≥0.50), pool 0.820 MISS (≥0.85, 6
+# pairs short). Attribution unchanged (hard: 12 candidate / 16 rank of 28).
+# Track halted at the gate per design note — Step 2 (B8 re-run on MiniLM
+# serving; live-node model_id coupling) and Step 3 (ranking) not authorised
+# yet.
