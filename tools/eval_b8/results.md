@@ -86,3 +86,33 @@ Caveats (read before citing):
 # outright win. Notes still wins 5/7 outright and the tally doesn't move.
 # Compliance re-verified from opencode.db: all 7 re-run arms 1 retrieve +
 # 0 learns; model parity held (bench-agent-m xhigh); worktrees clean.
+
+# Session L recall + scale bench (current master, 2026-10-14 — not hand-edited)
+#
+# Commands (repo root C:\Games\Projects\Memory, release):
+#   cargo +stable-x86_64-pc-windows-gnu test --release -p cmhm_core --test ops_bench_v2 -- --ignored --nocapture
+#   CMHM_LOAD_N=10000 [same] --test loadbench -- --ignored --nocapture
+# Corpus: tools/corpus_l1.json, n=200 (100 lexical-easy, 29 para-easy,
+# 41 para-medium, 30 para-hard). Model: hash-128d (Phase 1 path).
+#
+# Recall (WITH-fused = shipping path; WITHOUT = flat baselines):
+# | group | WITHOUT-dense seedP@1/poolRec | WITHOUT-bm25 | WITH-dense | WITH-fused seedP@1/poolRec/chainAcc/MRR |
+# | lexical (100) | 0.17 / 0.71 | 1.00 / 1.00 | 0.18 / 0.97 | 1.00 / 1.00 / 0.14 / 1.00 |
+# | para-easy (29) | 0.03 / 0.07 | 0.00 / 0.00 | 0.03 / 0.17 | 0.03 / 0.17 / 0.03 / 0.05 |
+# | para-medium (41) | 0.00 / 0.02 | 0.00 / 0.00 | 0.00 / 0.15 | 0.00 / 0.10 / 0.00 / 0.01 |
+# | para-hard (30) | 0.00 / 0.03 | 0.00 / 0.00 | 0.00 / 0.10 | 0.00 / 0.10 / 0.00 / 0.01 |
+# Aggregates WITH-fused: Recall@1 = 101/200 = 0.505 (gate ≥0.70 MISS);
+# hard Recall@1 = 0/30 = 0.000 (gate ≥0.50 MISS); pool recall = 112/200 =
+# 0.560 (R@20 slot ≥0.85 MISS — harness poolRec is post-filter depth, not
+# exactly @20, but misses under any reading); chainAcc 0.075, MRR 0.511.
+# Failure mode: lexical perfect via BM25 fusion; paraphrase seed P@1 = 1 hit
+# in 100 queries. WITHOUT-dense equally dead → embedder bottleneck, not
+# engine/ranking/surfacing. Evidence-backed lever (only): MiniLM/BGE path.
+#
+# Scale (10k learns, hash-128d): 190 learns/s; 7941 nodes (0.8/learn);
+# retrieve mean 1.84ms / p50 1.80ms (gate ≤100ms PASS, 55x headroom) /
+# p99 2.70ms (gate ≤500ms PASS, 185x headroom), k=200, pool non-empty
+# 200/200; disk 5138 B/node; hash embed 3.33M texts/s.
+# Net: latency gates PASS big; all three recall gates MISS. CMHM is fast
+# enough by 2 orders of magnitude and not knowledgeable enough by ~20-50
+# points — the binding constraint is the hash embedder on paraphrase.
