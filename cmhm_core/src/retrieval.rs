@@ -463,12 +463,22 @@ pub fn retrieve(
     // Stage 0: RAW_NN diagnostic snapshot (passive, unmutated)
     let raw_nn_candidates: Vec<u64> = raw_candidates.iter().map(|(id, _)| *id).collect();
 
-    // Step 2a: Filter out superseded candidates.
-    // Superseded nodes are excluded entirely before scoring — no score comparison performed.
+    // Step 2a: Filter out superseded candidates, and (when the retrieval is
+    // role-scoped) any node whose NodeType differs from the requested seed type.
+    //
+    // The role filter matters most on the fused path: BM25 indexes action and
+    // outcome text (expansion), so a query phrased like "how did I fix X"
+    // can lexically match an Action node. Role-scoped retrievals must never
+    // seed it — lexical evidence may inform the pool, not override the role
+    // contract. The dense path was already role-scoped pre-fusion; this
+    // closes the BM25 bypass.
     let candidates: Vec<(u64, f32)> = raw_candidates.into_iter()
         .filter(|(id, _)| {
-            node_store.get(*id)
-                .map_or(false, |n| n.superseded_by.is_none())
+            let keep_role = match seed_type {
+                Some(t) => node_store.get(*id).map_or(false, |n| n.node_type == t),
+                None    => true,
+            };
+            keep_role && node_store.get(*id).map_or(false, |n| n.superseded_by.is_none())
         })
         .collect();
 
