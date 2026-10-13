@@ -28,3 +28,6 @@ Thumbs.db
 # B8 eval: third-party fixture clone (fetched on demand, see task T3).
 tools/eval_b8/tasks/t3-openbot-shortcut/fixtures/
 
+# B8 eval: per-arm run reports (working files, not committed).
+tools/eval_b8/runs/
+
