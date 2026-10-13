@@ -1,0 +1,5 @@
+Adapter: Realtek PCIe GbE Family Controller (both laptops)
+Reported link speed: 500 Mbps (NOT a standard 10/100/1000 step)
+Advanced properties: Speed & Duplex = Auto Negotiation
+Power saving: enabled (Energy Efficient Ethernet on)
+Driver: inbox Windows driver, never updated from Realtek

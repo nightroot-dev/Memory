@@ -1,0 +1,6 @@
+[crloader 1.0.0] init, root=C:\Games\CONTROL Resonant
+[crloader] winmm.dll proxy loaded OK
+[crloader] scanning crmods\ ...
+[crloader] SKIP crmods\CRModMenu\winmm.dll (not a mod container)
+[crloader] SKIP crmods\PowerChargePlus\winmm.dll (not a mod container)
+[crloader] 0 loaded, 2 failed

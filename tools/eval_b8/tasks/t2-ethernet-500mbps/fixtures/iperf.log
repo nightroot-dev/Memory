@@ -1,0 +1,12 @@
+PS C:\WINDOWS\system32> cd C:\Users\dbroot\Downloads\iperf3.22_64\iperf3.22
+PS C:\Users\dbroot\Downloads\iperf3.22_64\iperf3.22> iperf3.exe -c 169.254.245.70 -t 15 -P 4 -R
+iperf3.exe : The term 'iperf3.exe' is not recognized as the name of a cmdlet, function, script file, or operable program.
++ CategoryInfo          : ObjectNotFound
+PS C:\Users\dbroot\Downloads> .\iperf3.22_64\iperf3.22\iperf3.exe -c 169.254.245.70 -t 15 -P 4 -R
+Connecting to host 169.254.245.70, port 5201 (reverse mode)
+[ ID] Interval           Transfer     Bitrate
+[  4]   0.00-15.00  sec   112 MBytes   502 Mbits/sec                  receiver
+[  6]   0.00-15.00  sec   111 MBytes   498 Mbits/sec                  receiver
+[  8]   0.00-15.00  sec   112 MBytes   503 Mbits/sec                  receiver
+[ 10]   0.00-15.00  sec   111 MBytes   497 Mbits/sec                  receiver
+[SUM]   0.00-15.00  sec   446 MBytes   500 Mbits/sec                  receiver

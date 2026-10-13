@@ -25,3 +25,6 @@ Thumbs.db
 # Model caches
 .fastembed_cache/
 
+# B8 eval: third-party fixture clone (fetched on demand, see task T3).
+tools/eval_b8/tasks/t3-openbot-shortcut/fixtures/
+
