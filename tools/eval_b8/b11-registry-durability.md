@@ -107,3 +107,14 @@ cleanup required direct disk removal. Full sequence recorded in
 - Repro script + raw transcript: `tools/eval_b8/repro_registry_lost_update.py`.
 - Production record: `results.md` B10 section, cleanup correction (73dab70).
 - Code refs as cited above; no source modified for this entry.
+
+## Acceptance gate for any fix (owner directive, 2026-10-14)
+
+A registry fix is accepted ONLY if this repro runs green on the fixed
+build: no clobber in step 3 (registry retains `ctx-late`), no orphan after
+step 4 (`context_delete` on `ctx-late` succeeds or the folder is adopted).
+The script is the permanent artifact; rerun it on every candidate fix.
+Root-cause bar: a full-map rewrite from a stale in-memory copy is the bug
+— "more careful file writes" alone does not pass. File-lock around
+read-modify-write, per-context registry entries, or equivalent are the
+reviewer's choice.
