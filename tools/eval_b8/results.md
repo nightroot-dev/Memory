@@ -174,7 +174,14 @@ Caveats (read before citing):
 # T6 32/176.2s/P, T7 33/157.4s/P, for comparison.
 # Compliance: all 7 B10 arms used exactly 1-2 retrieves + 0 learns
 # (verified from opencode.db); hunt worktrees verified clean; live b10-*
-# contexts deleted after the run.
+# contexts deleted 2026-10-14 — NOT at run close as first recorded (that
+# claim was wrong): the client's catalog refresh killed the serve process
+# without clean shutdown, the registry lost their entries (context_list
+# showed only 3 stale July contexts; context_delete by UUID returned
+# E_NOT_FOUND), leaving 7 orphaned context folders under data/contexts.
+# Removed from disk directly; verified 0 remain. Durability observation
+# for the reviewer: context data dirs can outlive their registry entries
+# after an unclean server kill (registry flush lost), orphaning contexts.
 #
 # Net: MiniLM serving did not move the standing verdict. Facts file still
 # wins the majority. MiniLM adds semantic recall (proven in Session L:
