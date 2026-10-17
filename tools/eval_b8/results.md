@@ -313,3 +313,58 @@ Caveats (read before citing):
 # Probe cap reminder: rerank cannot exceed hard pool recall (it only reorders
 # the existing pool). Embedder spend happens FIRST in the decision order if
 # C fails against the MiniLM record.
+
+
+---
+
+## B13 PART 1 RESULTS - RERANK PROBE (run 2026-10-17, committed gates above)
+
+Output verbatim from tests/rerank_probe.rs (run log: tools/eval_b8/b13_rerank_probe_out.txt,
+scratch diagnostics tests/rerank_diag.rs / tests/rerank_hard_case.rs).
+
+Gate arm (jina-reranker-v1-turbo-en, ~50 ms/query CPU):
+
+| group  | n | base_hit | stolen | recovered | pool_miss | net |
+|--------|---|----------|--------|-----------|-----------|-----|
+| easy   | 29 |        6 |      5 |         0 |        11 |   1 |
+| medium | 41 |        6 |      6 |         0 |        13 |   0 |
+| hard   | 30 |        2 |      2 |         0 |        12 |   0 |
+
+**GATE: hard net 0 >= 12 of 30 (+10 over baseline 2) -> FAIL**
+
+Deviation arm (BAAI/bge-reranker-base, ~222 ms/query CPU, 4.3x cost; run ONCE
+per the single-follow-up clause - deviation: turbo net 0 was below the
+pre-registered follow-up band (6..10), the arm was still spent as ceiling
+documentation):
+
+| group  | n | base_hit | stolen | recovered | pool_miss | net |
+|--------|---|----------|--------|-----------|-----------|-----|
+| easy   | 29 |        6 |      6 |         0 |        11 |   0 |
+| medium | 41 |        6 |      4 |         1 |        13 |   3 |
+| hard   | 30 |        2 |      2 |         1 |        12 |   1 |
+
+**CEILING DOC: hard net 1 of 30.**
+
+Instrument validation (positive/negative controls, tests/rerank_diag.rs):
+- exact-match query "sextant reading took 12 minutes under overcast" ranked
+  first by BOTH rerankers: jina scores 4.46 / -1.45 / -4.29;
+  bge scores 10.30 / -1.65 / -10.19. Controls PASS; the 0-net result is model
+  behavior on the corpus pools, not an instrument bug.
+- real hard case (tests/rerank_hard_case.rs): query "clients reaching the wrong
+  server address", gold "dns resolver returning stale records" - jina turbo
+  ranked the gold pair 10th of 20, first pick "serializer mismatch between client
+  and server". Same-domain distractors with symptom-cause inversion and zero
+  lexical overlap defeat relevance-style cross-encoding.
+
+Also observed: fused seed base_hit flaps +/-1 between runs (easy/medium), the
+same class of stochasticity recorded for chainAcc in 9766c49. Single-run probe
+numbers are draws; the hard-slice conclusion (net ~0 across two reranker
+classes) does not depend on the flap.
+
+FINDING (owner-facing): with the current MiniLM-embedded pools, NO tested
+cross-encoder recovers the hard slice from the existing pool - and both STOLE
+2/2 baseline hard hits. Rerank cannot pass, cannot even approach the
+pre-registered +10 bar, and would add 50-227 ms/query if shipped for a likely
+NEGATIVE net on visible results. The rank leg is closed as a lever for the
+70% hard-only target. Decision sequence: embedder spend (B13 PART 2,
+bge-base-en-v1.5 bench) is next per the pre-registered order.
