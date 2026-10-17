@@ -233,3 +233,24 @@ Caveats (read before citing):
 # (gate 0.70); hard R@1 0.000 / 0.067 - MISS (gate 0.50); pool 0.560 / 0.820
 # - MISS (gate 0.85); latency PASS big. R1 (release blocker) stands until
 # the embedder/rank question is resolved (B12 design pending owner gate).
+
+# OWNER DECISION (2026-10-17): R1 target re-defined - hard-only, zero word overlap
+#
+# Owner clarification: the recall bar is 70% Recall@1 on the HARD slice only,
+# where every query word is new (no same words, no shared wording vs the
+# stored text). The L1 corpus already enforces exactly that rule for all
+# paraphrase pairs ("query and situation share ZERO content tokens",
+# CORPUS_PROTOCOL.md #3; checker tools/check_corpus_l1.py re-run green
+# 2026-10-17: [L1] PASS: corpus clean, hard=30).
+#
+# Hard-only scoreboard vs the 70% owner target (same bench runs, 2026-10-17):
+#   hash-128d : R@1 0/30 = 0.0%
+#   MiniLM    : R@1 2/30 = 6.7%   (seedP@1, WITH-fused serving path)
+#   MiniLM hard pool recall: 18/30 = 60% (in pool, rank drops them)
+#   miniLM hard miss attribution: 12 candidate-side / 16 rank-side
+#   noise floor: 1 hard pair = 3.3 pts (n=30); overlap-free by construction
+#
+# Supersedes the earlier dual shipping gates (overall R@1 >= 0.70 / hard
+# >= 0.50) as the deciding R1 criterion; those numbers stay in the tables
+# above for history. The overall 0.70 / pool 0.85 els do not disappear as
+# product targets but R1 gating now reads hard-only.
