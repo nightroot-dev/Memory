@@ -368,3 +368,73 @@ pre-registered +10 bar, and would add 50-227 ms/query if shipped for a likely
 NEGATIVE net on visible results. The rank leg is closed as a lever for the
 70% hard-only target. Decision sequence: embedder spend (B13 PART 2,
 bge-base-en-v1.5 bench) is next per the pre-registered order.
+
+
+---
+
+## B13 PART 2 RESULTS - BGE-BASE EMBEDDER UPGRADE BENCH (run 2026-10-17)
+
+Output verbatim from tests/ops_bench_bge_base_v1.rs (corpus_l1.json n=200, same
+harness/protocol as the MiniLM leg; run log: tools/eval_b8/b13_bge_out.txt).
+Walls measured on this build: embed 400 texts 768-d = 32.03 s (~80 ms/text);
+200 learns = 41.14 s. MiniLM reference embed cost is ~2 ms/text (embed.rs) -
+the upgrade would cost ~40x on the embed step, before pool effects.
+
+WITH-fused (serving path), seedP@1/poolRec:
+
+| group        | MiniLM record  | bge-base (this run) |
+|--------------|----------------|---------------------|
+| lexical      | 1.0000 / 1.0000| 1.0000 / 1.0000     |
+| para-easy    | 0.2069 / 0.6207| 0.1379 / 0.6207     |
+| para-medium  | 0.1463 / 0.6829| 0.1220 / 0.7561     |
+| para-hard    | 0.0667 / 0.6000| 0.1000 / 0.5000     |
+| overall      | 114/200 = 0.570| 112/200 = 0.560     |
+| pool overall | 164/200 = 0.820| 164/200 = 0.820     |
+
+Stage attribution (WITH-fused misses): bge hard slice 3 seed + 15
+lost_candidate + 12 lost_rank (n_miss 27). MiniLM record hard: 2 seed + 12
+candidate + 16 rank. ~4 pairs moved from rank-loss to candidate-loss - the
+position of loss shifted, the hard slice did not materially improve.
+
+Pre-registered gate verdicts:
+- A lexical WITH-fused seedP@1 == 1.00                       -> PASS
+- B hard WITH-fused seedP@1 >= 12/30 (3/30 measured)          -> FAIL
+- C hard WITH-fused poolRec >= 21/30 (15/30 measured)         -> FAIL
+- D overall pool >= 164/200 (164/200, exact tie)              -> TIE
+
+(Gates fail by 9 and 6 pair margins respectively - far above the 1-pair
+3.3pt hard-slice noise floor; not noise.)
+
+FINDING (owner-facing): the bge-base upgrade does NOT unlock the hard slice.
+It moves +1 pair onto hard seed@1 (noise) while DROPPING hard pool recall
+18/30 -> 15/30, which would REDUCE the rerank ceiling (now measured ~0 anyway)
+from 18 to 15 candidates. Medium pool +5 pairs, hard pool -3, overall pool
+unchanged - a wash on aggregate, and 40x the embed cost. Candidate DEAD under
+the pre-registered gates.
+
+## B13 OVERALL CONCLUSION (both legs measured 2026-10-17)
+
+1. Rerank leg: FAIL for both reranker classes (jina turbo net 0/30, bge-reranker
+   base net 1/30 vs pre-registered +10/30), controls PASS, ~+-1 seed flap noted.
+2. Embedder upgrade leg (bge-base): FAIL gates B/C; ties lexical and overall
+   pool; +40x embed cost.
+3. Structural reading (consistent with the committed ceiling math e007e1b):
+   every similarity-class instrument measured - single-vector embeddings
+   (2 embedders), cross-encoder rerank (2 models, 34x cost spread) - extracts
+   at most ~1 pair of recoverable hard R@1 over the existing 2/30. The hard
+   pairs are zero-overlap symptom-vs-cause inversions; text similarity does
+   not carry the causal relation, in any tested embedding geometry or reranker.
+4. Therefore the "70% hard-only R@1" target has NO measured path inside the
+   current retrieval program. The remaining options, by evidence position:
+   a. Rerun the task-level B12 question (multi-session accumulation, product
+      gate) - pre-ordered, pilot not yet run.
+   b. Re-target the goal (med+hard combined or task-level B12 result) - owner
+      decision pending since the scoreboard.
+   c. Corpus/protocol redesign of "hard" (giving queries a causal hint or
+      allowing outcome-side matches) - changes the target definition; owner
+      decision required.
+   No serving or engine change is authorized by ANY current measurement;
+   the fixed-build serving binary (acde87b2...) remains correct to ship-side.
+All B13 artifacts: tests/rerank_probe.rs + rerank_diag.rs + rerank_hard_case.rs
++ ops_bench_bge_base_v1.rs; logs b13_rerank_probe_out.txt / b13_bge_out.txt /
+b13_diag_out.txt (committed).
