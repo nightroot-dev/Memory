@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use anyhow::Result;
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use crate::context::{
     ContextId, ContextMeta, ContextState, ContextDescriptor, now_secs,
@@ -18,6 +19,34 @@ use crate::context::{
 };
 
 const REGISTRY_FILE: &str = "registry.toml";
+
+/// B11: take the exclusive sidecar lock for `registry.toml`, serialising
+/// read-modify-write across concurrent server instances sharing one data
+/// dir. Sidecar file (not the registry itself) so writers can keep using
+/// tmp+rename atomics. Lock is released when the file handle drops.
+fn lock_registry_sidecar(path: &Path) -> Result<std::fs::File> {
+    let lock_path = path.with_extension("toml.lock");
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&lock_path)
+        .map_err(|e| anyhow::anyhow!("E_REGISTRY_LOCK: open {:?}: {e}", lock_path))?;
+    f.lock_exclusive()
+        .map_err(|e| anyhow::anyhow!("E_REGISTRY_LOCK: lock {:?}: {e}", lock_path))?;
+    Ok(f)
+}
+
+/// Best-effort variant for read-only loads: never blocks startup hard; on
+/// contention we still read the file (atomic rename ⇒ no torn read).
+fn try_lock_registry_sidecar(path: &Path) -> Option<std::fs::File> {
+    match lock_registry_sidecar(path) {
+        Ok(f) => Some(f),
+        Err(e) => {
+            tracing::warn!("Registry sidecar lock unavailable (continuing read-only): {e}");
+            None
+        }
+    }
+}
 
 /// Wrapper for TOML serialisation (TOML requires a top-level table).
 #[derive(Serialize, Deserialize, Default)]
@@ -37,6 +66,10 @@ impl Registry {
     pub fn load(data_dir: &Path) -> Result<Self> {
         let path = data_dir.join(REGISTRY_FILE);
         let entries: HashMap<ContextId, ContextMeta> = if path.exists() {
+            // Best-effort serialisation against a concurrent writer; the
+            // write itself is an atomic rename, so an uncontended read is
+            // already torn-free.
+            let _guard = try_lock_registry_sidecar(&path);
             match std::fs::read_to_string(&path) {
                 Ok(s) => match toml::from_str::<RegistryFile>(&s) {
                     Ok(file) => file.contexts.into_iter().map(|m| (m.id.clone(), m)).collect(),
@@ -76,10 +109,17 @@ impl Registry {
 
     /// Persist registry to disk (atomic write via temp file + rename).
     /// No-op when save_enabled is false (test mode).
+    ///
+    /// B11 fix: exclusive sidecar lock around the whole write, and a
+    /// reload-merge against the on-disk file first, so a long-lived
+    /// instance never rewrites the registry from a stale load-time map and
+    /// clobber entries created by a concurrent instance.
     pub fn save(&self) -> Result<()> {
         if !self.save_enabled { return Ok(()); }
+        let _lock = lock_registry_sidecar(&self.path)?;
+        let merged = self.merge_with_disk_locked();
         let file = RegistryFile {
-            contexts: self.entries.values().cloned().collect(),
+            contexts: merged.values().cloned().collect(),
         };
         let toml_str = toml::to_string_pretty(&file)
             .map_err(|e| anyhow::anyhow!("Registry serialise error: {e}"))?;
@@ -87,6 +127,41 @@ impl Registry {
         std::fs::write(&tmp, toml_str.as_bytes())?;
         std::fs::rename(&tmp, &self.path)?;
         Ok(())
+    }
+
+    /// Merge in-memory entries with the on-disk registry (caller holds the
+    /// sidecar lock).
+    ///
+    /// - Entries only on disk are adopted (created by another instance).
+    /// - Entries on both sides: fresher copy wins — higher `version` first,
+    ///   then newer `last_accessed`; on an exact tie a `Deleted` tombstone
+    ///   beats a live state (deletion races resolve toward delete).
+    /// - Unreadable disk file merges to the in-memory map (F3 quarantine
+    ///   semantics unchanged); atomic rename previous state survives.
+    fn merge_with_disk_locked(&self) -> HashMap<ContextId, ContextMeta> {
+        let mut merged = self.entries.clone();
+        let disk_str = match std::fs::read_to_string(&self.path) {
+            Ok(s) => s,
+            Err(_) => return merged, // no file yet or unreadable: our map is it
+        };
+        let Ok(file) = toml::from_str::<RegistryFile>(&disk_str) else {
+            tracing::warn!("Registry {:?} unparseable mid-save; writing in-memory map only", self.path);
+            return merged;
+        };
+        for m in file.contexts {
+            match merged.get_mut(&m.id) {
+                None => { merged.insert(m.id.clone(), m); }
+                Some(mine) => {
+                    let take_disk = m.version > mine.version
+                        || (m.version == mine.version
+                            && ((m.state == ContextState::Deleted
+                                 && mine.state != ContextState::Deleted)
+                                || m.last_accessed > mine.last_accessed));
+                    if take_disk { *mine = m; }
+                }
+            }
+        }
+        merged
     }
 
     // -------------------------------------------------------------------------
@@ -409,6 +484,92 @@ mod tests {
             std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect::<Vec<_>>());
         let q_path = dir.join(&quarantined[0]);
         assert_eq!(std::fs::read_to_string(&q_path).unwrap(), "this is = not [[ valid toml =");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // --- B11: cross-instance lost update ------------------------------------
+
+    #[test]
+    fn concurrent_instance_create_is_not_lost() {
+        let dir = std::env::temp_dir().join(format!("cmhm_registry_b11_{}", ContextId::new().as_str()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Instance 1 boots on an empty dir and creates ctx-a.
+        let mut r1 = Registry::load(&dir).unwrap();
+        let d_a = r1.create(make_meta("ctx-a")).unwrap();
+
+        // Instance 2 boots (sees ctx-a) and creates ctx-b.
+        let mut r2 = Registry::load(&dir).unwrap();
+        let d_b = r2.create(make_meta("ctx-b")).unwrap();
+
+        // Instance 1's map predates ctx-b; its next save must NOT clobber B11.
+        r1.create(make_meta("ctx-c")).unwrap();
+
+        let r3 = Registry::load(&dir).unwrap();
+        assert!(r3.get(&d_a.id).is_some(), "own create (a) lost from file");
+        assert!(r3.get(&d_b.id).is_some(), "B11: foreign create (b) clobbered by stale-instance save");
+        assert_eq!(r3.find_by_name("ctx-b").map(|m| m.id.clone()), Some(d_b.id.clone()));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn concurrent_delete_tombstone_survives_stale_writer() {
+        let dir = std::env::temp_dir().join(format!("cmhm_registry_b11d_{}", ContextId::new().as_str()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut r1 = Registry::load(&dir).unwrap();
+        let d_a = r1.create(make_meta("ctx-a")).unwrap();
+        let mut r2 = Registry::load(&dir).unwrap();
+
+        // Both instances transition a to Active (millisecond coarseness of
+        // now_secs makes timestamps often equal — the state tie-break is the
+        // thing under test, not the clock).
+        r1.transition(&d_a.id, ContextState::Active).unwrap();
+        r2.transition(&d_a.id, ContextState::Active).unwrap();
+
+        // Instance 1 deletes (Deleted tombstone, kept in map) then writes.
+        r1.transition(&d_a.id, ContextState::Deleted).unwrap();
+        r1.create(make_meta("ctx-b")).unwrap();
+
+        // Instance 2 writes with its stale map (a: Active).
+        r2.create(make_meta("ctx-c")).unwrap();
+
+        let r3 = Registry::load(&dir).unwrap();
+        let a = r3.get(&d_a.id).expect("tombstone entry must survive");
+        assert_eq!(a.state, ContextState::Deleted,
+            "stale Active copy must not resurrect a Deleted context");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn merge_adopt_keeps_higher_version_disk_copy() {
+        let dir = std::env::temp_dir().join(format!("cmhm_registry_b11v_{}", ContextId::new().as_str()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut r1 = Registry::load(&dir).unwrap();
+        let d_a = r1.create(make_meta("ctx-a")).unwrap();
+
+        // Simulate a foreign instance that learned twice (version 2 on disk).
+        let mut foreign = make_meta("ctx-a");
+        foreign.id = d_a.id.clone();
+        foreign.version = 2;
+        foreign.learn_count = 2;
+        {
+            let raw = RegistryFile { contexts: vec![foreign.clone()] };
+            let s = toml::to_string_pretty(&raw).unwrap();
+            std::fs::write(dir.join("registry.toml"), s).unwrap();
+        }
+
+        // Instance 1 (stale version 0) merely re-saves; disk must win on version.
+        r1.transition(&d_a.id, ContextState::Active).unwrap();
+
+        let r3 = Registry::load(&dir).unwrap();
+        let a = r3.get(&d_a.id).expect("entry must survive");
+        assert_eq!(a.version, 2, "fresher disk copy (learn version) must win arbitration");
+        assert_eq!(a.learn_count, 2);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
