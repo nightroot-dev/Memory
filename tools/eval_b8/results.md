@@ -573,3 +573,22 @@ and B11, release as "persistent notes with exact lookup"), B (one capped
 agent query-rewrite experiment), or C (archive with a README of what was
 learned). If B12 ever runs: one live model for every arm, baselines included.**
 The work is committed and safe; the fixed serving binary stays as is.
+
+
+---
+
+## OWNER PICKED A — R1 tracked as data bug, not a limitation (2026-10-17)
+
+- Owner correction to the builder: R1 is the restart-WAL-replay data bug
+  (was 46→77 nodes across restart), NOT the recall ceiling; the 70% ceiling
+  stays a documented limitation but R1 needed a real fix and a restart test.
+- Attribution: R1 was already fixed and shipped as S-05 (69f603a). The
+  builder's earlier conflation ("R1 closes as a documented limitation") is
+  retracted in the record.
+- New repro S05-4 committed (fd91d6f): crash with a NON-EMPTY WAL tail after
+  the mid-life snapshot → exactly-once tail recovery pinned (30 nodes /
+  10 episodes / next_seq 11 across boots 2 and 3). RED on the pre-S-05
+  parent (45 != 30 — R1 reproduced), GREEN on HEAD (s05_restart 4/4).
+- Workspace suite --no-fail-fast: 59 result lines, 0 FAILED, no compile
+  errors. No engine changes; serving binary unchanged (carries S-05 + B11).
+- Full record: tools/eval_b8/r1-restart-idempotency.md.
