@@ -556,3 +556,20 @@ Consequences:
   (any model the owner picks), never B10-carried baselines.
 - D1 blind-rater and D2 query-expansion probes unaffected (no arm
   sessions, LLM choice documented when run).
+
+
+---
+
+## OWNER STAMPS 2026-10-17
+
+**B10 STAMPED VOID (owner): the cmhm arms and the baselines ran on different
+models; B10's calls/wall columns and verdict are void as a cross-model
+comparison. Do not clean it up; not re-run unless the owner later orders it.**
+The B8 (all-bench-agent-m) tables and the bench/bench-side records are unaffected.
+
+**PROJECT PAUSED (owner directive from the same message): pause all work.
+No new experiments (B12, D1, D2 anything) until the owner chooses A (fix R1
+and B11, release as "persistent notes with exact lookup"), B (one capped
+agent query-rewrite experiment), or C (archive with a README of what was
+learned). If B12 ever runs: one live model for every arm, baselines included.**
+The work is committed and safe; the fixed serving binary stays as is.
