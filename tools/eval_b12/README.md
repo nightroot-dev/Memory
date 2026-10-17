@@ -23,7 +23,13 @@ byte-identical across arms. No arm ever sees another arm's artifacts.
 
 ## Execution order (runner)
 1. `python make_fixtures.py` → materializes tasks/. Fixture files committed.
-2. **Pilot:** t1 × 3 arms × 2 sessions end-to-end before any other task. Pilot report reviewed before the remaining 9.
+2. **Pilot:** t1 × 3 arms × 2 sessions end-to-end before any other task.
+   **The pilot is a HARNESS CHECK, not a verdict**: it validates mechanics
+   (fixtures, verbatim prompts, tripwire, verify.py, DB metrics) only;
+   results carry no W and no B12 conclusion. Pilot report reviewed before
+   the remaining 9. Constraints: arms strictly sequential; exactly ONE
+   cmhm_mcp server instance for the whole eval; every session spawns
+   bench-agent-m xhigh (design §6 parity guard; failure = STOP, no fallback).
 3. For each task, arms strictly sequential: for arm in [none, self-notes, cmhm]: fresh copy of fixtures/ into run dir → session 1 (subagent, fresh session) → save report-s1.md → session 2 (fresh session, same work dir) → save report-s2.md → `verify.py <task> <report-s2.md> <rundir>`.
 4. **Registry integrity tripwire** around every cmhm arm: record the display_name list of `registry.toml` before and after. Unexplained disappearance = B11 reopened = that arm's data VOID (re-run once; second occurrence aborts B12). With the c48ee4a fix the list may only GROW or keep entries; Deleted tombstones are entries too and count as intact.
 5. Metrics per session from opencode.db (read-only): total tool calls (type:"tool" events, including nested execute subcalls as in B10) and wall span (last − first message). Arm score = session1 + session2 sums. Win rule = b12-design §1 (PASS + fewer calls + less wall than BOTH baselines; ties to baselines). W ≥ 6/10 win; W ≤ 4 loss; W = 5 inconclusive (§2).

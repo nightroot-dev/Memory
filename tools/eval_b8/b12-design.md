@@ -81,7 +81,20 @@ lock + reload-merge save; acceptance repro green on the serving binary,
 as follows:
 
 - Arms still run strictly SEQUENTIALLY — one arm at a time, no parallel
-  subagents running concurrently.
+  subagents running concurrently. **Exactly ONE cmhm_mcp server instance
+  serves the whole eval** (B11's multi-writer clobber needs >=2 writers;
+  single instance + sequential arms removes that class entirely).
+- **Pilot (t1 × 3 arms × 2 sessions) is labelled a HARNESS CHECK, not a
+  verdict.** It validates: runner mechanics, fixture copying, prompt
+  verbatim-ness, registry tripwire, verify.py behaviour, DB metric
+  extraction. It contributes no win/loss to W and carries no B12
+  conclusion; its report is reviewed before the remaining 9 tasks run.
+- **Model parity guard (pre-registered):** every arm session spawns with
+  exactly `opencode/bench-agent-m-contributor-free#xhigh` and this is
+  verified from `session_v2.model` in opencode.db after each session.
+  If that model cannot be spawned, the runner STOPS B12 and reports;
+  no fallback model is authorised (B10 record's parity is bench-agent-m; no silent
+  substitution).
 - **Registry integrity check around every arm** becomes pure regression
   insurance (B11 reopened = any run's data void, re-run once): before and
   after each arm, record `registry.toml` entry set. Any unexplained

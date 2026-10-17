@@ -438,3 +438,55 @@ the pre-registered gates.
 All B13 artifacts: tests/rerank_probe.rs + rerank_diag.rs + rerank_hard_case.rs
 + ops_bench_bge_base_v1.rs; logs b13_rerank_probe_out.txt / b13_bge_out.txt /
 b13_diag_out.txt (committed).
+
+
+---
+
+## REVIEWER DECISIONS 2026-10-17 (B13 accepted; deltas registered)
+
+1. B13 verdict ACCEPTED (pre-registered gates, validated controls,
+   documented deviation). Attribution settlement recorded: rerankers ignore
+   authority weights, yet stole the same baseline hard hits as the fused
+   path loses them - the rank-stage loss comes from the SIMILARITY SIGNAL,
+   not from alpha=0.25 authority fusion. Not touching the locked
+   retrieval.rs on the alpha theory is confirmed correct.
+2. CONCLUSION SCOPE CORRECTION (reviewer pushback, adopted): B13 measured
+   small/base encoders (MiniLM-L6, bge-base) and small/base cross-encoders
+   (jina-turbo, bge-reranker-base). Untested and therefore NOT excluded:
+   larger embedders (e5-large class), LLM-class rerankers, and agent-side
+   query expansion. The honest claim is "small encoders and cross-encoders
+   cannot do it", not "no method can".
+3. RE-TARGET POLICY (registered before any new measurement): a failed
+   target is NEVER replaced by a number the current corpus already passes
+   (med+hard combined is measurable TODAY = goalpost shifting). Any
+   re-target must (a) derive from the product need, (b) reference the
+   task-level B12 result as the primary product gate, (c) be registered
+   in this file BEFORE its first measurement.
+4. D1 - BLIND-RATER REACHABILITY PROBE (registered now, runs AFTER the
+   B12 pilot): an uninvolved rater (fresh subagent, no corpus knowledge,
+   no design context) receives 10 hard queries each with a shuffled
+   20-candidate pool and picks the best candidate blind. Report = rater
+   accuracy on the 10, and the same 10 run against ALL 30 hard pairs'
+   pool subsets. This estimates the ORACLE ceiling of the current pool
+   composition. It gates nothing by itself; it informs the
+   corpus-redesign question (pushback 2: ambiguity check - if blinded
+   raters cannot reach 70% either, the corpus is ambiguous by
+   construction and no retrieval method can pass it).
+5. D2 - QUERY-EXPANSION BENCH (registered now, runs ONLY after B12 and
+   only if the recall track is still alive): bench-only, no engine build.
+   An uninvolved LLM proposes 3 likely causes per hard query (agent-side
+   symptom->cause rewriting); each expansion retrieves separately; pools
+   are merged for pool metrics and the expanded-query set runs the SAME
+   fused path (BM25 regains lexical anchor on expanded queries).
+   Pre-registered gates: hard WITH-fused seedP@1 >= 21/30 (70%, direct
+   owner bar) = the ONLY pass; anything below is a failure of D2, not a
+   reason to relax the target. If hard poolRec with merged pools < 21/30,
+   expansion fails without further rank work.
+6. B11 STATUS EVIDENCE (for release-blocking review): fix c48ee4a (3
+   regression tests, suite green), acceptance repro green on the fixed
+   build, serving binary swapped (SHA acde87b2...). Remaining owner-side
+   action: live client restart to load the fixed binary. Whether the
+   release blocker lifts stays with the reviewer.
+7. B12 pilot launch conditions Restated (design + README updated this
+   commit): pilot = harness check only; arms strictly sequential; ONE
+   server instance; bench-agent-m-parity guard with STOP on unavailability.
