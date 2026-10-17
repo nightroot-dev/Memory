@@ -11,6 +11,11 @@
 //!   node count flat before AND after restart (live dedup untouched).
 //! - S05-3 crash path: mid-life snapshot → drop WITHOUT shutdown →
 //!   restart same dir → counts unchanged (pins watermark; fails shutdown-only).
+//! - S05-4 crash with NON-EMPTY tail: mid-life snapshot after 5 learns →
+//!   5 more learns (tail; nodes never snapshotted) → crash → restart →
+//!   exactly-once recovery (30/10/11), no duplication, compaction bounds
+//!   the tail across a third boot. This is the owner's R1 repro regime:
+//!   the 46→77 regression came from a write-log tail open at kill time.
 
 use cmhm_core::authority::CallerRole;
 use cmhm_core::config::Config;
@@ -198,6 +203,98 @@ fn s05_crash_path_watermark() {
         assert_eq!(handle.node_count(), 30, "S05-3 post: crash restart must not duplicate nodes");
         assert_eq!(handle.ledger_len(), 10, "S05-3 post: crash restart must not duplicate episodes");
         assert_eq!(handle.ledger_next_seq(), 11, "S05-3 post: crash restart must preserve next_seq");
+        handle.shutdown().unwrap();
+    }
+}
+
+// ── S05-4: crash with a NON-EMPTY write-log tail (owner's R1 regime) ─────
+//
+// S05-3 snapshots with an empty tail (snapshot taken after the last learn).
+// This variant mirrors the recorded R1 failure (46→77): kill the process
+// while WAL entries exist that are NOT covered by any snapshot.
+// Expected exactly-once recovery:
+//   - learns 1-5  → snapshot (watermark stamped, WAL retained)
+//   - learns 6-10 → tail only (nodes exist in RAM, NOT in the snapshot)
+//   - crash → restart: skip the snapshotted 5, replay the tail 5 ONCE
+//     → 30 nodes / 10 episodes / next_seq 11.
+// Pre-S-05 failure mode (no watermark): full WAL replayed ON TOP of the
+// snapshot → learns 1-5 re-birth via the pe=0.9 escape → ~45 nodes/15
+// episodes, and every subsequent boot compounds the growth (46→77 shape).
+
+#[test]
+fn s05_crash_with_nonempty_tail() {
+    let tmp = tmpdir("tail");
+    let dir = tmp.path().to_path_buf();
+    let snap = dir.join("snapshot.bin");
+
+    // Session 1: 5 learns → mid-life snapshot → 5 more learns → crash.
+    {
+        let handle = engine::start(test_cfg(&dir)).unwrap();
+        for i in 0..5u32 {
+            handle
+                .learn_with_context(
+                    emb(i * 3 + 1),
+                    emb(i * 3 + 2),
+                    emb(i * 3 + 3),
+                    0.9,
+                    0.5,
+                    "hash-128d",
+                    0.5,
+                    String::new(),
+                    None,
+                    CallerRole::User,
+                    None,
+                    None,
+                false,
+                )
+                .unwrap();
+        }
+        assert_eq!(handle.node_count(), 15, "S05-4 pre-snap: 15 nodes before mid-life snapshot");
+        assert_eq!(handle.ledger_len(), 5, "S05-4 pre-snap: 5 episodes before mid-life snapshot");
+        // Canonical mid-life checkpoint: stamps the watermark, RETAINS the WAL.
+        handle.snapshot(snap.clone()).unwrap();
+        for i in 5..10u32 {
+            handle
+                .learn_with_context(
+                    emb(i * 3 + 1),
+                    emb(i * 3 + 2),
+                    emb(i * 3 + 3),
+                    0.9,
+                    0.5,
+                    "hash-128d",
+                    0.5,
+                    String::new(),
+                    None,
+                    CallerRole::User,
+                    None,
+                    None,
+                false,
+                )
+                .unwrap();
+        }
+        assert_eq!(handle.node_count(), 30, "S05-4 pre-crash: 30 nodes live");
+        assert_eq!(handle.ledger_len(), 10, "S05-4 pre-crash: 10 episodes live");
+        // Crash: drop WITHOUT shutdown (tail WAL entries left on disk).
+        drop(handle);
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+
+    // Boot 2: snapshot holds only learns 1-5 (watermark 5); tail 6-10 replays
+    // exactly once → recovered, not duplicated.
+    {
+        let handle = engine::start(test_cfg(&dir)).unwrap();
+        assert_eq!(handle.node_count(), 30, "S05-4 boot2: tail replay must recover exactly 15 more nodes, not duplicate");
+        assert_eq!(handle.ledger_len(), 10, "S05-4 boot2: ledger must hold exactly 10 episodes");
+        assert_eq!(handle.ledger_next_seq(), 11, "S05-4 boot2: next_seq must be 11");
+        handle.shutdown().unwrap();
+    }
+
+    // Boot 3: startup compaction must have bounded the tail — no regrowth.
+    {
+        let handle = engine::start(test_cfg(&dir)).unwrap();
+        assert_eq!(handle.node_count(), 30, "S05-4 boot3: counts must stay flat after compaction");
+        assert_eq!(handle.ledger_len(), 10, "S05-4 boot3: ledger must stay flat after compaction");
+        assert_eq!(handle.ledger_next_seq(), 11, "S05-4 boot3: next_seq must stay 11");
         handle.shutdown().unwrap();
     }
 }
