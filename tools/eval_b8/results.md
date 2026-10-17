@@ -133,7 +133,7 @@ Caveats (read before citing):
 # B10 (MiniLM serving) full re-run, 2026-10-14. Code: 55f107f (last code
 # commit touching cmhm_core/cmhm_mcp); serving binary built from that tree
 # with --features onnx (MSVC), SHA256 8a5ea1288a13fe82b455c8c79ba2041ee88
-# e1f26f3952248cb75ef8016ccdb4f — verified byte-identical to the MSVC onnx
+# e1f26f3952248cb75ef8016ccdb4f - verified byte-identical to the MSVC onnx
 # build dir and confirmed running (process path + file size 10,080,768 vs
 # hash backup 7,572,480).
 #
@@ -156,13 +156,13 @@ Caveats (read before citing):
 # Verdict per the pre-registered rule: cmhm wins 0/7 outright (no task
 # satisfies calls AND wall vs both baselines). Clear-win bar >=4/7: FAIL.
 # Correctness: 6/7 PASS; T2 regressed vs the hash re-run (FAIL, only missed
-# the minor iperf-pitfall rubric group — same group the hash run caught).
+# the minor iperf-pitfall rubric group - same group the hash run caught).
 #
 # Latency on the serve path, measured after the run on the idle live server
 # (2026-10-14): context_create 29ms; learn (3 embeds) 420ms; retrieve (1
 # embed) 12ms mean; 3 concurrent retrieves 30ms total (~10ms each); 2x3
 # concurrent 58ms (~10ms each). Embedder init is once per process
-# (OnceLock get_or_init in cmhm_mcp/src/tools.rs) — NOT per call. The
+# (OnceLock get_or_init in cmhm_mcp/src/tools.rs) - NOT per call. The
 # 10-20x wall inflation vs hash runs is therefore NOT server-side embedding
 # cost (total embed time per arm is <1s). Best-supported explanation:
 # agent-side LLM latency variance under 7 concurrent arms (same model
@@ -174,7 +174,7 @@ Caveats (read before citing):
 # T6 32/176.2s/P, T7 33/157.4s/P, for comparison.
 # Compliance: all 7 B10 arms used exactly 1-2 retrieves + 0 learns
 # (verified from opencode.db); hunt worktrees verified clean; live b10-*
-# contexts deleted 2026-10-14 — NOT at run close as first recorded (that
+# contexts deleted 2026-10-14 - NOT at run close as first recorded (that
 # claim was wrong): the client's catalog refresh killed the serve process
 # without clean shutdown, the registry lost their entries (context_list
 # showed only 3 stale July contexts; context_delete by UUID returned
@@ -284,3 +284,32 @@ Caveats (read before citing):
 # the 30 hard pairs (suggested threshold from the reviewer seat, not derived
 # from data; worst case cap +16). Purpose: quantify how much ranking alone
 # recovers from the existing pool before any embedder spend.
+
+# PRE-REGISTERED GATES B13 - embedder upgrade probe (2026-10-17, before any run)
+# Owner direction: "ok upgrade" = measure the embedder upgrade (B13). Order =
+# reviewer discipline: rank probe first, candidate bench second, owner decides
+# on a serving/engine change only after both instruments report. No locked
+# files; no config change; harness/test-scoped code only.
+#
+# Instruments:
+#   1. rerank probe  (tests/rerank_probe.rs): rerank the EXISTING WITH-fused
+#      top-20 pool (jina-reranker-v1-turbo-en via fastembed; English-only,
+#      ~33MB). PASS = net hard gain >= +10 of 30 pairs
+#      (net = recovered_from_pool - stolen_from_correct). If net lands in
+#      (6..10), ONE follow-up run with BGERerankerBase documents the strong
+#      reranker ceiling; no third try without a decision note.
+#   2. bge-base L1 bench (tests/ops_bench_bge_base_v1.rs): corpus_l1.json,
+#      same metrics as ops_bench_minilm_v2, bge-base-en-v1.5 int8 768-d +
+#      existing PCA projection bge-base-en-v1.5.bin (already trained, 393732 B).
+#
+# Gates (candidate judged before any engine/serving decision):
+#   A regression guard : lexical WITH-fused seedP@1 == 1.00
+#   B primary          : hard WITH-fused seedP@1 >= 12/30 (>= +10 pairs vs 2/30)
+#   C owner-bar prereq : hard WITH-fused poolRec >= 21/30 (0.70) - the ceiling
+#                        math says 70% hard R@1 cannot be reached below a 70%
+#                        hard pool
+#   D not-a-swap-worse : WITH-fused overall pool >= 164/200 (MiniLM record)
+#                        unless B passes with margin (reported anyway)
+# Probe cap reminder: rerank cannot exceed hard pool recall (it only reorders
+# the existing pool). Embedder spend happens FIRST in the decision order if
+# C fails against the MiniLM record.
