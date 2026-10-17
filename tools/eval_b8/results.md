@@ -254,3 +254,33 @@ Caveats (read before citing):
 # >= 0.50) as the deciding R1 criterion; those numbers stay in the tables
 # above for history. The overall 0.70 / pool 0.85 els do not disappear as
 # product targets but R1 gating now reads hard-only.
+
+# CORRECTION (2026-10-17, reviewer seat): stage attribution != mechanism; ceiling math
+#
+# The "rank-side 16 vs candidate-side 12" hard split counts WHERE the pipeline
+# loses a target relative to the fused top-1. It is NOT evidence that the
+# alpha=0.25 authority weight buries paraphrase hits: in the Session L bench
+# every node carries equal authority, so that weight cannot reorder them there,
+# and the anchors own earlier run (plain unprojected MiniLM brute force)
+# scored 1/30 on hard vs CMHM fused 2/30 - the usable ordering is essentially
+# the embedder cosine itself. Until the rerank bench below measures it, the
+# honest mechanism statement is: the information is largely absent from the
+# geometry, with fusion performing near-limit on this corpus. retrieval.rs
+# stays untouched pending that measurement (locked file; no evidence = no edit).
+#
+# Ceiling (measured pools, hard cap arguments):
+#   hard-only R@1 cap  = hard pool recall  = 18/30      = 60.0%
+#   med+hard  R@1 cap  = (28+18)/71        = 46/71      = 64.8%
+#   overall   R@1 cap  = overall pool      = 164/200    = 82.0%
+#   Current med+hard R@1 = (6+2)/71 = 8/71 = 11.3%.
+# Every strict paraphrase reading of the 70% target therefore requires a
+# candidate-side (embedder/candidate-generator) improvement FIRST; no ranker
+# alone can exceed the caps above with the current embedder. Rank-only spend
+# before that is capped at +16 hard pairs (worst case 2 -> 18 R@1).
+#
+# Bench-only rerank probe (pre-registered before any run, no engine change,
+# no locked file): rerank the EXISTING top-20 pool of each paraphrase query
+# with a small cross-encoder inside a test. PASS = rank-only gain >= +10 of
+# the 30 hard pairs (suggested threshold from the reviewer seat, not derived
+# from data; worst case cap +16). Purpose: quantify how much ranking alone
+# recovers from the existing pool before any embedder spend.
