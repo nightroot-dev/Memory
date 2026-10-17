@@ -81,3 +81,4 @@ print('   registry:', registry()); print('   folders :', folders())
 for p, _ in procs:
     try: p.kill()
     except Exception: pass
+shutil.rmtree(TMP, ignore_errors=True)   # leave no litter; the printed record above is the evidence

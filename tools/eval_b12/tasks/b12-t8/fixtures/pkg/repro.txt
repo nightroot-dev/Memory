@@ -1,0 +1,4 @@
+$ data-jobs --all
+data-jobs: command not found
+$ datajob --all
+[main] running with --all

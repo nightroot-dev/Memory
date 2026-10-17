@@ -1,0 +1,3 @@
+/blog/*        -> blog.handler
+/static/*      -> assets.handler
+/health        -> health.handler

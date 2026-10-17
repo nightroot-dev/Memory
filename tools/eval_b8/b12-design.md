@@ -75,24 +75,19 @@ seeing results.
 
 ## 6. B11 condition (the trap, named and controlled)
 
-B11 (registry lost-update) is NOT fixed, and a multi-session eval is
-exactly the workload that can trigger it — a cmhm loss caused by B11
-would be a false signal about memory quality. B11 fix is a code change
-and stays with the reviewer; therefore B12 runs under a **single-writer
-protocol** instead:
+**UPDATE 2026-10-17: B11 is FIXED** (commit `c48ee4a`: exclusive sidecar
+lock + reload-merge save; acceptance repro green on the serving binary,
+`docs/eval_b8` record 7a491b1). The original mitigation plan is downgraded
+as follows:
 
-- Arms run strictly SEQUENTIALLY — one arm at a time, no parallel
-  subagents, no other cmhm traffic during an arm.
-- The runner (my session) makes ZERO memory calls while an arm runs.
-- **Registry integrity check around every arm:** before and after each
-  arm, record `registry.toml` mtime + display_name list. Expected:
-  entries only ever added (or removed by that arm's own deletions). Any
-  unexplained disappearance = clobber = that arm's data VOID; re-run
-  once; a second clobber aborts B12 and the B11 condition dominates the
-  report.
-- Statement for the record: **B12 runs with B11 UNFIXED, mitigated by
-  the single-writer protocol above.** If integrity holds throughout,
-  the result is attributable to memory quality, not to B11.
+- Arms still run strictly SEQUENTIALLY — one arm at a time, no parallel
+  subagents running concurrently.
+- **Registry integrity check around every arm** becomes pure regression
+  insurance (B11 reopened = any run's data void, re-run once): before and
+  after each arm, record `registry.toml` entry set. Any unexplained
+  disappearance = clobber = that arm VOID; second occurrence aborts B12.
+- Statement for the record: **B12 runs with B11 FIXED** (`c48ee4a`). A
+  cmhm loss in B12 is attributable to memory quality, not registry races.
 
 ## 7. What this note does not authorise
 
