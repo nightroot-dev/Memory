@@ -102,6 +102,42 @@ cleanup required direct disk removal. Full sequence recorded in
    data dirs), or serialize MCP servers per workspace.
 (1)+(3) together close both the write race and the existing-orphan class.
 
+## Fix record (2026-10-16)
+
+**FIXED — pending reviewer transplant into `docs/master_bug_list.md`**
+
+- Fix commit: `c48ee4a` (`fix(registry): B11 cross-instance lost update —
+  exclusive sidecar lock + reload-merge save`).
+- Mechanism: `Registry::save()` now (1) takes an exclusive fs2 lock on a
+  `registry.toml.lock` sidecar for the whole write, (2) reloads the on-disk
+  file first and merges — disk-only entries are adopted; for ids on both
+  sides the fresher copy wins (`version` desc, then `last_accessed` desc,
+  on exact ties a `Deleted` tombstone beats a live state). `load()` takes
+  the lock best-effort (reads are atomic-rename safe either way).
+- Residuals (documented, narrow): a foreign stale-map save can still
+  resurrect its own in-memory copy of an entry deleted elsewhere only when
+  that entry has a strictly higher `version`/`last_accessed` — requires a
+  concurrent create-or-learn+racing-delete across instances; requires late
+  version bumps; no resurrection on plain stale maps.
+- Suite: workspace `--no-fail-fast` (S-10 protocol): 55 binaries, 0
+  FAILED. Registry unit tests 225→228 (3 new B11 tests).
+- Acceptance repro (`tools/eval_b8/repro_registry_lost_update.py`),
+  serving binary rebuilt MSVC+onnx and copied to the GNU serving path:
+
+  - **Pre-fix control (old binary `8a5ea128…db4f`, same day):** clobber
+    reproduced again — after the stale-map save, registry = `['ctx-clobber',
+    'ctx-early', 'default']`, `ctx-late` gone, folder on disk; fresh
+    instance `context_delete` → `E_NOT_FOUND`.
+  - **Post-fix (new binary `acde87b2…d118`):** stale-map save keeps
+    registry = `['ctx-clobber', 'ctx-early', 'ctx-late', 'default']`
+    (no clobber); fresh instance `context_delete` → "## Context Deleted",
+    folder removed from disk. Registry keeps the ctx-late entry as a
+    `Deleted` tombstone (invisible to `list()`), which is normal
+    delete semantics, not an orphan.
+  - Acceptance gate **PASS** on both conditions (no clobber, delete OK).
+- Deployment note: live opencode servers still run the OLD binary until
+  the client restarts (same protocol as the B10 flip — owner restart).
+
 ## Evidence
 
 - Repro script + raw transcript: `tools/eval_b8/repro_registry_lost_update.py`.
