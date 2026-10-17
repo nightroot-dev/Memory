@@ -188,3 +188,48 @@ Caveats (read before citing):
 # hard pool 0.10 -> 0.60) but at the B8 task level the bottleneck is not
 # semantic recall of seeded facts. No further builds authorised; Step 3
 # (ranking) decision is the owner's, informed by B9/B10 evidence.
+
+# Post-B11-fix benchmark re-run (current master, 2026-10-17 - not hand-edited)
+#
+# Context: B11 registry lost-update fixed (c48ee4a: exclusive sidecar lock +
+# reload-merge save; acceptance repro green per b11-registry-durability.md,
+# docs commit 7a491b1). Serving binary rebuilt MSVC+onnx and swapped onto the
+# GNU path: sha256 acde87b2cf4ee4d160cd61a05c6aa650eb2bcfcf28d52582c46b3eec8b6ed118.
+# Workspace suite --no-fail-fast (S-10 protocol): 55 binaries, 0 FAILED.
+#
+# Commands (repo root, release):
+#   cargo +stable-x86_64-pc-windows-gnu test --release -p cmhm_core --test ops_bench_v2 -- --ignored --nocapture
+#   CMHM_LOAD_N=10000 [same] --test loadbench -- --ignored --nocapture
+#   cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_64-pc-windows-msvc --features onnx --test ops_bench_minilm_v2 -- --ignored --nocapture
+# Corpus: tools/corpus_l1.json, n=200 (100 lexical, 29 para-easy, 41 para-medium, 30 para-hard).
+#
+# HASH leg (2 fresh runs): seedP@1 / poolRec / MRR bit-stable and equal to the
+# Session L record. WITH-fused aggregates recompute to R@1 = 101/200 = 0.505,
+# pool = 112/200 = 0.560, MRR = 0.511 (matches record exactly).
+#
+# CHAIN metric finding: chainAcc varies run-to-run on IDENTICAL code
+# (lexical WITH-fused: record 0.14, this session 0.24 then 0.17, same build).
+# Root cause by inspection (not fixed): retrieval.rs:886 Thompson-sampled
+# Dijkstra - chain edge costs are random draws per retrieve, so the reported
+# chain is a stochastic path. chainAcc is NOT a bit-reproducible metric;
+# single-run chain numbers are draws, not delta-comparable values. Any
+# future chain gate needs an n-run mean+spread or a determinism change in a
+# locked file (not authorised here).
+#
+# MiniLM leg (1 run, fresh): WITH-fused == task.md Session L record
+# bit-identical: easy 0.2069/0.6207, medium 0.1463/0.6829, hard
+# 0.0667/0.6000 (seedP@1/poolRec); lexical 1.00/1.00. Aggregates: R@1 =
+# 114/200 = 0.570, pool = 164/200 = 0.820. Stage attribution identical to
+# the record: candidate 36 / rank 50 total (hard 12 candidate / 16 rank).
+#
+# Loadbench 10k (fixed build): learn throughput 349/s (record 190/s - wall
+# variance across sessions, not code: nodes stored 7941 identical in both);
+# retrieve mean 1.34ms / p50 1.27ms / p99 2.62ms at k=200 (record 1.84/1.80/2.70);
+# disk 5138 B/node (record ~5.0KB). Gates: p50 <= 100ms PASS (~79x headroom),
+# p99 <= 500ms PASS (~190x headroom).
+#
+# POST-FIX GATE STATUS: unchanged by the fix, as expected (registry
+# durability has no retrieval path). R@1 0.505 hash / 0.570 MiniLM - MISS
+# (gate 0.70); hard R@1 0.000 / 0.067 - MISS (gate 0.50); pool 0.560 / 0.820
+# - MISS (gate 0.85); latency PASS big. R1 (release blocker) stands until
+# the embedder/rank question is resolved (B12 design pending owner gate).
