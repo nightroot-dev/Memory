@@ -490,3 +490,69 @@ b13_diag_out.txt (committed).
 7. B12 pilot launch conditions Restated (design + README updated this
    commit): pilot = harness check only; arms strictly sequential; ONE
    server instance; bench-agent-m-parity guard with STOP on unavailability.
+
+
+---
+
+## B12 GO/NO-GO (2026-10-17): NO-GO - pre-registered parity guard fired
+
+Mechanics validated before any arm runs (pilot harness check):
+- run_arm.py / tripwire.py / metrics.py committed; prompt composition
+  verified against task.md for all 6 probe cases (verbatim body + arm
+  block; none = body only; notes = design §3 quote, chars intact).
+- tripwire + DB extraction paths read-only + proceed (registry.toml at
+  data/registry.toml; sessions in session_v2).
+- arm spawn self-test: opencode run --title "B12 t1 none s1" from
+  C:/Games/Projects/Memory -> **FAILED: "Model unavailable:
+  opencode/bench-agent-m-contributor-free"**. CLI catalog (opencode
+  models, 2026-10-17) no longer lists bench-agent-m-contributor-free
+  (nvidia/* + opencode/<others> only). DB row ses_eb702e6f... (titled
+  B12 t1 none s1, 3 message rows, wall 0.0s) records the failed spawn -
+  rows can exist for refused model spawns; metrics must treat wall 0
+  and <4 messages as non-data.
+- Per design note §6 parity guard (pre-registered today): runner STOPS
+  B12; no fallback model is authorized. The stop is COMPLIANT BEHAVIOR,
+  not a failure of the harness.
+
+## NEW RECORD-INTEGRITY BUG: B10 model parity claim FALSE (evidence, 2026-10-17)
+
+DB (opencode.db, session_v2) vs results.md B10 table (lines 145-155):
+
+| B10 cmhm arm session (title)     | wall     | model (DB)      |
+|----------------------------------|----------|-----------------|
+| B10 T1 T2 cmhm (both in 1 row)   | 773.8s   | bench-agent-k |
+| B10 T2 cmhm                      | 732.2s   | bench-agent-k |
+| B10 T3 cmhm                      | 1041.0s  | bench-agent-k |
+| B10 T4 cmhm                      | 2642.9s  | bench-agent-k |
+| B10 T5 cmhm                      | 2219.8s  | bench-agent-k |
+| B10 T6 cmhm                      | 3368.7s  | bench-agent-k |
+| B10 T7 cmhm                      | 1748.7s  | bench-agent-k |
+
+- Wall values match the results.md B10 table TO THE DECIMAL (732.2,
+  1041.0, 2642.9, 2219.8, 3368.7, 1748.7) -> the recorded cmhm arms ARE
+  these sessions: bench-agent-k-k3[default], NOT bench-agent-m xhigh.
+- The results.md compliance line "all arms bench-agent-m xhigh(model
+  parity held)" is therefore FALSE for the cmhm arm of every task.
+- Baselines: no B10 none/notes sessions exist in the DB; b10-minilm-step2.md
+  says "none/notes arms" stand (cmhm arms only) -> the baseline rows are
+  the bench-agent-m-era B8/B8r runs. The B10 walls/calls comparisons cmhm-vs-
+  baselines are CROSS-MODEL (bench-agent-k vs bench-agent-m); the recorded B10 verdict
+  (cmhm 0/7 outright) applied a same-model rule to cross-model data.
+- Additional protocol deviation visible in titles: "B10 T1 T2 cmhm" is
+  ONE session covering two tasks (7 messages); T1's 14 calls/37.7s row
+  cannot be reconstructed from a 773.8s 7-message joint session.
+- NOT touched: results.md B10 table, master_bug_list, b10 notes (reviewer
+  seat). This entry is the finding only. Re-measure decision is the
+  owner's: bench-agent-k latency variance was itself the flagged caveat in the
+  record; a parity re-run would change wall/calls but the correctness
+  PASS rate (6/7) is bench-agent-k-reported and cannot be carried to a bench-agent-m run.
+
+Consequences:
+- The B10 record's wall/calls columns and the model-parity compliance
+  line are VOID for use as a parity comparison basis; correctness
+  columns are bench-agent-k-reported.
+- B12's win rule "identical to B10" remains the rule; the model story of
+  that rule's data is now known-broken; B12 must run NEW arms all-parity
+  (any model the owner picks), never B10-carried baselines.
+- D1 blind-rater and D2 query-expansion probes unaffected (no arm
+  sessions, LLM choice documented when run).

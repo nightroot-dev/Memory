@@ -1,0 +1,8 @@
+RUNNER NOTE (identical wording for every arm): Your work directory for this session is C:\Games\Projects\Memory\tools\eval_b12\runs\b12-t1\none. Create, read and edit files ONLY inside it.
+
+# NightlySync - session 1 (discover)
+
+Work strictly inside this directory: the run work dir.
+The NightlySync task has silently stopped running. Diagnose the COMPLETE reason chain in this directory. Report exactly: (1) the task schedule file and the command path it lists, (2) which of those paths actually exist in this tree, (3) the config file and the flag that gates the script, with its current value, (4) the date of the last successful recorded run.
+Save your final findings in your reply; the runner saves it as report-s1.md.
+
