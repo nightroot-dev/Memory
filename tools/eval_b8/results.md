@@ -592,3 +592,22 @@ The work is committed and safe; the fixed serving binary stays as is.
 - Workspace suite --no-fail-fast: 59 result lines, 0 FAILED, no compile
   errors. No engine changes; serving binary unchanged (carries S-05 + B11).
 - Full record: tools/eval_b8/r1-restart-idempotency.md.
+
+### Pre-signoff evidence appended 2026-10-19 (details in the record file)
+
+- Exact suite counts (same run as the 0-FAILED claim): 453 passed / 0
+  failed / 8 ignored across 55 test binaries (59 result groups); raw run
+  output retained as tools/eval_b8/s10_suite_full-20261019.txt. Historical
+  baselines (49 / 50 / 55) were era-dependent counts of a growing suite.
+- The live context's 26 KB WAL tail was consumed by a load on 2026-10-17
+  14:51 (BEFORE the owner's backup directive): counters indicate exactly-once
+  recovery (snapshot +17 KB absorbing the tail; learns unchanged; ledger
+  8 episodes = 7 registry-counted + 1 recovered tail episode — meta-vs-
+  ledger counter mismatch flagged for the reviewer).
+- Rollback point taken 2026-10-19 12:50 (hash-verified, pre-directive
+  state incl. the open 6,162-byte tail): backups/…/e871b8ed-preflight-
+  20261019-125043 (untracked; not committed).
+- Live-sandbox two-boot test on the backed-up state (env-gated ignored
+  harness, key registration mirrored from scope.rs): boot1 24 nodes / 8
+  episodes / next_seq 9; boot2 identical. S-05 restart idempotency holds
+  on real shipped data.

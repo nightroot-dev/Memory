@@ -1,0 +1,1313 @@
+﻿cargo : warning: variable does not need to be mutable
+At line:1 char:1
++ cargo test --workspace --no-fail-fast 2>&1 | Out-File -Encoding utf8  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   --> cmhm_core\src\migration.rs:276:9
+    |
+276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `n`
+   --> cmhm_core\src\backup.rs:119:9
+    |
+119 |     let n = verify_backup(bundle)?;
+    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
+   Compiling cmhm_core v0.2.0 (C:\Games\Projects\Memory\cmhm_core)
+warning: unused import: `cmhm_core::engine::EngineHandle`
+  --> cmhm_core\tests\b7_link_kinds.rs:24:5
+   |
+24 | use cmhm_core::engine::EngineHandle;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `EpisodeStatus`
+  --> cmhm_core\tests\b7_link_kinds.rs:26:67
+   |
+26 | use cmhm_core::retrieval::{classify_link, is_prior_only_evidence, EpisodeStatus, LinkKind};
+   |                                                                   ^^^^^^^^^^^^^
+
+warning: unused import: `LearnResult`
+  --> cmhm_core\tests\b7_link_kinds.rs:27:25
+   |
+27 | use cmhm_core::{Config, LearnResult, NodeType, EMBED_DIM};
+   |                         ^^^^^^^^^^^
+
+warning: `cmhm_core` (test "b7_link_kinds") generated 3 warnings (run `cargo fix --test "b7_link_kinds" -p cmhm_core` 
+to apply 3 suggestions)
+warning: unused variable: `i`
+  --> cmhm_core\tests\fusion_hardcore_bench.rs:37:10
+   |
+37 |     for (i, (r, tmpl, action, _outcome)) in v.iter().enumerate() {
+   |          ^ help: if this is intentional, prefix it with an underscore: `_i`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (test "fusion_hardcore_bench") generated 1 warning (run `cargo fix --test "fusion_hardcore_bench" 
+-p cmhm_core` to apply 1 suggestion)
+warning: unused import: `cmhm_core::engine`
+  --> cmhm_core\tests\b2_read.rs:13:5
+   |
+13 | use cmhm_core::engine;
+   |     ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (test "b2_read") generated 1 warning (run `cargo fix --test "b2_read" -p cmhm_core` to apply 1 
+suggestion)
+warning: field `id` is never read
+  --> cmhm_core\tests\ops_bench_v2.rs:29:5
+   |
+28 | struct Pair {
+   |        ---- field in this struct
+29 |     id: String,
+   |     ^^
+   |
+   = note: `Pair` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during 
+dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (test "ops_bench_v2") generated 1 warning
+warning: `cmhm_core` (lib test) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.35s
+     Running unittests src\lib.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_core-c2bb244dd913f2c6.exe)
+
+running 228 tests
+test authority::tests::contradicted_has_ceiling ... ok
+test authority::tests::corrected_has_floor ... ok
+test authority::tests::empty_provenance_clamps_to_neutral_band ... ok
+test authority::tests::range_symmetric_around_0_5_for_neutral ... ok
+test authority::tests::untrusted_agent_caller_claiming_corrected_is_downgraded ... ok
+test authority::tests::untrusted_agent_caller_unknown_strings_fail_closed_to_inferred_0_60 ... ok
+test authority::tests::unknown_provenance_treated_as_empty ... ok
+test authority::tests::inferred_is_capped_at_0_60 ... ok
+test authority::tests::untrusted_agent_caller_claiming_external_feed_is_capped_to_0_60 ... ok
+test authority::tests::untrusted_agent_caller_claiming_user_explicit_is_downgraded ... ok
+test authority::tests::untrusted_agent_caller_contradicted_is_capped_at_0_30 ... ok
+test authority::tests::trusted_user_caller_preserves_corrected ... ok
+test authority::tests::untrusted_agent_caller_whitespace_casing_variants_are_normalized_and_capped ... ok
+test authority::tests::trusted_user_caller_preserves_user_explicit_and_full_authority ... ok
+test authority::tests::user_explicit_allows_full_range ... ok
+test bm25::tests::bm25_empty_query_returns_nothing ... ok
+test bm25::tests::bm25_exact_match_top_ranked ... ok
+test bm25::tests::bm25_no_match_returns_nothing ... ok
+test bm25::tests::bm25_idf_penalizes_common_terms ... ok
+test bm25::tests::bm25_partial_match_ranked_by_overlap ... ok
+test bm25::tests::bm25_reinsertion_updates_not_duplicates ... ok
+test bm25::tests::bm25_remove_works ... ok
+test bm25::tests::identifier_boost_goes_to_node_containing_token_not_bm25_top ... ok
+test bm25::tests::bm25_reindex_preserves_total_length_and_num_docs ... ok
+test bm25::tests::identifier_boost_respects_wanted_type_and_specificity ... ok
+test bm25::tests::identifier_boost_uses_index_tokenizer ... ok
+test bm25::tests::identifier_token_detection ... ok
+test bm25::tests::rarest_query_df_none_when_no_overlap ... ok
+test bm25::tests::rrf_boosts_consensus_candidate ... ok
+test bm25::tests::rarest_query_df_finds_rare_term ... ok
+test bm25::tests::rrf_combines_disjoint_lists ... ok
+test bm25::tests::rrf_empty_lists_handled ... ok
+test bm25::tests::rrf_top_k_respected ... ok
+test bm25::tests::tokenize_lowercases ... ok
+test backup::tests::empty_scope_is_an_error_not_an_empty_backup ... ok
+test bm25::tests::tokenize_preserves_identifiers ... ok
+test bm25::tests::tokenize_strips_stopwords ... ok
+test context::fsm::tests::active_has_four_successors ... ok
+test context::fsm::tests::active_is_serviceable ... ok
+test config::tests::partial_toml_falls_back_to_documented_defaults ... ok
+test context::fsm::tests::active_to_archived ... ok
+test context::fsm::tests::active_to_creating ... ok
+test context::fsm::tests::active_to_deleted ... ok
+test context::fsm::tests::active_to_idle ... ok
+test context::fsm::tests::active_to_recovering ... ok
+test context::fsm::tests::active_to_sleeping ... ok
+test context::fsm::tests::archived_cannot_delete_directly ... ok
+test context::fsm::tests::archived_to_active ... ok
+test context::fsm::tests::archived_to_deleted ... ok
+test context::fsm::tests::archived_to_sleeping ... ok
+test context::fsm::tests::creating_has_exactly_two_successors ... ok
+test context::fsm::tests::creating_not_serviceable ... ok
+test context::fsm::tests::creating_to_active ... ok
+test context::fsm::tests::creating_to_archived ... ok
+test context::fsm::tests::creating_to_deleted ... ok
+test context::fsm::tests::creating_to_idle ... ok
+test context::fsm::tests::creating_to_recovering ... ok
+test context::fsm::tests::creating_to_sleeping ... ok
+test context::fsm::tests::deleted_has_zero_successors ... ok
+test context::fsm::tests::deleted_not_serviceable ... ok
+test context::fsm::tests::deleted_to_active ... ok
+test context::fsm::tests::deleted_to_archived ... ok
+test context::fsm::tests::deleted_to_creating ... ok
+test context::fsm::tests::deleted_to_deleted ... ok
+test context::fsm::tests::deleted_to_idle ... ok
+test context::fsm::tests::deleted_to_recovering ... ok
+test context::fsm::tests::deleted_to_sleeping ... ok
+test context::fsm::tests::idle_is_serviceable ... ok
+test context::fsm::tests::idle_to_active ... ok
+test context::fsm::tests::idle_to_archived ... ok
+test context::fsm::tests::idle_to_creating ... ok
+test context::fsm::tests::idle_to_deleted ... ok
+test context::fsm::tests::idle_to_recovering ... ok
+test context::fsm::tests::idle_to_sleeping ... ok
+test context::fsm::tests::no_self_active ... ok
+test context::fsm::tests::no_self_archived ... ok
+test context::fsm::tests::no_self_creating ... ok
+test context::fsm::tests::no_self_deleted ... ok
+test context::fsm::tests::no_self_idle ... ok
+test context::fsm::tests::no_self_recovering ... ok
+test context::fsm::tests::no_self_sleeping ... ok
+test context::fsm::tests::recovering_not_serviceable ... ok
+test context::fsm::tests::recovering_to_active ... ok
+test context::fsm::tests::recovering_to_archived ... ok
+test context::fsm::tests::recovering_to_deleted ... ok
+test context::fsm::tests::recovering_to_idle ... ok
+test context::fsm::tests::recovering_to_sleeping ... ok
+test context::fsm::tests::sleeping_not_serviceable ... ok
+test context::fsm::tests::sleeping_to_active ... ok
+test context::fsm::tests::sleeping_to_archived ... ok
+test context::fsm::tests::sleeping_to_creating ... ok
+test context::fsm::tests::sleeping_to_deleted ... ok
+test context::fsm::tests::sleeping_to_idle ... ok
+test context::fsm::tests::sleeping_to_recovering ... ok
+test context::registry::tests::active_to_idle_succeeds ... ok
+test context::registry::tests::active_to_archived_rejected ... ok
+test context::registry::tests::creating_to_active_succeeds ... ok
+test context::registry::tests::creating_to_idle_rejected ... ok
+test context::registry::tests::deleted_to_active_rejected ... ok
+test context::registry::tests::idle_to_sleeping_succeeds ... ok
+test context::registry::tests::record_learn_bumps_version_and_count ... ok
+test context::registry::tests::sleeping_to_recovering_succeeds ... ok
+test context::registry::tests::recovering_to_active_succeeds ... ok
+test context::registry::tests::transition_to_active_bumps_access_count ... ok
+test context::router_tests::active_bonus_breaks_tie ... ok
+test context::router_tests::deleted_gets_no_active_bonus ... ok
+test context::router_tests::empty_query_uses_history_and_recency_only ... ok
+test context::router_tests::keyword_match_dominates ... ok
+test context::router_tests::frequency_breaks_tag_tie ... ok
+test context::router_tests::recovering_context_is_not_serviceable ... ok
+test context::router_tests::partial_keyword_match_is_proportional ... ok
+test context::router_tests::recency_decay_penalises_old_context ... ok
+test context::router_tests::idle_gets_active_bonus ... ok
+test context::router_tests::weight_override_disables_keyword_scoring ... ok
+test crypto::tests::record_legacy_passthrough ... ok
+test crypto::tests::seal_open_round_trip ... ok
+test crypto::tests::tampered_blob_fails_closed ... ok
+test crypto::tests::wrong_key_fails_closed ... ok
+test dense_core::tests::test_slice_index_deterministic ... ok
+test edge_store::tests::test_degree ... ok
+test edge_store::tests::test_remove_edge ... ok
+test embed::tests::default_embedder_model_id_nonempty ... ok
+test edge_store::tests::test_insert_and_retrieve ... ok
+test embed::tests::default_model_id_matches_default_embedder ... ok
+test embed::tests::default_embedder_constructs ... ok
+test embed::tests::default_embedder_embed_works ... ok
+test embed::tests::hash_embedder_batch_matches_single ... ok
+test embed::tests::hash_embedder_deterministic ... ok
+test embed::tests::hash_embedder_different_texts_different_embeddings ... ok
+test embed::tests::hash_embedder_dim_correct ... ok
+test embed::tests::hash_embedder_embed_returns_correct_dim ... ok
+test embed::tests::hash_embedder_empty_batch ... ok
+test embed::tests::hash_embedder_empty_string ... ok
+test embed::tests::hash_embedder_model_id_stable ... ok
+test embed::tests::hash_embedder_output_is_unit_norm ... ok
+test learn_ledger::tests::markers_are_distinct ... ok
+test learn_ledger::tests::append_assigns_monotonic_seqs ... ok
+test learn_ledger::tests::meta_attaches_only_to_retained_episodes ... ok
+test learn_ledger::tests::meta_filter_matches_clauses ... ok
+test learn_ledger::tests::meta_tags_truncate_at_cap ... ok
+test learn_ledger::tests::shared_count_tracks_dedup ... ok
+test node::tests::delta_immune_above_threshold ... ok
+test node::tests::delta_immune_exactly_at_threshold_is_not_immune ... ok
+test node::tests::failure_shortens_half_life ... ok
+test node::tests::half_life_capped_at_10_years ... ok
+test context::registry::tests::corrupt_registry_is_quarantined_not_silently_reset ... ok
+test node::tests::half_life_floored_at_1_day ... ok
+test node::tests::max_prediction_error_tracks_highest ... ok
+test node::tests::record_retrieval_increments ... ok
+test node::tests::salience_decay_floor_not_negative ... ok
+test node::tests::salience_decays_monotonically ... ok
+test node::tests::salience_no_decay_at_t0 ... ok
+test node::tests::success_extends_half_life ... ok
+test node::tests::thompson_draw_biased_toward_success ... ok
+test node::tests::thompson_draw_biased_toward_failure ... ok
+test node::tests::thompson_draw_in_unit_interval ... ok
+test node_store::tests::nearest_by_type_isolates_roles ... ok
+test context::registry::tests::merge_adopt_keeps_higher_version_disk_copy ... ok
+test node_store::tests::test_cosine_orthogonal ... ok
+test node_store::tests::test_global_ema_updates ... ok
+test node_store::tests::test_l2_normalize_unit_norm ... ok
+test node_store::tests::test_insert_and_get ... ok
+test node_store::tests::test_nearest_filters_by_model_id ... ok
+test crypto::tests::keystore_create_load_destroy ... ok
+test node_store::tests::test_nearest_returns_closest ... ok
+test persistence::tests::crc32_deterministic ... ok
+test persistence::tests::crc32_detects_single_bit_flip ... ok
+test persistence::tests::snapshot_pre_versioned_is_version_mismatch_not_corrupt ... ok
+test context::registry::tests::concurrent_instance_create_is_not_lost ... ok
+test persistence::tests::snapshot_round_trip ... ok
+test dense_core::tests::test_update_and_query ... ok
+test persistence::tests::snapshot_version_mismatch_is_distinct_from_corrupt ... ok
+test persistence::tests::snapshot_fallback_to_generation ... ok
+test persistence::tests::snapshot_keeps_generations ... ok
+test persistence::tests::wal_tolerates_empty_file ... ok
+test context::registry::tests::concurrent_delete_tombstone_survives_stale_writer ... ok
+test persistence::tests::wal_tolerates_missing_file ... ok
+test persistence::tests::wal_append_to_existing_no_double_magic ... ok
+test projection::tests::projection_registry_fails_closed_on_dim_mismatch ... ok
+test projection::tests::projection_registry_identity_for_128_dim ... ok
+test projection::tests::test_dim_mismatch_error ... ok
+test projection::tests::test_identity_projection ... ok
+test salience::tests::test_extreme_failure_boost ... ok
+test projection::tests::projection_registry_uses_registered_matrix ... ok
+test salience::tests::test_warmup_phase ... ok
+test consolidation::tests::test_cohorts_ensure_dim_transition ... ok
+test migration::tests::test_v2_to_v3_migration_preserves_identity_and_defaults ... ok
+test scope::tests::ids_are_opaque_and_unique ... ok
+test migration::tests::test_v3_to_v4_migration_preserves_stores_and_attaches_empty_ledger ... ok
+test migration::tests::test_v5_to_v6_migration_preserves_ledger_and_attaches_empty_meta ... ok
+test scrub::tests::entropy_api_key_above_threshold ... ok
+test scrub::tests::entropy_natural_text_below_threshold ... ok
+test scrub::tests::hex_key_32_chars_suspicious ... ok
+test scrub::tests::long_random_string_suspicious ... ok
+test scrub::tests::normal_identifier_not_suspicious ... ok
+test scrub::tests::scrub_clean_text_unchanged ... ok
+test scrub::tests::scrub_kv_pattern_api_key ... ok
+test scrub::tests::scrub_kv_pattern_token_colon ... ok
+test scrub::tests::scrub_partial_redaction_not_full_rejection ... ok
+test scrub::tests::scrub_preserves_useful_context ... ok
+test scrub::tests::scrub_removes_high_entropy_token ... ok
+test consolidation::tests::test_cohorts_dynamic_dimension_384 ... ok
+test scrub::tests::scrub_three_fields_combined ... ok
+test scrub::tests::short_words_not_suspicious ... ok
+test text_embed::tests::embedding_is_deterministic ... ok
+test text_embed::tests::different_texts_differ ... ok
+test text_embed::tests::empty_text_returns_zero_vec ... ok
+test text_embed::tests::embedding_is_unit_length ... ok
+test text_embed::tests::extract_tags_caps_at_max ... ok
+test text_embed::tests::extract_tags_deduplicates ... ok
+test text_embed::tests::extract_tags_filters_stop_words ... ok
+test text_embed::tests::similar_texts_are_closer ... ok
+test working_memory::tests::test_exclude ... ok
+test working_memory::tests::test_push_and_evict ... ok
+test backup::tests::round_trip_and_tamper ... ok
+test persistence::tests::wal_writes_magic_on_new_file ... ok
+test persistence::tests::wal_round_trip_with_magic ... ok
+test persistence::tests::wal_corrupt_payload_crc_flip_stops_replay ... ok
+test persistence::tests::wal_stops_at_crc_mismatch ... ok
+test persistence::tests::wal_torn_write_truncated_payload ... ok
+test consolidation::tests::test_run_consolidation_updates_384d_nodes ... ok
+test scope::tests::second_writer_is_refused_loudly ... ok
+test scope::tests::create_twice_is_refused ... ok
+test scope::tests::create_then_open_round_trips ... ok
+test scope::tests::version_mismatch_is_fail_closed ... ok
+test scope::tests::epoch_bumps_monotonically ... ok
+test migration::tests::test_v2_snapshot_fixture_direct_field_by_field_comparison ... ok
+test learn_ledger::tests::meta_dies_with_evicted_episode ... ok
+
+test result: ok. 228 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests\b1b_ledger.rs (target\x86_64-pc-windows-gnu\debug\deps\b1b_ledger-4f7dc7bc82c0f526.exe)
+
+running 9 tests
+test b1b_t6_thresholds_pinned ... ok
+test b1b_t7_learned_date_is_readable_utc ... ok
+test b1b_t5_ledgerless_vs_vector_only_markers ... ok
+test b1b_t1_triple_roundtrip ... ok
+test b1b_t3_dedup_shared_most_recent_wins ... ok
+test b1b_t2_top3_scored_order_no_rerank ... ok
+test b1b_t4_consolidation_graceful ... ok
+test b1b_t8_snapshot_restart_retrieves_triple ... ok
+test b1b_evict_oldest_first_index_consistent ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+     Running tests\b2_read.rs (target\x86_64-pc-windows-gnu\debug\deps\b2_read-d31aa329a9fcaa7d.exe)
+
+running 3 tests
+test b2_get_record_verbatim_and_unknown_is_none ... ok
+test b2_list_contains_learned_records_verbatim ... ok
+test b2_list_pagination_stable ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests\b6a_disposition.rs (target\x86_64-pc-windows-gnu\debug\deps\b6a_disposition-b6fabc87765ff5d5.exe)
+
+running 3 tests
+test b6a_disposition_birthed_then_deduped ... ok
+test b6a_strict_no_dup_skips_corrections ... ok
+test b6a_disposition_distinct_states_all_birth ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests\b6b_meta.rs (target\x86_64-pc-windows-gnu\debug\deps\b6b_meta-ab549528ff5de5ca.exe)
+
+running 4 tests
+test b6b_record_meta_roundtrip_and_refusal ... ok
+test b6b_absent_fields_retrieve_identically ... ok
+test b6b_filtered_retrieve_selects_only_matching_kind ... ok
+test b6b_meta_survives_restart ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests\b7_link_kinds.rs (target\x86_64-pc-windows-gnu\debug\deps\b7_link_kinds-6d016eaed10f527c.exe)
+
+running 5 tests
+test t_predicate_units_and_aged_decay ... ok
+test t_unknown_shown_labeled ... ok
+test t_same_experience_chain_visible ... ok
+test t_cross_prior_hidden_with_marker ... ok
+test t_cross_reinforced_shown_labeled ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests\backup_drill.rs (target\x86_64-pc-windows-gnu\debug\deps\backup_drill-7c8c2b285df9bb81.exe)
+
+running 1 test
+test backup_restore_drill ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.26s
+
+     Running tests\bm25_expansion_contract.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\bm25_expansion_contract-60d3572cfe92c83a.exe)
+
+running 1 test
+test state_scoped_retrieval_never_seeds_action_or_outcome_nodes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests\bm25_fusion_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\bm25_fusion_bench-5da619a3d1f5afa6.exe)
+
+running 1 test
+test bm25_fusion_reports_recall_delta ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\bm25_score_probe.rs (target\x86_64-pc-windows-gnu\debug\deps\bm25_score_probe-20a92ce0d989933f.exe)
+
+running 1 test
+test bm25_score_distributions ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\bm25_wire.rs (target\x86_64-pc-windows-gnu\debug\deps\bm25_wire-ca1ae4c744a21897.exe)
+
+running 3 tests
+test bm25_fusion_restores_recall_for_lexical_match ... ok
+test wal_v4_replay_preserves_text_for_bm25 ... ok
+test bm25_index_survives_restart_via_snapshot_and_rebuild ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+     Running tests\crypto_shred.rs (target\x86_64-pc-windows-gnu\debug\deps\crypto_shred-abbade259a8ad2a0.exe)
+
+running 1 test
+test sealed_round_trip_and_shred ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
+
+     Running tests\dprime_bench.rs (target\x86_64-pc-windows-gnu\debug\deps\dprime_bench-1536fc700adeecff.exe)
+
+running 1 test
+test bench_hash128d_dprime ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\embedder_select.rs (target\x86_64-pc-windows-gnu\debug\deps\embedder_select-3dec5ef472878a30.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\fusion_hardcore_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\fusion_hardcore_bench-13458057198817d3.exe)
+
+running 1 test
+test hardcore_fusion_bench ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\honest_bench.rs (target\x86_64-pc-windows-gnu\debug\deps\honest_bench-e20f50513a64d37f.exe)
+
+running 1 test
+test honest_without_vs_with ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\honest_bge_bench.rs (target\x86_64-pc-windows-gnu\debug\deps\honest_bge_bench-2741a3987ac8169c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\honest_minilm_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\honest_minilm_bench-d43d2208efa5124c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\integration.rs (target\x86_64-pc-windows-gnu\debug\deps\integration-fc69b95e40407119.exe)
+
+running 19 tests
+[2m2026-10-17T09:10:34.625704Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_n_sweep2_10\\registry.toml"
+[2m2026-10-17T09:10:34.625648Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_isolation\\registry.toml"
+[2m2026-10-17T09:10:34.625678Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_cos_calibration\\registry.toml"
+[2m2026-10-17T09:10:34.625648Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_q30_conv2\\registry.toml"
+[2m2026-10-17T09:10:34.625648Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_delete\\registry.toml"
+[2m2026-10-17T09:10:34.625994Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_birth_case1\\registry.toml"
+[2m2026-10-17T09:10:34.626112Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_persist\\registry.toml"
+[2m2026-10-17T09:10:34.626195Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_snap_reload\\registry.toml"
+[2m2026-10-17T09:10:34.626254Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ledger_crash\\registry.toml"
+[2m2026-10-17T09:10:34.626556Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_crash_exact\\registry.toml"
+[2m2026-10-17T09:10:34.626642Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_routing\\registry.toml"
+[2m2026-10-17T09:10:34.626652Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_shadow_gate_insertion\\registry.toml"
+[2m2026-10-17T09:10:34.626732Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_learn_retrieve\\registry.toml"
+[2m2026-10-17T09:10:34.626735Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_beta_posterior\\registry.toml"
+[2m2026-10-17T09:10:34.626652Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\registry.toml"
+[2m2026-10-17T09:10:34.627035Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_delete_invalid\\registry.toml"
+[2m2026-10-17T09:10:34.642954Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context a3cdc0e7-f74e-4138-ab40-3a54f3f6d971 into RAM
+[2m2026-10-17T09:10:34.643542Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 17d47a2b-f673-43dc-baae-05442f16631a into RAM
+[2m2026-10-17T09:10:34.644901Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 8cc38de2-c3a4-4704-8ac2-78bf0e9ffca0 into RAM
+[2m2026-10-17T09:10:34.649808Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context e2b94dd6-e636-44a6-97f9-8763a5a7c18c into RAM
+[2m2026-10-17T09:10:34.649808Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 into RAM
+[2m2026-10-17T09:10:34.655217Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 7696670b-642e-44b5-ba4e-3c7024337dab into RAM
+[2m2026-10-17T09:10:34.659007Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 69f4f85e-ae6f-472a-a820-9bf61605d765 into RAM
+[2m2026-10-17T09:10:34.659145Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 3ab0b849-1783-4431-a89a-2d254ad3da6d into RAM
+test test_delete_invalid_transition_preserves_data ... ok
+[2m2026-10-17T09:10:34.664930Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 43af212c-433e-4dd7-94f8-cee3fc92f619 into RAM
+[2m2026-10-17T09:10:34.665231Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\registry.toml"
+[2m2026-10-17T09:10:34.672443Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: Persist (aa0bd42a-8465-4e3b-862c-1357402e65f7)
+[2m2026-10-17T09:10:34.672555Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context aa0bd42a-8465-4e3b-862c-1357402e65f7 into RAM
+[2m2026-10-17T09:10:34.673333Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: CMHM (4fd788be-e952-4c1a-8da2-4993be6db143)
+[2m2026-10-17T09:10:34.678711Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: CMHM (a4ed7dfe-80f4-4474-b489-710cef0dec77)
+[2m2026-10-17T09:10:34.678796Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: ToDelete (34d4193d-9a45-4024-b72c-bd4277d21a7c)
+[2m2026-10-17T09:10:34.678850Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 34d4193d-9a45-4024-b72c-bd4277d21a7c into RAM
+[2m2026-10-17T09:10:34.678856Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 1ba1a2f7-8267-4ccc-82f3-de542b2868ae into RAM
+[2m2026-10-17T09:10:34.679269Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_q30_conv2\\contexts\\a3cdc0e7-f74e-4138-ab40-3a54f3f6d971\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.683823Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_shadow_gate_insertion\\contexts\\e2b94dd6-e636-44a6-97f9-8763a5a7c18c\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.684041Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ledger_crash\\contexts\\17d47a2b-f673-43dc-baae-05442f16631a\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.688854Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 into RAM
+[2m2026-10-17T09:10:34.688897Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: VideoAI (2b0abaed-f3ad-4090-872b-65eaf0eafc3e)
+[2m2026-10-17T09:10:34.690460Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: CMHM (3b28adc0-26c8-4cc6-9644-b5afa4e4ea09)
+[2m2026-10-17T09:10:34.690577Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 3b28adc0-26c8-4cc6-9644-b5afa4e4ea09 into RAM
+[2m2026-10-17T09:10:34.694958Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_cos_calibration\\contexts\\7696670b-642e-44b5-ba4e-3c7024337dab\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.695375Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: VideoAI (061da47f-a4c3-4fd0-92d7-8619524b823c)
+[2m2026-10-17T09:10:34.695451Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context a4ed7dfe-80f4-4474-b489-710cef0dec77 into RAM
+[2m2026-10-17T09:10:34.703868Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_snap_reload\\contexts\\8a90d29d-2e4f-44dd-942c-4d8abed7d712\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.705902Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_birth_case1\\contexts\\69f4f85e-ae6f-472a-a820-9bf61605d765\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.706134Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_crash_exact\\contexts\\3ab0b849-1783-4431-a89a-2d254ad3da6d\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.714010Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_n_sweep2_10\\contexts\\8cc38de2-c3a4-4704-8ac2-78bf0e9ffca0\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.714219Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: Linux (5e9cd009-4505-4bc1-b7e4-14625da640e9)
+[2m2026-10-17T09:10:34.714277Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 4fd788be-e952-4c1a-8da2-4993be6db143 into RAM
+[2m2026-10-17T09:10:34.714322Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_beta_posterior\\contexts\\1ba1a2f7-8267-4ccc-82f3-de542b2868ae\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.716157Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\contexts\\43af212c-433e-4dd7-94f8-cee3fc92f619\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.723124Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_persist\\contexts\\aa0bd42a-8465-4e3b-862c-1357402e65f7\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.724577Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\contexts\\4a0708c6-23b4-4822-ac79-3bb15fa5dda1\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.727267Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_delete\\contexts\\34d4193d-9a45-4024-b72c-bd4277d21a7c\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.727513Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_isolation\\contexts\\a4ed7dfe-80f4-4474-b489-710cef0dec77\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.729905Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_learn_retrieve\\contexts\\3b28adc0-26c8-4cc6-9644-b5afa4e4ea09\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:34.737348Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_routing\\contexts\\4fd788be-e952-4c1a-8da2-4993be6db143\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:35.121075Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context e2b94dd6-e636-44a6-97f9-8763a5a7c18c transitioned: creating -> active
+[2m2026-10-17T09:10:35.123512Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=0, edges=0, reinforce=0)
+[2m2026-10-17T09:10:35.141158Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 17d47a2b-f673-43dc-baae-05442f16631a transitioned: creating -> active
+[2m2026-10-17T09:10:35.147888Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 7696670b-642e-44b5-ba4e-3c7024337dab transitioned: creating -> active
+[2m2026-10-17T09:10:35.150126Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context a3cdc0e7-f74e-4138-ab40-3a54f3f6d971 transitioned: creating -> active
+[2m2026-10-17T09:10:35.164198Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:35.164198Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:35.172681Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 1ba1a2f7-8267-4ccc-82f3-de542b2868ae transitioned: creating -> active
+[2m2026-10-17T09:10:35.174606Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 34d4193d-9a45-4024-b72c-bd4277d21a7c transitioned: creating -> active
+[2m2026-10-17T09:10:35.179214Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: creating -> active
+[2m2026-10-17T09:10:35.182925Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: creating -> active
+[2m2026-10-17T09:10:35.182931Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context e2b94dd6-e636-44a6-97f9-8763a5a7c18c transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.185113Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:35.186352Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context e2b94dd6-e636-44a6-97f9-8763a5a7c18c
+[2m2026-10-17T09:10:35.188890Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.3)
+[2m2026-10-17T09:10:35.189030Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 69f4f85e-ae6f-472a-a820-9bf61605d765 transitioned: creating -> active
+[2m2026-10-17T09:10:35.191141Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 7696670b-642e-44b5-ba4e-3c7024337dab transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.191375Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:35.191375Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0)
+[2m2026-10-17T09:10:35.191423Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.192787Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 8cc38de2-c3a4-4704-8ac2-78bf0e9ffca0 transitioned: creating -> active
+[2m2026-10-17T09:10:35.194040Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 7696670b-642e-44b5-ba4e-3c7024337dab
+[2m2026-10-17T09:10:35.197776Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1
+[2m2026-10-17T09:10:35.201556Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.3)
+[2m2026-10-17T09:10:35.201717Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context a4ed7dfe-80f4-4474-b489-710cef0dec77 transitioned: creating -> active
+[2m2026-10-17T09:10:35.202058Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4fd788be-e952-4c1a-8da2-4993be6db143 transitioned: creating -> active
+[2m2026-10-17T09:10:35.204149Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 transitioned: creating -> active
+[2m2026-10-17T09:10:35.205093Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3ab0b849-1783-4431-a89a-2d254ad3da6d transitioned: creating -> active
+[2m2026-10-17T09:10:35.205363Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:35.215340Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.222000Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.099999994)
+[2m2026-10-17T09:10:35.223035Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3b28adc0-26c8-4cc6-9644-b5afa4e4ea09 transitioned: creating -> active
+[2m2026-10-17T09:10:35.227641Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.229834Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 43af212c-433e-4dd7-94f8-cee3fc92f619
+[2m2026-10-17T09:10:35.232013Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:35.232013Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:35.234346Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.3)
+[2m2026-10-17T09:10:35.234375Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 061da47f-a4c3-4fd0-92d7-8619524b823c into RAM
+[2m2026-10-17T09:10:35.236654Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 1ba1a2f7-8267-4ccc-82f3-de542b2868ae transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.238882Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 2b0abaed-f3ad-4090-872b-65eaf0eafc3e into RAM
+[2m2026-10-17T09:10:35.238851Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:35.239789Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.100000024)
+[2m2026-10-17T09:10:35.240788Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 69f4f85e-ae6f-472a-a820-9bf61605d765 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.244092Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 1ba1a2f7-8267-4ccc-82f3-de542b2868ae
+[2m2026-10-17T09:10:35.244126Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 69f4f85e-ae6f-472a-a820-9bf61605d765
+[2m2026-10-17T09:10:35.261846Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_routing\\contexts\\2b0abaed-f3ad-4090-872b-65eaf0eafc3e\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:35.262164Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_isolation\\contexts\\061da47f-a4c3-4fd0-92d7-8619524b823c\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:35.282300Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context aa0bd42a-8465-4e3b-862c-1357402e65f7 transitioned: creating -> active
+[2m2026-10-17T09:10:35.300505Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.3)
+[2m2026-10-17T09:10:35.305411Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3b28adc0-26c8-4cc6-9644-b5afa4e4ea09 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.308037Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 3b28adc0-26c8-4cc6-9644-b5afa4e4ea09
+[2m2026-10-17T09:10:35.325497Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_crash_exact\\registry.toml"
+[2m2026-10-17T09:10:35.325805Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 3ab0b849-1783-4431-a89a-2d254ad3da6d into RAM
+[2m2026-10-17T09:10:35.326139Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3ab0b849-1783-4431-a89a-2d254ad3da6d transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.328070Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 3ab0b849-1783-4431-a89a-2d254ad3da6d has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:35.328117Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3ab0b849-1783-4431-a89a-2d254ad3da6d transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:35.351011Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 8cc38de2-c3a4-4704-8ac2-78bf0e9ffca0 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.353193Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 8cc38de2-c3a4-4704-8ac2-78bf0e9ffca0
+[2m2026-10-17T09:10:35.640462Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 4a0708c6-23b4-4822-ac79-3bb15fa5dda1
+[2m2026-10-17T09:10:35.640540Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.640876Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 43af212c-433e-4dd7-94f8-cee3fc92f619
+[2m2026-10-17T09:10:35.640914Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.653482Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine e2b94dd6-e636-44a6-97f9-8763a5a7c18c
+[2m2026-10-17T09:10:35.653559Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.661631Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 1ba1a2f7-8267-4ccc-82f3-de542b2868ae
+[2m2026-10-17T09:10:35.661714Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.676368Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.678974Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 8a90d29d-2e4f-44dd-942c-4d8abed7d712
+[2m2026-10-17T09:10:35.690776Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 7696670b-642e-44b5-ba4e-3c7024337dab
+[2m2026-10-17T09:10:35.690867Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.691003Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 69f4f85e-ae6f-472a-a820-9bf61605d765
+[2m2026-10-17T09:10:35.691065Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.694444Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 17d47a2b-f673-43dc-baae-05442f16631a transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.696951Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 17d47a2b-f673-43dc-baae-05442f16631a
+[2m2026-10-17T09:10:35.708041Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 2b0abaed-f3ad-4090-872b-65eaf0eafc3e transitioned: creating -> active
+[2m2026-10-17T09:10:35.721454Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 34d4193d-9a45-4024-b72c-bd4277d21a7c transitioned: active -> deleted
+[2m2026-10-17T09:10:35.724030Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context deleted: 34d4193d-9a45-4024-b72c-bd4277d21a7c
+[2m2026-10-17T09:10:35.728473Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 3b28adc0-26c8-4cc6-9644-b5afa4e4ea09
+[2m2026-10-17T09:10:35.728564Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.743292Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 061da47f-a4c3-4fd0-92d7-8619524b823c transitioned: creating -> active
+test test_delete_is_irrevocable ... ok
+[2m2026-10-17T09:10:35.754138Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\registry.toml"
+[2m2026-10-17T09:10:35.758446Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context c3a43c4e-6185-4075-8252-2f8562bb0783 into RAM
+[2m2026-10-17T09:10:35.761109Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:35.761141Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 5e9cd009-4505-4bc1-b7e4-14625da640e9 into RAM
+[2m2026-10-17T09:10:35.775091Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context aa0bd42a-8465-4e3b-862c-1357402e65f7 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.780780Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.3)
+[2m2026-10-17T09:10:35.780826Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 061da47f-a4c3-4fd0-92d7-8619524b823c transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.781878Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context aa0bd42a-8465-4e3b-862c-1357402e65f7
+[2m2026-10-17T09:10:35.781885Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:35.783945Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_crash_exact\\contexts\\3ab0b849-1783-4431-a89a-2d254ad3da6d\\snapshot.bin"
+[2m2026-10-17T09:10:35.784210Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 0 nodes
+[2m2026-10-17T09:10:35.784287Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_routing\\contexts\\5e9cd009-4505-4bc1-b7e4-14625da640e9\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:35.785517Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 2 valid entries
+[2m2026-10-17T09:10:35.785598Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 2 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_crash_exact\\contexts\\3ab0b849-1783-4431-a89a-2d254ad3da6d\\wal.dat"
+[2m2026-10-17T09:10:35.788650Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 2 entries replayed into state
+[2m2026-10-17T09:10:35.804053Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 8cc38de2-c3a4-4704-8ac2-78bf0e9ffca0
+[2m2026-10-17T09:10:35.804149Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:35.815770Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context a4ed7dfe-80f4-4474-b489-710cef0dec77 transitioned: active -> sleeping
+[2m2026-10-17T09:10:35.842062Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 061da47f-a4c3-4fd0-92d7-8619524b823c
+[2m2026-10-17T09:10:36.062013Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\registry.toml"
+[2m2026-10-17T09:10:36.062352Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 43af212c-433e-4dd7-94f8-cee3fc92f619 into RAM
+[2m2026-10-17T09:10:36.062641Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:36.062672Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:36.090293Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\registry.toml"
+[2m2026-10-17T09:10:36.090673Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 into RAM
+[2m2026-10-17T09:10:36.090981Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:36.091013Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: sleeping -> recovering
+test test_feedback_duplicate_preserves_valid_beta_posterior ... ok
+[2m2026-10-17T09:10:36.112233Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 8a90d29d-2e4f-44dd-942c-4d8abed7d712
+[2m2026-10-17T09:10:36.112342Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:36.113794Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_wal\\registry.toml"
+[2m2026-10-17T09:10:36.148716Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context created: CrashTest (9040699b-cc23-4783-81bc-faa8dd9e22b5)
+[2m2026-10-17T09:10:36.148807Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 9040699b-cc23-4783-81bc-faa8dd9e22b5 into RAM
+[2m2026-10-17T09:10:36.151427Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 17d47a2b-f673-43dc-baae-05442f16631a
+[2m2026-10-17T09:10:36.151510Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_shadow_gate_insertion_proven_by_node_count ... ok
+test test_learn_and_retrieve ... ok
+[2m2026-10-17T09:10:36.174998Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_birth_case2\\registry.toml"
+test test_birth_gate_cosine_calibration_curve ... ok
+[2m2026-10-17T09:10:36.176086Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_wal\\contexts\\9040699b-cc23-4783-81bc-faa8dd9e22b5\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:36.182058Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 6bd39977-9a2f-4407-8c04-de419cc1f9a2 into RAM
+[2m2026-10-17T09:10:36.200844Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_birth_case2\\contexts\\6bd39977-9a2f-4407-8c04-de419cc1f9a2\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:36.206967Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine aa0bd42a-8465-4e3b-862c-1357402e65f7
+[2m2026-10-17T09:10:36.207068Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:36.248824Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_n_sweep2_1000\\registry.toml"
+[2m2026-10-17T09:10:36.260655Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context a4ed7dfe-80f4-4474-b489-710cef0dec77
+[2m2026-10-17T09:10:36.260917Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 2898542d-52ad-4017-9f26-a7228cb64ef0 into RAM
+[2m2026-10-17T09:10:36.263221Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: creating -> active
+[2m2026-10-17T09:10:36.269961Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3ab0b849-1783-4431-a89a-2d254ad3da6d transitioned: recovering -> active
+[2m2026-10-17T09:10:36.273128Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 5e9cd009-4505-4bc1-b7e4-14625da640e9 transitioned: creating -> active
+[2m2026-10-17T09:10:36.275219Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.275213Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:36.276898Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:36.278914Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:36.287650Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.19999999)
+[2m2026-10-17T09:10:36.287769Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4fd788be-e952-4c1a-8da2-4993be6db143 transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.288219Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_n_sweep2_1000\\contexts\\2898542d-52ad-4017-9f26-a7228cb64ef0\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:36.292894Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 2b0abaed-f3ad-4090-872b-65eaf0eafc3e transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.309199Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 5e9cd009-4505-4bc1-b7e4-14625da640e9 transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.310222Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 3ab0b849-1783-4431-a89a-2d254ad3da6d transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.312376Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 3ab0b849-1783-4431-a89a-2d254ad3da6d
+[2m2026-10-17T09:10:36.322523Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 4fd788be-e952-4c1a-8da2-4993be6db143
+[2m2026-10-17T09:10:36.460999Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\contexts\\43af212c-433e-4dd7-94f8-cee3fc92f619\\snapshot.bin"
+[2m2026-10-17T09:10:36.461078Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:36.462549Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 2 valid entries
+[2m2026-10-17T09:10:36.462621Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 2/2 already-applied entries
+[2m2026-10-17T09:10:36.462640Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\contexts\\43af212c-433e-4dd7-94f8-cee3fc92f619\\wal.dat"
+[2m2026-10-17T09:10:36.462672Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:36.469544Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\contexts\\4a0708c6-23b4-4822-ac79-3bb15fa5dda1\\snapshot.bin"
+[2m2026-10-17T09:10:36.469624Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:36.470782Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 1 valid entries
+[2m2026-10-17T09:10:36.470830Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 1/1 already-applied entries
+[2m2026-10-17T09:10:36.470848Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\contexts\\4a0708c6-23b4-4822-ac79-3bb15fa5dda1\\wal.dat"
+[2m2026-10-17T09:10:36.470878Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:36.528479Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_snap_reload\\registry.toml"
+[2m2026-10-17T09:10:36.528825Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 into RAM
+[2m2026-10-17T09:10:36.529131Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:36.529167Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:36.570090Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ledger_crash\\registry.toml"
+[2m2026-10-17T09:10:36.570477Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 17d47a2b-f673-43dc-baae-05442f16631a into RAM
+[2m2026-10-17T09:10:36.570792Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 17d47a2b-f673-43dc-baae-05442f16631a has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:36.570825Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 17d47a2b-f673-43dc-baae-05442f16631a transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:36.606170Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 9040699b-cc23-4783-81bc-faa8dd9e22b5 transitioned: creating -> active
+[2m2026-10-17T09:10:36.614541Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 2 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_persist\\registry.toml"
+[2m2026-10-17T09:10:36.615156Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context aa0bd42a-8465-4e3b-862c-1357402e65f7 into RAM
+[2m2026-10-17T09:10:36.615549Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context aa0bd42a-8465-4e3b-862c-1357402e65f7 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:36.615609Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context aa0bd42a-8465-4e3b-862c-1357402e65f7 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:36.618932Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.100000024)
+[2m2026-10-17T09:10:36.626483Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 6bd39977-9a2f-4407-8c04-de419cc1f9a2 transitioned: creating -> active
+[2m2026-10-17T09:10:36.640978Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:36.658399Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 061da47f-a4c3-4fd0-92d7-8619524b823c
+[2m2026-10-17T09:10:36.659828Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:36.673991Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 6bd39977-9a2f-4407-8c04-de419cc1f9a2 transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.676265Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 6bd39977-9a2f-4407-8c04-de419cc1f9a2
+[2m2026-10-17T09:10:36.701050Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:36.701139Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:36.716192Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 2898542d-52ad-4017-9f26-a7228cb64ef0 transitioned: creating -> active
+[2m2026-10-17T09:10:36.717128Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 2b0abaed-f3ad-4090-872b-65eaf0eafc3e
+[2m2026-10-17T09:10:36.717705Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 3ab0b849-1783-4431-a89a-2d254ad3da6d
+[2m2026-10-17T09:10:36.717772Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:36.728751Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.099999994)
+[2m2026-10-17T09:10:36.861418Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: recovering -> active
+[2m2026-10-17T09:10:36.885373Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: recovering -> active
+[2m2026-10-17T09:10:36.892532Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_snap_reload\\contexts\\8a90d29d-2e4f-44dd-942c-4d8abed7d712\\snapshot.bin"
+[2m2026-10-17T09:10:36.893086Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:36.893881Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.894359Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 2 valid entries
+[2m2026-10-17T09:10:36.894409Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 2/2 already-applied entries
+[2m2026-10-17T09:10:36.894427Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_fb_snap_reload\\contexts\\8a90d29d-2e4f-44dd-942c-4d8abed7d712\\wal.dat"
+[2m2026-10-17T09:10:36.894457Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:36.897449Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1
+[2m2026-10-17T09:10:36.926218Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\registry.toml"
+[2m2026-10-17T09:10:36.926589Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 43af212c-433e-4dd7-94f8-cee3fc92f619 into RAM
+[2m2026-10-17T09:10:36.926982Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: active -> sleeping
+[2m2026-10-17T09:10:36.929157Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:36.929204Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:36.930548Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ledger_crash\\contexts\\17d47a2b-f673-43dc-baae-05442f16631a\\snapshot.bin"
+[2m2026-10-17T09:10:36.931008Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:36.932227Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 2 valid entries
+[2m2026-10-17T09:10:36.932309Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 2/2 already-applied entries
+[2m2026-10-17T09:10:36.932371Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ledger_crash\\contexts\\17d47a2b-f673-43dc-baae-05442f16631a\\wal.dat"
+[2m2026-10-17T09:10:36.932416Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:36.960901Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_persist\\contexts\\aa0bd42a-8465-4e3b-862c-1357402e65f7\\snapshot.bin"
+[2m2026-10-17T09:10:36.960967Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 6 nodes
+[2m2026-10-17T09:10:36.962169Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 2 valid entries
+[2m2026-10-17T09:10:36.962223Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 2/2 already-applied entries
+[2m2026-10-17T09:10:36.962247Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_persist\\contexts\\aa0bd42a-8465-4e3b-862c-1357402e65f7\\wal.dat"
+[2m2026-10-17T09:10:36.962278Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:37.029525Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine a4ed7dfe-80f4-4474-b489-710cef0dec77
+[2m2026-10-17T09:10:37.029625Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:37.050313Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 6bd39977-9a2f-4407-8c04-de419cc1f9a2
+[2m2026-10-17T09:10:37.050424Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_feedback_survives_crash_exactly_once ... ok
+[2m2026-10-17T09:10:37.091398Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\registry.toml"
+[2m2026-10-17T09:10:37.091767Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context c3a43c4e-6185-4075-8252-2f8562bb0783 into RAM
+[2m2026-10-17T09:10:37.092095Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:37.092133Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:37.105567Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 5e9cd009-4505-4bc1-b7e4-14625da640e9
+[2m2026-10-17T09:10:37.218474Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 2 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_wal\\registry.toml"
+[2m2026-10-17T09:10:37.218887Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 9040699b-cc23-4783-81bc-faa8dd9e22b5 into RAM
+[2m2026-10-17T09:10:37.219217Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 9040699b-cc23-4783-81bc-faa8dd9e22b5 transitioned: active -> sleeping
+[2m2026-10-17T09:10:37.221713Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context 9040699b-cc23-4783-81bc-faa8dd9e22b5 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:37.221765Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 9040699b-cc23-4783-81bc-faa8dd9e22b5 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:37.274185Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\contexts\\43af212c-433e-4dd7-94f8-cee3fc92f619\\snapshot.bin"
+[2m2026-10-17T09:10:37.274868Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:37.275337Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 1 valid entries
+[2m2026-10-17T09:10:37.275390Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 1 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_unkeyed_seq_reset_cycle\\contexts\\43af212c-433e-4dd7-94f8-cee3fc92f619\\wal.dat"
+[2m2026-10-17T09:10:37.275456Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 1 entries replayed into state
+[2m2026-10-17T09:10:37.277952Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 4a0708c6-23b4-4822-ac79-3bb15fa5dda1
+[2m2026-10-17T09:10:37.278045Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:37.282577Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 8a90d29d-2e4f-44dd-942c-4d8abed7d712 transitioned: recovering -> active
+test test_feedback_key_survives_snapshot_reload ... ok
+[2m2026-10-17T09:10:37.315860Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 17d47a2b-f673-43dc-baae-05442f16631a transitioned: recovering -> active
+[2m2026-10-17T09:10:37.327146Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 17d47a2b-f673-43dc-baae-05442f16631a transitioned: active -> sleeping
+[2m2026-10-17T09:10:37.331182Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 17d47a2b-f673-43dc-baae-05442f16631a
+[2m2026-10-17T09:10:37.335897Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context aa0bd42a-8465-4e3b-862c-1357402e65f7 transitioned: recovering -> active
+[2m2026-10-17T09:10:37.340427Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context aa0bd42a-8465-4e3b-862c-1357402e65f7 transitioned: active -> sleeping
+[2m2026-10-17T09:10:37.349828Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context aa0bd42a-8465-4e3b-862c-1357402e65f7
+test test_context_isolation ... ok
+[2m2026-10-17T09:10:37.430754Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 0 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_birth_case3\\registry.toml"
+[2m2026-10-17T09:10:37.433351Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\snapshot.bin"
+[2m2026-10-17T09:10:37.433653Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:37.434789Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 1 valid entries
+[2m2026-10-17T09:10:37.434835Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 1/1 already-applied entries
+[2m2026-10-17T09:10:37.434851Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\wal.dat"
+[2m2026-10-17T09:10:37.434879Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:37.436925Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 77276d4b-1e58-4ab3-bcf2-bac26d3b3128 into RAM
+[2m2026-10-17T09:10:37.462756Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m No snapshot found at "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_birth_case3\\contexts\\77276d4b-1e58-4ab3-bcf2-bac26d3b3128\\snapshot.bin" ÔÇö starting with empty state
+[2m2026-10-17T09:10:37.468062Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 4fd788be-e952-4c1a-8da2-4993be6db143
+[2m2026-10-17T09:10:37.468166Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:37.544154Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_wal\\contexts\\9040699b-cc23-4783-81bc-faa8dd9e22b5\\snapshot.bin"
+[2m2026-10-17T09:10:37.544221Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 30 nodes
+[2m2026-10-17T09:10:37.553419Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 15 valid entries
+[2m2026-10-17T09:10:37.553571Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 10/15 already-applied entries
+[2m2026-10-17T09:10:37.553605Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 5 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_wal\\contexts\\9040699b-cc23-4783-81bc-faa8dd9e22b5\\wal.dat"
+[2m2026-10-17T09:10:37.598909Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 5 entries replayed into state
+[2m2026-10-17T09:10:37.607260Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\registry.toml"
+[2m2026-10-17T09:10:37.607656Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 into RAM
+[2m2026-10-17T09:10:37.610078Z[0m [33m WARN[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\contexts\\4a0708c6-23b4-4822-ac79-3bb15fa5dda1\\snapshot.bin": no version envelope (pre-v6 format) ÔÇö discarding, will rebuild from WAL
+[2m2026-10-17T09:10:37.610208Z[0m [31mERROR[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot schema mismatch (found=v1, expected=v6).
+[2m2026-10-17T09:10:37.615082Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\registry.toml"
+[2m2026-10-17T09:10:37.615487Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 into RAM
+[2m2026-10-17T09:10:37.617350Z[0m [33m WARN[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_failclosed\\contexts\\4a0708c6-23b4-4822-ac79-3bb15fa5dda1\\snapshot.bin": no version envelope (pre-v6 format) ÔÇö discarding, will rebuild from WAL
+[2m2026-10-17T09:10:37.617420Z[0m [31mERROR[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot schema mismatch (found=v1, expected=v6).
+[2m2026-10-17T09:10:37.666316Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: recovering -> active
+[2m2026-10-17T09:10:37.672308Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 43af212c-433e-4dd7-94f8-cee3fc92f619 transitioned: active -> sleeping
+[2m2026-10-17T09:10:37.681460Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 43af212c-433e-4dd7-94f8-cee3fc92f619
+[2m2026-10-17T09:10:37.711260Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 17d47a2b-f673-43dc-baae-05442f16631a
+[2m2026-10-17T09:10:37.711365Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:37.755199Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine aa0bd42a-8465-4e3b-862c-1357402e65f7
+[2m2026-10-17T09:10:37.755303Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:37.823562Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: recovering -> active
+[2m2026-10-17T09:10:37.839054Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: active -> sleeping
+[2m2026-10-17T09:10:37.841861Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:37.875682Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 77276d4b-1e58-4ab3-bcf2-bac26d3b3128 transitioned: creating -> active
+[2m2026-10-17T09:10:37.884650Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=3, edges=3, reinforce=0.39999998)
+[2m2026-10-17T09:10:37.887553Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 2b0abaed-f3ad-4090-872b-65eaf0eafc3e
+[2m2026-10-17T09:10:37.887637Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:37.925634Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 77276d4b-1e58-4ab3-bcf2-bac26d3b3128 transitioned: active -> sleeping
+[2m2026-10-17T09:10:37.928080Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 77276d4b-1e58-4ab3-bcf2-bac26d3b3128
+[2m2026-10-17T09:10:37.965599Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=588, edges=3011, reinforce=50.00012)
+[2m2026-10-17T09:10:38.105659Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 9040699b-cc23-4783-81bc-faa8dd9e22b5 transitioned: recovering -> active
+[2m2026-10-17T09:10:38.111031Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: sleeping -> active
+[2m2026-10-17T09:10:38.112342Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 9040699b-cc23-4783-81bc-faa8dd9e22b5 transitioned: active -> sleeping
+[2m2026-10-17T09:10:38.113979Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=0, edges=0, reinforce=0)
+[2m2026-10-17T09:10:38.120500Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 9040699b-cc23-4783-81bc-faa8dd9e22b5
+[2m2026-10-17T09:10:38.123900Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1 transitioned: active -> sleeping
+[2m2026-10-17T09:10:38.126708Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 4a0708c6-23b4-4822-ac79-3bb15fa5dda1
+[2m2026-10-17T09:10:38.168208Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 43af212c-433e-4dd7-94f8-cee3fc92f619
+[2m2026-10-17T09:10:38.168531Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_feedback_ledger_crash_boundary ... ok
+test test_persistence_across_restart ... ok
+[2m2026-10-17T09:10:38.319997Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:38.320104Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:38.342096Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 5e9cd009-4505-4bc1-b7e4-14625da640e9
+[2m2026-10-17T09:10:38.342205Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:38.374830Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 77276d4b-1e58-4ab3-bcf2-bac26d3b3128
+[2m2026-10-17T09:10:38.374921Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:38.554041Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 4a0708c6-23b4-4822-ac79-3bb15fa5dda1
+[2m2026-10-17T09:10:38.554128Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:38.569873Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 9040699b-cc23-4783-81bc-faa8dd9e22b5
+[2m2026-10-17T09:10:38.569969Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_unkeyed_feedback_restart_seq_reset_cycle ... ok
+test test_context_routing ... ok
+[2m2026-10-17T09:10:38.798689Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\registry.toml"
+[2m2026-10-17T09:10:38.799104Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context c3a43c4e-6185-4075-8252-2f8562bb0783 into RAM
+[2m2026-10-17T09:10:38.799488Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:38.799524Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:38.803683Z[0m [33m WARN[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\snapshot.bin": no version envelope (pre-v6 format) ÔÇö discarding, will rebuild from WAL
+[2m2026-10-17T09:10:38.803784Z[0m [31mERROR[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot schema mismatch (found=v1, expected=v6).
+[2m2026-10-17T09:10:38.803842Z[0m [31mERROR[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783: snapshot schema mismatch -- context preserved in Sleeping state (UUID intact). Snapshot and WAL are untouched. Set allow_incompatible_snapshot_reset=true to quarantine and reset, or provide a migration path.
+[2m2026-10-17T09:10:38.803888Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: recovering -> sleeping
+[2m2026-10-17T09:10:38.818058Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\registry.toml"
+[2m2026-10-17T09:10:38.818445Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context c3a43c4e-6185-4075-8252-2f8562bb0783 into RAM
+[2m2026-10-17T09:10:38.818790Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:38.818827Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:38.823773Z[0m [33m WARN[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\snapshot.bin": no version envelope (pre-v6 format) ÔÇö discarding, will rebuild from WAL
+[2m2026-10-17T09:10:38.823871Z[0m [31mERROR[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot schema mismatch (found=v1, expected=v6).
+test test_birth_threshold_boundary_cases ... ok
+[2m2026-10-17T09:10:38.855312Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 0 valid entries
+[2m2026-10-17T09:10:38.855403Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL exists but is empty ÔÇö no replay needed
+test test_version_mismatch_fails_closed_and_quarantines ... ok
+test test_wal_crash_recovery ... ok
+[2m2026-10-17T09:10:39.280628Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: recovering -> active
+[2m2026-10-17T09:10:39.283692Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=0, edges=0, reinforce=0)
+[2m2026-10-17T09:10:39.292438Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: active -> sleeping
+[2m2026-10-17T09:10:39.295338Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:39.722572Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:39.722660Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+[2m2026-10-17T09:10:40.170249Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Registry loaded: 1 contexts from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\registry.toml"
+[2m2026-10-17T09:10:40.170685Z[0m [32m INFO[0m [2mcmhm_core::context::runtime[0m[2m:[0m Loading context c3a43c4e-6185-4075-8252-2f8562bb0783 into RAM
+[2m2026-10-17T09:10:40.171021Z[0m [33m WARN[0m [2mcmhm_core::context::runtime[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 has unclean WAL -- entering Recovering state
+[2m2026-10-17T09:10:40.171054Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: sleeping -> recovering
+[2m2026-10-17T09:10:40.537008Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m Snapshot v6 loaded from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\snapshot.bin"
+[2m2026-10-17T09:10:40.537403Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Snapshot loaded: 3 nodes
+[2m2026-10-17T09:10:40.538886Z[0m [32m INFO[0m [2mcmhm_core::persistence[0m[2m:[0m WAL replay: 1 valid entries
+[2m2026-10-17T09:10:40.538958Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL watermark: skipping 1/1 already-applied entries
+[2m2026-10-17T09:10:40.538984Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Replaying 0 WAL entries from "C:\\Users\\dbroot\\AppData\\Local\\Temp\\cmhm_integ_ver_mismatch_wal\\contexts\\c3a43c4e-6185-4075-8252-2f8562bb0783\\wal.dat"
+[2m2026-10-17T09:10:40.539022Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m WAL replay complete: 0 entries replayed into state
+[2m2026-10-17T09:10:40.992034Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: recovering -> active
+[2m2026-10-17T09:10:41.003825Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context c3a43c4e-6185-4075-8252-2f8562bb0783 transitioned: active -> sleeping
+[2m2026-10-17T09:10:41.006198Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:41.397481Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine c3a43c4e-6185-4075-8252-2f8562bb0783
+[2m2026-10-17T09:10:41.397586Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_version_mismatch_wal_present_preserves_uuid ... ok
+[2m2026-10-17T09:10:42.542664Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Running consolidation (nodes=1064, edges=5540, reinforce=50.099808)
+[2m2026-10-17T09:10:44.594140Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context a3cdc0e7-f74e-4138-ab40-3a54f3f6d971 transitioned: active -> sleeping
+[2m2026-10-17T09:10:44.597789Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context a3cdc0e7-f74e-4138-ab40-3a54f3f6d971
+[2m2026-10-17T09:10:45.365633Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine a3cdc0e7-f74e-4138-ab40-3a54f3f6d971
+[2m2026-10-17T09:10:45.365743Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_birth_q30_converges_to_target_quantile ... ok
+[2m2026-10-17T09:10:58.575654Z[0m [32m INFO[0m [2mcmhm_core::context::registry[0m[2m:[0m Context 2898542d-52ad-4017-9f26-a7228cb64ef0 transitioned: active -> sleeping
+[2m2026-10-17T09:10:58.578466Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Checkpointing context 2898542d-52ad-4017-9f26-a7228cb64ef0
+[2m2026-10-17T09:10:59.515652Z[0m [32m INFO[0m [2mcmhm_core::context::cache[0m[2m:[0m Shutting down context engine 2898542d-52ad-4017-9f26-a7228cb64ef0
+[2m2026-10-17T09:10:59.515797Z[0m [32m INFO[0m [2mcmhm_core::engine[0m[2m:[0m Worker shutting down. Taking final snapshot.
+test test_birth_gate_max_cosine_grows_with_n ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.83s
+
+     Running tests\loadbench.rs (target\x86_64-pc-windows-gnu\debug\deps\loadbench-ea795a95c35e288b.exe)
+
+running 1 test
+test load_sweep ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\minilm_bench.rs (target\x86_64-pc-windows-gnu\debug\deps\minilm_bench-e70bb4aa3d9d6702.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\minilm_dense_only.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\minilm_dense_only-dacf2b0c6cd976d5.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\minilm_e2e.rs (target\x86_64-pc-windows-gnu\debug\deps\minilm_e2e-7b56a74d836d240a.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\ops_bench_bge_base_v1.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\ops_bench_bge_base_v1-1ba516a9b3e4ebd6.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\ops_bench_minilm_v2.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\ops_bench_minilm_v2-7c22f6fceb5ad418.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\ops_bench_v2.rs (target\x86_64-pc-windows-gnu\debug\deps\ops_bench_v2-4530697529fbee00.exe)
+
+running 1 test
+test ops_bench_v2_honest ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\phase3_gap_independence_tests.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\phase3_gap_independence_tests-9aef2a8887c60836.exe)
+
+running 4 tests
+test test_adversarial_pair_gap_independence ... ok
+test test_pool_detection_fires_for_rank6_contradicted ... ok
+test test_provenance_pair_unconditional_abstention ... ok
+test test_logical_contradiction_gap_independence ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+
+     Running tests\phase3_held_out_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\phase3_held_out_bench-04f42f39b717733f.exe)
+
+running 2 tests
+test test_phase3_conflict_detection_and_safe_abstention ... ok
+test test_phase3_fresh_held_out_operational_benchmark ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+
+     Running tests\phase3_synthetic_eval_tests.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\phase3_synthetic_eval_tests-56dfd56282e717ad.exe)
+
+running 10 tests
+test synth_04_abstained_result_has_empty_chain_invariant ... ok
+test synth_05_gate_ci_direction_rules_documented ... ok
+test synth_06_mrr_no_rank_cap_absent_is_zero ... ok
+test synth_08_tie_breaking_conservative ... ok
+test synth_09_selection_decision_outcome_decomposition_exhaustive ... ok
+test synth_01_unscoped_path_is_externally_reachable ... ok
+test synth_03_logical_contradiction_classification_is_correct ... ok
+test synth_02_pool_stage_supersession_filter ... ok
+test synth_07_score_proximity_alone_is_not_conflict ... ok
+test synth_10_passive_diagnostic_equivalence ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests\phase4_onnx_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\phase4_onnx_bench-ea2b2dbc4b1373a3.exe)
+
+running 1 test
+test bench_phase4_embedder_comparison ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\projection_autoload.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\projection_autoload-221337a0dc6070b9.exe)
+
+running 2 tests
+test engine_start_survives_corrupt_projection_file ... ok
+test engine_start_autoloads_projection_from_dir ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests\projection_failclosed.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\projection_failclosed-544a6878da0434e3.exe)
+
+running 2 tests
+test learn_with_384_dim_and_no_projection_fails_closed ... ok
+test learn_with_128_dim_and_no_projection_succeeds_via_identity ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests\projection_positive.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\projection_positive-b7ce3d49e3fe8da7.exe)
+
+running 2 tests
+test register_projection_rejects_matrix_length_mismatch ... ok
+test learn_with_384_dim_after_registering_projection_succeeds ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests\recall_paraphrase.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\recall_paraphrase-c708280d2879fcc8.exe)
+
+running 1 test
+test paraphrase_recall_report ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\rerank_diag.rs (target\x86_64-pc-windows-gnu\debug\deps\rerank_diag-182472d21d2c51a2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\rerank_hard_case.rs (target\x86_64-pc-windows-gnu\debug\deps\rerank_hard_case-6e15345e79daf2c2.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\rerank_probe.rs (target\x86_64-pc-windows-gnu\debug\deps\rerank_probe-4549100cf7397194.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\retrieval_contract.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\retrieval_contract-3dd6552f4ccccb11.exe)
+
+running 8 tests
+test test_stale_state_does_not_override_authoritative ... ok
+test irrelevant_high_authority_node_cannot_displace_relevance_winner ... ok
+test b1_vector_learn_without_text_is_marked_explicitly ... ok
+test b1_long_text_truncates_visibly_in_explanation_full_in_field ... ok
+test all_contradicted_candidates_return_abstained_empty_result ... ok
+test b1_stored_text_returned_verbatim_in_explanation_and_chain_fields ... ok
+test test_contradictory_same_role_resolution ... ok
+test test_cross_role_seed_isolation ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests\retrieval_e2e.rs (target\x86_64-pc-windows-gnu\debug\deps\retrieval_e2e-5c16222bb62acfbf.exe)
+
+running 34 tests
+test e11_v2_wal_adversarial_record_clamped_on_recovery ... ok
+test e4c_user_explicit_allows_full_authority ... ok
+test e4d_unknown_provenance_treated_as_empty ... ok
+test e5f_conflict_type_score_ambiguity ... ignored, ScoreAmbiguity branch deleted per Protocol v1.9 Section 14.7
+test e5b_abstain_on_conflict_returns_empty_chain ... ok
+test e2_cross_role_exclusion_production_defaults ... ok
+test e10_superseded_node_excluded_even_if_cosine_1 ... ok
+test e4b_corrected_provenance_clamps_to_floor ... ok
+test e4a_empty_provenance_clamps_to_neutral_ceiling ... ok
+test e12_non_finite_inputs_rejected_at_engine_boundary ... ok
+test e5c_conflict_candidates_have_structured_fields ... ok
+test e3_contradiction_resolved_by_authority_production_defaults ... ok
+test e4g_trusted_caller_preserves_user_explicit ... ok
+test e5d_conflict_type_logical_contradiction_opposing_polarities ... ok
+test e5a_conflict_detected_no_abstain_by_default ... ok
+test e4f_ordinary_caller_claims_user_explicit_is_downgraded ... ok
+test e4e_forged_authority_loses_to_legitimate ... ok
+test e5e_conflict_type_authority_polarity ... ok
+test e6a_supersedes_nonexistent_node_learn_succeeds ... ok
+test e6c_supersession_chain_a_b_c ... ok
+test e6e_competing_successors_last_writer_wins ... ok
+test e6f_supersession_self_loop_rejected_with_structured_error ... ok
+test e6b_cross_type_supersession_skipped ... ok
+test e6g_supersession_missing_target_rejected_with_structured_error ... ok
+test e9_authoritative_beats_higher_cosine ... ok
+test e6i_supersession_already_superseded_rejected_with_structured_error ... ok
+test e6h_supersession_cross_type_rejected_with_structured_error ... ok
+test e9_non_finite_authority_is_sanitized_not_propagated ... ok
+test e6d_supersession_idempotent_after_restart ... ok
+test e7_immutable_v2_snapshot_migration ... ok
+test e8_wal_recovery_preserves_authority_ceiling ... ok
+test e7b_immutable_legacy_wal_recovery ... ok
+test e8_authority_weight_active_after_restart ... ok
+test e7_v2_snapshot_quarantine_wal_recovery ... ok
+
+test result: ok. 33 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 7.32s
+
+     Running tests\s05_restart.rs (target\x86_64-pc-windows-gnu\debug\deps\s05_restart-2411337d1287f34c.exe)
+
+running 4 tests
+test s05_low_surprise_control_flat ... ok
+test s05_high_surprise_restart_idempotent ... ok
+test s05_crash_path_watermark ... ok
+test s05_crash_with_nonempty_tail ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+     Running tests\scope_lock.rs (target\x86_64-pc-windows-gnu\debug\deps\scope_lock-18b78ee13911c530.exe)
+
+running 4 tests
+test scope_ids_reject_paths ... ok
+test tenant_id_is_stable_across_runtimes ... ok
+test scope_layout_version_is_recorded ... ok
+test second_runtime_is_refused_loudly ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests\seed_type_contract.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\seed_type_contract-42b75a52763c97b0.exe)
+
+running 3 tests
+test state_request_never_returns_an_outcome_seed_via_bm25 ... ok
+test state_request_never_returns_an_action_seed_via_bm25 ... ok
+test outcome_request_still_returns_an_outcome_seed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running unittests src\lib.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_gateway-864e4780743a3a3f.exe)
+
+running 8 tests
+test control::tests::tenant_principal_token_round_trip ... ok
+test control::tests::grant_requires_known_scope_and_principal ... ok
+test auth::tests::missing_and_wrong_tokens_rejected ... ok
+test auth::tests::deny_by_default_and_cross_tenant_oracle ... ok
+test auth::tests::agent_inherits_owner_grant_but_cannot_exceed_token_binding ... ok
+test audit::tests::chain_appends_and_verifies ... ok
+test audit::tests::tamper_breaks_chain ... ok
+test auth::tests::expired_tokens_rejected ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src\main.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_gateway-32ca9c6d441fc2c7.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\gateway_auth.rs (target\x86_64-pc-windows-gnu\debug\deps\gateway_auth-6b359e2eda07ca33.exe)
+
+running 4 tests
+test smuggled_authority_is_ignored ... ok
+test secrets_scrubbed_and_audited ... ok
+test idempotent_learn_stores_once ... ok
+test threat_table ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests\gateway_degraded.rs (target\x86_64-pc-windows-gnu\debug\deps\gateway_degraded-31985ef939ab30bf.exe)
+
+running 1 test
+test sidecar_down_degrades_explicitly ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.42s
+
+     Running tests\isolation.rs (target\x86_64-pc-windows-gnu\debug\deps\isolation-404ca925317ae4b8.exe)
+
+running 3 tests
+test authority_is_server_derived_invariant ... ok
+test tenants_are_disjoint_namespaces ... ok
+test agent_cannot_exceed_owner_even_with_direct_grant ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_mcp_lib-a5cba85c84cfdece.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_mcp-1db7755d13cf5621.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\gate_calibration_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\gate_calibration_bench-2e1cbc0eaeb07b13.exe)
+
+running 1 test
+test test_gate_calibration_distribution_hash128d ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests\phase3_approval_bench.rs 
+(target\x86_64-pc-windows-gnu\debug\deps\phase3_approval_bench-55ecb7064a2c072c.exe)
+
+running 2 tests
+test phase3_conformance_check ... ok
+test phase3_approval_benchmark ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 45.01s
+
+     Running tests\tool_tests.rs (target\x86_64-pc-windows-gnu\debug\deps\tool_tests-e11cc11022926fc7.exe)
+
+running 74 tests
+test b5_embedding_flag_rejects_unknown_values_instead_of_defaulting ... ok
+test b4_instructions_are_tiered_and_drop_the_every_turn_ceremony ... ok
+test b3_project_identity_is_normalized_for_windows_paths ... ok
+test b5_embedding_tools_hidden_from_agents_by_default ... ok
+test b5_embedding_tools_visible_when_explicitly_enabled ... ok
+test e1a_memory_retrieve_missing_intent_is_error ... ok
+test context_route_with_valid_query_succeeds ... ok
+test b3_context_route_matches_above_threshold_and_reports_id ... ok
+test context_list_with_empty_args_succeeds ... ok
+test e1b_memory_retrieve_unknown_intent_is_error ... ok
+test b3_context_route_returns_explicit_no_match_below_threshold ... ok
+test e1d3_mcp_adversarial_intent_fails_closed ... ok
+test b3_project_detect_is_idempotent_and_returns_usable_context_id ... ok
+test e1e_memory_retrieve_text_unknown_intent_is_error ... ok
+test archive_scrub_no_secret_in_jsonl ... ok
+test b1_mcp_retrieve_text_returns_learned_text_in_block_and_json ... ok
+test b6a_mcp_strict_no_dup_skips_corrections ... ok
+test b1_mcp_long_text_full_in_json_truncated_in_block ... ok
+test b1c_recalled_text_is_dated_and_marked_untrusted ... ok
+test b6b_mcp_typed_learn_and_filtered_retrieve ... ok
+test b7_mcp_triple_first_labels_and_link_kinds ... ok
+test e1d2_mcp_unscoped_retrieval_competes_across_mixed_node_types ... ok
+test b2_mcp_list_then_get_roundtrip_verbatim ... ok
+test e1c_memory_retrieve_valid_intent_succeeds ... ok
+test archive_write_failure_does_not_block_learn ... ok
+test b6a_mcp_disposition_visible_in_block_and_json ... ok
+test e1d_memory_retrieve_text_missing_or_null_intent_succeeds_unscoped ... ok
+test e1q_mcp_nan_authority_is_rejected ... ok
+test e1d5_mcp_passive_diagnostics_expose_all_stages ... ok
+test e1r_mcp_inf_authority_is_rejected ... ok
+test e1s_mcp_nan_prediction_error_is_rejected ... ok
+test e1t_mcp_text_nan_authority_is_rejected ... ok
+test e1w_mcp_nan_in_embedding_is_rejected ... ok
+test e1x_mcp_inf_in_embedding_is_rejected ... ok
+test e1d4_mcp_retrieval_is_pure_read_no_mutation ... ok
+test e1f_memory_retrieve_text_valid_intents_succeed ... ok
+test e1l_direct_internal_rust_runtime_preserves_user_explicit ... ok
+test garbage_args_never_panic_context_create ... ok
+test e1m_mcp_external_feed_is_capped_to_0_60 ... ok
+test e1h_abstain_structured_json_fields ... ok
+test e1k_invalid_supersession_returns_error_result ... ok
+test e1n_mcp_whitespace_casing_variants_are_capped_to_0_60 ... ok
+test garbage_args_never_panic_context_delete ... ok
+test e1o_mcp_unknown_provenance_is_capped_to_0_60 ... ok
+test garbage_args_never_panic_memory_learn ... ok
+test garbage_args_never_panic_memory_feedback ... ok
+test garbage_args_never_panic_memory_learn_text ... ok
+test lfa_verifiability_unit_computation ... ok
+test garbage_args_never_panic_memory_retrieve ... ok
+test garbage_args_never_panic_memory_promote ... ok
+test garbage_args_never_panic_memory_retrieve_text ... ok
+test e1i_mcp_caller_claims_user_explicit_is_downgraded ... ok
+test memory_stats_with_empty_args_succeeds ... ok
+test e1j_mcp_payload_claiming_caller_role_user_cannot_forge_privilege ... ok
+test e1p_mcp_contradicted_is_capped_to_0_30 ... ok
+test promote_nonexistent_event_returns_error ... ok
+test e1g_conflict_structured_json_fields ... ok
+test feedback_concurrent_same_retrieve_id ... ok
+test feedback_double_apply_beta_stays_bounded ... ok
+test unknown_tool_returns_none ... ok
+test every_registered_tool_dispatches ... ok
+test project_detect_with_empty_args_succeeds ... ok
+test feedback_idempotent_across_restart ... ok
+test memory_retrieve_text_with_empty_store_returns_empty_chain ... ok
+test gate_shadow_log_schema_v2_validation ... ok
+test memory_learn_text_roundtrip ... ok
+test promote_untrusted_caller_is_rejected ... ok
+test gate_enforcement_mode_suppresses_redundant_when_enabled ... ok
+test promote_valid_event_indexes_node_with_audit_trail ... ok
+test raw_memory_learn_shadow_gate_logging ... ok
+test shadow_gate_empty_corpus_novelty_is_max ... ok
+test shadow_gate_never_suppresses_insertion ... ok
+test e1u_mcp_wal_recovery_preserves_agent_ceiling ... ok
+test e1v_mcp_text_wal_recovery_preserves_agent_ceiling ... ok
+
+test result: ok. 74 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.96s
+
+     Running unittests src\lib.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_sidecar-4f9fcee8045a0345.exe)
+
+running 3 tests
+test cache::tests::hit_miss_and_eviction ... ok
+test batcher::tests::order_preserved_with_duplicates ... ok
+test batcher::tests::concurrent_arrivals_share_one_call ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src\main.rs (target\x86_64-pc-windows-gnu\debug\deps\cmhm_sidecar-2875837f9019e5bf.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\sidecar_e2e.rs (target\x86_64-pc-windows-gnu\debug\deps\sidecar_e2e-f7b497c3842a99e9.exe)
+
+running 1 test
+test round_trip_and_bad_input ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests cmhm_core
+
+running 3 tests
+test cmhm_core\src\lib.rs - (line 13) - compile ... ok
+test cmhm_core\src\text_embed.rs - text_embed::extract_tags (line 93) ... ok
+test cmhm_core\src\text_embed.rs - text_embed::text_to_embedding (line 49) ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.92s
+
+   Doc-tests cmhm_gateway
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests cmhm_mcp_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests cmhm_sidecar
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
