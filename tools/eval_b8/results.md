@@ -666,3 +666,48 @@ Measured conclusions:
 
 Deviation summary: none (cosmetic unused-var warning noted; runs single,
 flagged). Lever hand-back to owner before D2 fires.
+
+---
+
+## D2 - query-expansion bench (lever 2/3): FAIL on the registered gate; strongest recall lift measured; rank wall sharpens
+
+Pre-registration: results.md reviewer-deltas (registered verbatim) + addendum
+d2-query-expansion.md (924e9af, committed BEFORE any run; B12-sequencing
+waiver documented pre-run per owner directive 2026-10-21). Raw run:
+tools/eval_d2/d2_run1.txt. Instrument: ops_bench_d2_expansion (MSVC+onnx);
+runs single, flagged. Expansion fixture = verbatim uninvolved-LLM subagent
+output (the stand-in client LLM (name withheld), fresh session, no repo access; 3 causes x 30
+hard queries; tools/eval_d2/subagent_output.json).
+
+| slice                    | seedP@1 (gate) | poolRec | MRR    | misses: cand/rank/safety |
+|--------------------------|----------------|---------|--------|--------------------------|
+| record (single orig run) | 2/30           | 18/30   | 0.1298 | 12 / 16 / 0              |
+| D2 merged (4 runs/item)  | 15/30          | 26/30   | 0.5981 | 4 / 11 / 0               |
+
+- Drift control BIT-EXACT vs the MiniLM record (d2_control_leg): lexical
+  100/100, hard 2/30 seed 18/30 pool, overall 164/200 pool 114/200 R@1,
+  hard attribution 12/16/28 unchanged. Instrument clean.
+- VERDICT: D2 FAILS the registered gate - hard merged WITH-fused seedP@1
+  15/30 < 21/30 (the ONLY pass; 70% owner bar, not relaxable). Merged
+  poolRec 26/30 >= 21/30, so the registered "fails without further rank
+  work" short-circuit does NOT apply; miss decomposition: 11 lost_rank,
+  4 lost_candidate, 0 lost_safety.
+- Measured: strongest recall lever so far (hard seed 2->15/30, pool
+  18->26/30, MRR 0.13->0.60) yet 6 short of the bar. W1/D2 pair sharpens
+  the wall: write-time keywords restored pool 30/30 and converted 0 (rank
+  wall total for store-side bridging); D2's query-side cause rewrites
+  convert 13 (the rewrite moves the query's own dense+lexical anchor).
+  The wall is specifically "vague symptom query cannot rank a pooled
+  gold"; anchored rewrites partially break it, the exact-lookup ranker
+  alone does not.
+- Lever 3 (bigger embedder / LLM rerank) targets the remaining 11
+  rank-stage misses directly; half-proven pairings now: (W1 bridge +
+  reranker) pool 30/30 and (D2 expansion + reranker) pool 26/30.
+- Mechanism honesty (tools/eval_d2/fixture_disclosure.txt): several hard
+  items have ZERO store-token overlap on all 3 causes (para-057, -075,
+  -081, -084, -085, -088, -090) - dense-only rides; converts ride
+  partially on BM25 anchors where overlap exists.
+
+Deviation summary: none (gate as registered; runs single, flagged;
+subagent model documented; waiver documented pre-run). Lever hand-back to
+owner before lever 3.

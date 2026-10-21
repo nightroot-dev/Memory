@@ -1,3 +1,57 @@
+# D2 RUN RECORD — PART 1 (2026-10-21; prepended above the pre-reg, appended-only)
+
+Pre-reg commit: **924e9af**. Raw run: `tools/eval_d2/d2_run1.txt` (both
+legs, verbatim). Instrument: `cmhm_core/tests/ops_bench_d2_expansion.rs`
+(MSVC+onnx). Runs single, flagged.
+
+Drift control: **d2_control_leg == MiniLM record BIT-EXACT** (lexical
+100/100, hard fused seed 2/30 pool 18/30, overall pool 164/200, overall
+R@1 114/200, hard attribution 12 cand / 16 rank of 28). Instrument clean.
+
+Measurement (expanded leg, hard items, MERGED over 4 self-contained fused
+runs per item: original query + 3 uninvolved-LLM cause rewrites):
+
+| slice                    | seedP@1 (gate) | poolRec | MRR    | misses: cand/rank/safety |
+|--------------------------|----------------|---------|--------|--------------------------|
+| record (single orig run) | 2/30           | 18/30   | 0.1298 | 12 / 16 / 0              |
+| D2 merged (4 runs)       | **15/30**      | 26/30   | 0.5981 | 4 / 11 / 0               |
+
+VERDICT: **D2 FAILS the registered gate — hard merged WITH-fused seedP@1
+15/30 < 21/30 (the ONLY pass; 70% owner bar, not relaxable).**
+Secondary clause: merged poolRec = 26/30 ≥ 21/30, so the registered
+"expansion fails without further rank work" short-circuit does NOT apply —
+the failure decomposes cleanly: 11 of 15 remaining misses are lost_rank,
+4 lost_candidate, 0 lost_safety.
+
+Measured conclusions:
+
+1. Uninvolved-LLM symptom→cause rewriting (zero corpus visibility) is the
+   single strongest recall lever measured on this corpus so far: hard pool
+   18→26/30, hard seed 2→15/30 (7.5×), merged MRR 0.13→0.60 — and still
+   6 items short of the owner's 21/30 bar.
+2. The W1/D2 pair sharpens the wall picture. W1's write-time keywords
+   restored the pool (30/30) and converted NOTHING — pure rank wall. D2's
+   cause rewrites move the QUERY's own dense+lexical anchor and convert
+   13 new items. So the wall is specifically: "a vague symptom query
+   cannot rank a pooled gold" — a semantically anchored rewrite partially
+   breaks it (15/30); the exact-lookup ranker alone does not.
+3. Lever 3 (bigger embedder / LLM rerank) targets the remaining 11
+   rank-stage misses directly. Two half-proven pairings now exist:
+   (W1 bridge + working reranker) with pool 30/30, and (D2 expansion +
+   working reranker) with pool 26/30. The reranker half is owner lever 3.
+4. Mechanism honesty (pre-run disclosure, `fixture_disclosure.txt`): many
+   cause rewrites share ZERO tokens with the store text (e.g. para-057,
+   -075, -081, -084, -085, -088, -090 all-causes 0) — those rides are
+   dense-only; the converts ride partially on BM25 anchors where overlap
+   exists (para-006 c1: 3 shared tokens; para-032 c1: 4; para-059 c2: 3).
+
+Deviation summary: none (gate honored as registered; both runs single,
+flagged; subagent model documented in the pre-reg; B12 sequencing waiver
+documented pre-run per owner directive 2026-10-21). Lever hand-back to
+the owner before lever 3.
+
+---
+
 # D2 pre-registration addendum — protocol mechanics (lever 2/3, owner GO 2026-10-21)
 
 The registered D2 protocol (results.md reviewer-deltas section, commit
