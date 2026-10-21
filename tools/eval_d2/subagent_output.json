@@ -1,0 +1,152 @@
+{
+  "para-006": [
+    "stale dns a records pointing at decommissioned load balancer",
+    "cdn cname misconfigured after endpoint migration",
+    "hardcoded service endpoints in cached client binaries"
+  ],
+  "para-014": [
+    "missing http keep-alive forcing connection rebuild per request",
+    "aggressive lb idle timeout closing warm connections",
+    "conntrack table overflow resetting flows at nat gateway"
+  ],
+  "para-025": [
+    "database connection pool exhausted capping request concurrency",
+    "gil contention serializing python workers under load",
+    "single-threaded event loop blocked on synchronous io"
+  ],
+  "para-032": [
+    "priority inversion in fair-share scheduler favoring batch jobs",
+    "batch jobs monopolizing worker pool without preemptable lanes",
+    "missing workload isolation across dedicated queue partitions"
+  ],
+  "para-038": [
+    "non-unique trace_id from clock-skewed instrumentation host",
+    "retry reusing parent request id instead of new span",
+    "load balancer rewriting x-request-id producing repeated values"
+  ],
+  "para-039": [
+    "missing utf-8 bom confusing excel charset detection",
+    "response served without charset defaulting to latin-1",
+    "double-encoding during csv export mangling multibyte characters"
+  ],
+  "para-049": [
+    "upstream resets from aggressive lb drain timers",
+    "keepalive idle timeout mismatch between client and server",
+    "conntrack entries expiring mid-flow on nat gateway"
+  ],
+  "para-054": [
+    "ip_local_port_range exhausted from rapid connect cycles",
+    "file descriptor limit hit via low nofile ulimit",
+    "seccomp profile denying socket syscalls in container"
+  ],
+  "para-057": [
+    "dead tuple bloat slowing sequential scans in postgres",
+    "b-tree bloat from unbounded append-only table growth",
+    "page cache eviction from slowly leaking resident memory"
+  ],
+  "para-059": [
+    "simultaneous key expiry without lock or probabilistic jitter",
+    "thundering herd on cold keys after cache flush",
+    "missing request coalescing at singleflight layer"
+  ],
+  "para-060": [
+    "vertical autoscaler fighting hpa over replica count",
+    "spot instance reclamation draining nodes without replacement",
+    "flaky liveness probes evicting healthy replicas"
+  ],
+  "para-061": [
+    "cache-control: no-store header bypassing edge caching",
+    "gzip disabled after nginx config rollback",
+    "cache-hit ratio collapse from volatile query string permutations"
+  ],
+  "para-072": [
+    "consumer group rebalance replaying older offsets out of order",
+    "partition key hashing changed breaking per-key ordering",
+    "parallel consumers racing without sequence-number reordering"
+  ],
+  "para-073": [
+    "tls session tickets rotated per lb breaking resumption",
+    "quic 0-rtt rejected forcing full handshake retry",
+    "short ssl_session_cache timeout evicting reusable sessions"
+  ],
+  "para-075": [
+    "hpa thrashing on cpu target under bursty traffic",
+    "scaling cooldown too short for slow metric lag",
+    "flapping custom metric oscillating scaling decisions"
+  ],
+  "para-076": [
+    "n+1 queries from lazily-loaded orm associations",
+    "unbatched graphql resolvers issuing per-field db calls",
+    "aggressive refetch effects firing per component render"
+  ],
+  "para-077": [
+    "cache-control no-store on api routes bypassing cdn",
+    "cache key including volatile auth cookies fragmenting hits",
+    "origin shield disabled letting all misses reach origin"
+  ],
+  "para-080": [
+    "noisy neighbor saturating shared disk iops quota",
+    "tcp retransmissions from lossy inter-zone path",
+    "dns resolution latency in service discovery lookups"
+  ],
+  "para-081": [
+    "unreconciled schema migrations blocking automated deploys",
+    "missing feature flags preventing hotfix isolation",
+    "unversioned config drift preventing safe rollback path"
+  ],
+  "para-082": [
+    "read replica lag skewing report boundaries",
+    "timezone-naive aggregation comparing utc and local windows",
+    "divergent dedup rules double-counting retried events"
+  ],
+  "para-083": [
+    "heisenbug from thread scheduling absent in staging",
+    "prod-only data cardinality missing from test fixtures",
+    "feature flag divergence between prod and staging"
+  ],
+  "para-084": [
+    "upstream dependency brownout cycling circuit breaker",
+    "cron-driven load spikes thrashing the autoscaler",
+    "health check timeout jitter toggling backend pool membership"
+  ],
+  "para-085": [
+    "wrapped exception swallowed by broad except block",
+    "deprecated upstream api returning 200 with empty payload",
+    "warn-level logs dropped by misconfigured sampler"
+  ],
+  "para-086": [
+    "unpinned dependency versions drifting between dev and prod",
+    "glibc version mismatch between dev container and prod image",
+    "local feature flags enabled but disabled in prod"
+  ],
+  "para-087": [
+    "low-threshold cpu alerts paging on ambient load",
+    "missing alert dedup fanning one incident into many pages",
+    "flap-prone monitors firing without suppression window"
+  ],
+  "para-088": [
+    "egress firewall rule dropped on service port",
+    "vpc peering route deletion breaking dns resolution",
+    "health checks marking every backend unhealthy draining pool"
+  ],
+  "para-089": [
+    "shared api quota exhausted by sibling tenants throttling",
+    "noisy neighbor saturating shared cluster latency budget",
+    "per-tenant sharding bug after data migration"
+  ],
+  "para-090": [
+    "alert storm paging without escalation suppression windows",
+    "nightly retention job spiking recurring error alerts",
+    "missing maintenance windows silencing batch-driven pages"
+  ],
+  "para-098": [
+    "forecasts extrapolated from short ambient-period baselines",
+    "bursty fan-out multiplier ignored in static quotas",
+    "growth modeled on synthetic load not prod traces"
+  ],
+  "para-099": [
+    "postmortem tasks filed without owner or milestone",
+    "untracked action items missing triage ritual",
+    "no recurring review of remediation backlog drift"
+  ]
+}
