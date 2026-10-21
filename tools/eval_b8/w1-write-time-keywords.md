@@ -1,3 +1,71 @@
+## W1 RUN — PART 1 verdict (2026-10-21, single run per leg, flagged)
+
+Run: `cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target
+x86_64-pc-windows-msvc --features onnx --test ops_bench_w1_kw_v1 -- --ignored
+--nocapture` (fixture commit 633e9cd; raw output tools/eval_w1/w1_run1.txt).
+Both legs in one instrument, 40 s. No deviations; one cosmetic unused-var
+warning in the harness (noted, not fixed-mid-run).
+
+### W1b (blind control) — CLEAN, byte-level identical to the MiniLM record
+
+| group | fused seedP@1 | poolRec | MRR |
+|---|---|---|---|
+| lexical | 1.0000 (100/100 guard ✓) | 1.0000 | 1.0000 |
+| para-easy | 0.2069 (6/29) | 0.6207 | 0.2667 |
+| para-medium | 0.1463 (6/41) | 0.6829 | 0.2553 |
+| para-hard | 0.0667 (2/30) | 0.6000 (18/30) | 0.1689 |
+
+Aggregates: pool 164/200, R@1 114/200 — equals the B10 Step-1 record
+exactly. Attribution hard: 12 lost_candidate / 16 lost_rank — matches the
+record's "hard: 12 candidate / 16 rank of 28". Store-side keywords that add
+no new vocabulary change NOTHING — the gate math is genuinely about the
+bridge, not about adding text.
+
+Gates W1b: A ✓ B ✗(2<15) C ✗(164<170) D ✗(114<140) E ✓(164>=164) → FAIL.
+
+### W1a (transcript) — PAIR RESTORATION 100%, top-1 CONVERSION 0
+
+| group | fused seedP@1 | poolRec | MRR |
+|---|---|---|---|
+| lexical | 1.0000 (100/100 guard ✓) | 1.0000 | 1.0000 |
+| para-easy | 0.2069 (6/29 — unchanged) | **1.0000** (0.6207 record) | 0.2900 |
+| para-medium | 0.1463 (6/41 — unchanged) | **1.0000** (0.6829) | 0.2741 |
+| para-hard | 0.0667 (2/30 — unchanged) | **1.0000** (30/30!) | 0.1909 |
+
+Aggregates: pool **200/200** (record 164), R@1 **114/200 — unchanged**.
+Attribution after the bridge: lost_candidate = **0 in every paraphrase
+group**; para-hard misses are now 28/28 lost_rank (were 12 cand + 16 rank).
+
+Gates W1a: A ✓ C ✓(200>=170) E ✓(200>=164) — but B ✗(2<15) and D ✗(114<140).
+**W1a FAILS the standing gates.** Pre-registered channel check honored: the
+gain arrived exactly through the candidate channel as predicted, but the
+rank leg converted none of it — reported as the finding, not a headline.
+
+### Findings (measured, in scope of this instrument only)
+
+1. **The candidate-generation wall is REMOVABLE at write time, with zero
+   engine changes**: caller-phrasing keywords in the learn text bring every
+   corpus item within reach of the fused path (pool 164→200/200; hard pool
+   18→30/30).
+2. **The remaining wall is the final ranker**, and it is strong: an exact
+   BM25-grade keyword match inside the indexed text loses the top-1 race to
+   the dense/RRF signal in every one of the 84 paraphrase misses. Same wall
+   where B13's rerankers (net 0/1 vs +10 bar) failed; now measured against a
+   FULLY populated pool — the pair (W1 bridge + reranker) is now the only
+   in-class combination whose pieces exist, and half of it is proven.
+3. Store-side-only keywords (W1b) contribute nothing — the fix's value is
+   conversational vocabulary, not added text.
+4. Upper-bound framing per pre-registration: W1a keywords match query
+   tokens by construction; it measures the CEILING of the save-time
+   transcript discipline on this corpus, not a production guarantee.
+
+Standing verdict unchanged; lever 1 = FAIL under the standing gates, with
+the pool-restoration result recorded as a real finding. Handing back:
+lever 2 (D2 query expansion, pre-registered, gate hard >= 21/30) fires
+next only on the owner's go. B12-waiver note to be registered THEN.
+
+---
+
 # W1 pre-registration — write-time keyword enrichment (owner-approved lever 1/3)
 
 Owner directive 2026-10-21: give each recall lever a chance, one by one,

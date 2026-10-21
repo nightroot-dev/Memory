@@ -611,3 +611,58 @@ The work is committed and safe; the fixed serving binary stays as is.
   harness, key registration mirrored from scope.rs): boot1 24 nodes / 8
   episodes / next_seq 9; boot2 identical. S-05 restart idempotency holds
   on real shipped data.
+
+
+---
+
+## OWNER DIRECTIVE 2026-10-21 — recall levers, one at a time
+
+Owner re-opens work for the three recall levers, one by one, order
+(1) write-time keywords, (2) query expansion (D2), (3) bigger embedder /
+LLM rerank; verdict back to the owner before the next fires.
+
+## W1 — write-time keyword enrichment: FAIL on standing gates; pool wall lifted, rank wall stands
+
+Pre-registration (633e9cd): legs W1a (transcript — caller phrasing bridged
+into the learn text: models the agent transcribing the user's words at save
+time) and W1b (blind control — store-side keywords); gates = the standing
+shipping gates unchanged (A lexical guard 1.00, B hard seed ≥ 15/30,
+C pool ≥ 170/200, D overall R@1 ≥ 140/200, E pool ≥ 164/200 not-a-swap);
+mechanical fixture `tools/eval_w1/corpus_l1_kw.json` (self-checks: bridge
+100% by design; blind 0/100 on para); instrument `ops_bench_w1_kw_v1.rs`
+two ignored legs, 40 s total. Zero engine changes (keywords inside the
+learn text; retrieval on the original query only).
+
+Results (single run per leg, flagged; raw: tools/eval_w1/w1_run1.txt):
+
+| leg | lexical seedP@1 | hard seed | overall pool | overall R@1 | gates |
+|---|---|---|---|---|---|
+| W1b blind | 1.00 | 2/30 (rec) | 164/200 (rec) | 114/200 (rec) | FAIL (B,C,D) |
+| W1a transcript | 1.00 | 2/30 — UNCHANGED | **200/200** | 114/200 — UNCHANGED | FAIL (B,D) |
+
+- W1b is byte-level identical to the B10 Step-1 record incl. hard
+  attribution (12 cand / 16 rank of 28): the instrument is sound and the
+  control is clean — added store text does nothing.
+- W1a's bridge FULLY lifts candidate generation: poolRec 1.0000 in all
+  three paraphrase groups (hard 18/30 → 30/30; overall 164 → 200/200);
+  lost_candidate = 0 everywhere. The rank leg converts NONE of it
+  (hard misses 28/28 lost_rank; seedP@1 identical in every cell; MRR
+  hard 0.1689 → 0.1909).
+
+Measured conclusions:
+
+1. The candidate wall is removable at write time with zero engine changes —
+   caller-phrasing keywords restore the pool on this corpus to 100%.
+2. The final ranker is the remaining wall — an exact BM25-grade keyword
+   match loses the top-1 race to the dense/RRF signal in all 84 paraphrase
+   misses. Consolidates with B13: cheap rerankers (net 0/1) failed at the
+   same wall; with W1 the pool is no longer the excuse — rank conversion
+   is now the single binding constraint on the standing gates.
+3. (W1 bridge + a working reranker) is now the only in-class combination
+   with one half proven; the other half (bigger/LLM rerank) is owner lever 3.
+4. W1a is a ceiling measurement per pre-registration (keywords use query
+   tokens by construction; it bounds the save-time transcript discipline,
+   not a production guarantee).
+
+Deviation summary: none (cosmetic unused-var warning noted; runs single,
+flagged). Lever hand-back to owner before D2 fires.
