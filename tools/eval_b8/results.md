@@ -711,3 +711,46 @@ hard queries; tools/eval_d2/subagent_output.json).
 Deviation summary: none (gate as registered; runs single, flagged;
 subagent model documented; waiver documented pre-run). Lever hand-back to
 owner before lever 3.
+
+---
+
+## L3 - bigger embedder / LLM rerank (lever 3/3): embedder swap FAILS (swap-worse); LLM rerank is the FIRST mechanism to clear ALL standing gates - in the (W1 bridge + rerank) stack
+
+Pre-registration: l3-llm-rerank.md (81217f5, committed BEFORE any run; gates
+A-E standing, never re-targeted). Fixtures eae433d. Raw run:
+tools/eval_l3/l3_run1.txt. Runs single, flagged. Uninvolved rerank LLM:
+a stand-in client LLM (name withheld) via three fresh subagent sessions (committed
+prompt batches only; 230/230 picks valid, 0 re-rolls).
+
+- L3a bge-base embedder swap: FAIL (A OK 100/100; B 3/30, C 163/200,
+  D 112/200, E FAIL - pool 163 < 164 = swap-WORSE. Wash-to-slightly-worse,
+  no corpus red flags, PCA-provenance caveat stands).
+- L3b record-pool rerank (hard-only DIAGNOSTIC, no gates): 77.8% accuracy
+  on the 18/18 presented; converts 12 of the record's 16 hard rank-stage
+  misses (hard seed 14/30 vs record 2/30 on the shipped pool).
+- L3c D2-expansion + rerank (GATED): FAIL on B by exactly one (hard 14/30
+  vs >=15); C OK 172/200, D OK 152/200 (first D clearance), E OK. Measured
+  failure mode = rerank VISIBILITY: 8 of 26 pooled hard golds sit beyond
+  the cap-20 first-seen union (lost_rerank_visibility=8); pick quality
+  consistent (77.8/85.7/77.8 on presented).
+- L3d W1a-bridge + rerank (GATED): **ALL FIVE GATES PASS** - A 100/100
+  bypass, B hard 30/30, C pool 200/200, D R@1 200/200, E OK; rerank
+  accuracy 100/100 on presented; pick distribution spans 1..20, no
+  collapse, 0 invalid.
+- Conclusions: (1) bigger embedder = measured dead end on this workload.
+  (2) The LLM-class rerank is the first rank-side mechanism to clear the
+  standing shipping gates, in the (W1 write-time keyword bridge + rerank)
+  stack - both halves now measured (W1a alone: pool 200/200/R@1 114, rank
+  wall total; rerank converts it). L3c misses B by one via the measured
+  visibility bucket, not pick quality. (3) L3d's 100% honest attribution:
+  the rerank reads STORED texts carrying W1a keyword suffixes - the bridge
+  text makes the gold self-identifying in a ranked list; the pass requires
+  BOTH mechanisms, and the rerank is an agent-side query-time LLM call
+  (cost/latency = owner decision). (4) Zero engine changes across all
+  three levers - wins live in store text, query handling, and an
+  agent-side mechanism above the existing API.
+
+Deviation summary: one scorer path-resolution bug found and fixed BEFORE
+any scored verdict (loader re-prefixed a root-relative path; fix contained,
+no measurement semantics); scored runs are post-fix. Otherwise as
+registered (gates honored, singles flagged, no re-rolls).

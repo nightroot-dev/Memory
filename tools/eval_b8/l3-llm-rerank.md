@@ -1,3 +1,98 @@
+# L3 RUN RECORD — PART 1 (2026-10-21; prepended above the pre-reg, appended-only)
+
+Pre-reg commit: **81217f5**. Fixtures commit: **eae433d**. Raw run:
+`tools/eval_l3/l3_run1.txt` (all stages verbatim). Instrument:
+`cmhm_core/tests/ops_bench_l3_rerank.rs` (MSVC+onnx). Runs single, flagged.
+Uninvolved rerank LLM: `a stand-in client LLM (name withheld)`, three fresh sessions
+(per leg), committed prompt batches only, 230/230 picks valid (0 invalid).
+
+## L3a — bigger embedder (bge-base-en-v1.5): FAIL
+
+| gate | value | bar | verdict |
+|------|-------|-----|---------|
+| A lexical | 100/100 | ==1.00 | OK (BM25 frame-independent) |
+| B hard seed | 3/30 | >= 15 | FAIL |
+| C pool | 163/200 | >= 170 | FAIL |
+| D overall R@1 | 112/200 | >= 140 | FAIL |
+| E not-a-swap-worse | pool 163 < 164 (MiniLM) | >= 164 | FAIL (swap-WORSE) |
+
+The bigger embedder does not lift this workload in the engine-as-shipped
+frame: it is a wash-to-slightly-worse swap (pool -1, R@1 -2 vs the MiniLM
+record, informational anchors). No corpus red flags; PCA-provenance caveat
+stands as pre-registered, but nothing looks degenerate.
+
+## L3b — record-pool rerank (hard-only DIAGNOSTIC, no gates)
+
+Pool 18/30 = present 18/18; rerank picks **14** (77.8% accuracy on
+presented) vs the record's fused seed 2/30. The LLM-class rerank converts
+12 of the record's 16 rank-stage misses on the SHIPPED pool. Pathology
+check: none (pick distribution spans 1..18, no collapse; 0 invalid).
+
+## L3c — D2-expanded pools (GATED): FAIL on B, one short
+
+| gate | value | bar | verdict |
+|------|-------|-----|---------|
+| A lexical bypass | 100/100 | ==1.00 | OK |
+| B hard seed | 14/30 | >= 15 | **FAIL by one** |
+| C pool | 172/200 | >= 170 | OK |
+| D overall R@1 | 152/200 | >= 140 | OK (first leg ever to clear D) |
+| E pool >= 164 | 172 | | OK |
+
+Measured failure mode: NOT pick quality (77.8% easy / 85.7% medium / 77.8%
+hard on presented — consistent with L3b) but **rerank visibility**: 8 of the
+26 pooled hard golds sit beyond the cap-20 first-seen union and were never
+shown to the rerank (`lost_rerank_visibility = 8`, printed per item in the
+dump). With the shipped fuse cap, the D2-expansion + rerank stack is capped
+at 18 presented hard; 14 convert.
+
+## L3d — W1a bridge pools + LLM rerank (GATED): ALL FIVE GATES PASS
+
+| gate | value | bar | verdict |
+|------|-------|-----|---------|
+| A lexical bypass | 100/100 | ==1.00 | OK |
+| B hard seed | **30/30** | >= 15 | OK |
+| C pool | **200/200** | >= 170 | OK |
+| D overall R@1 | **200/200** | >= 140 | OK |
+| E not-a-swap-worse | 200 | >= 164 | OK |
+
+Rerank accuracy on presented: **100/100 (1.0000)** across easy/medium/hard;
+pick distribution spans 1..20 with deep picks (19: 11, 20: 10) — the golds
+genuinely sat deep in the W1a pools and the rerank found them; no collapse;
+0 invalid/missing.
+
+## Measured conclusions (lever 3)
+
+1. **Bigger embedder: measured dead end** (swap-worse on this workload;
+   engine-as-shipped frame, caveat noted).
+2. **The LLM-class rerank is the first mechanism ever to clear the standing
+   shipping gates on this corpus — in the (W1 write-time bridge + rerank)
+   stack.** Both halves now measured: W1a alone restored the pool (200/200,
+   `90b54e6`); the rerank converts it (200/200 R@1). The D2-expansion stack
+   (L3c) misses gate B by exactly one item, entirely via the measured
+   cap-20 visibility bucket.
+3. **Honest attribution of L3d's 100%**: the rerank reads the STORED texts —
+   which carry the W1a keyword suffixes. The bridge text is what made the
+   gold self-identifying in a ranked list. That is the mechanism working as
+   designed (store text is what production would store and rerank), not an
+   artifact; but it means L3d's pass requires BOTH mechanisms, and its
+   retrieval-time LLM call is an agent-side cost decision for the owner.
+4. Zero engine changes across levers 1–3: all wins live in store-text
+   treatment (write-time keywords), query-side handling (expansion), and
+   an agent-side rerank above the existing API.
+
+## Deviation summary
+
+One instrument bug found and fixed BEFORE any scored verdict: the scorer's
+dump-loading helper re-prefixed an already-root-relative path
+(`tools/eval_l3/tools/eval_l3/...` → "not found" panic). Fix contained to
+the loader (no measurement semantics touched); the scored runs above are
+the post-fix runs. Everything else as registered: gates honored, singles
+flagged, subagent model documented, no re-rolls.
+
+Lever hand-back to the owner: the three-lever picture is complete.
+
+---
+
 # Lever 3/3 pre-registration — bigger embedder / LLM rerank (owner GO 2026-10-21)
 
 Registered BEFORE any run, any pool dump, or any rerank fixture. Nothing in
