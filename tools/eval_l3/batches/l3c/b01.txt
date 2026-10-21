@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-000
+USER SYMPTOM: why are connections timing out during busy hours
+CANDIDATES:
+1. database connection pool exhausted under peak load
+2. webhook delivery delayed by backoff
+3. connection churn from misconfigured keepalive
+4. connection pool leak drained available sockets
+5. memory leak in worker process over several hours
+6. fragmented packets dropped by firewall
+7. websocket connections dropped behind the proxy
+8. p99 latency crept upward all week
+9. heartbeat timeout evicted healthy members
+10. retry storm amplified downstream outage
+11. dns failover advertised the standby too early
+12. thread pool starvation under fan-out
+13. the same alert fired three nights running
+14. misrouted traffic after config push
+15. single sign-on outage locked everyone out
+16. traffic shadowing duplicated production load
+17. gpu queue wait exceeded the job timeout
+18. users complain intermittently since tuesday
+19. load balancer health check flapped during deploy
+20. log aggregator dropped events during rotation
+
+ITEM para-001
+USER SYMPTOM: users getting logged out unexpectedly
+CANDIDATES:
+1. single sign-on outage locked everyone out
+2. users complain intermittently since tuesday
+3. session store evicted active carts
+4. dashboard went red then green alone
+5. log aggregator dropped events during rotation
+6. schema migration locked the users table
+7. support tickets spiked after the holiday
+8. password rotation broke service account
+9. authentication token expired before refresh completed
+10. pager fired twice after midnight
+11. memory leak in worker process over several hours
+12. heartbeat timeout evicted healthy members
+13. connection pool leak drained available sockets
+14. tls session resumption failed across restarts
+15. fragmented packets dropped by firewall
+16. sticky session affinity pinned load unevenly
+17. webhook delivery delayed by backoff
+18. the same alert fired three nights running
+19. leader election flapped between two candidates
+20. thread pool starvation under fan-out
+
+ITEM para-002
+USER SYMPTOM: server ran out of storage space
+CANDIDATES:
+1. disk partition reached full capacity overnight
+2. compaction backlog grew on the storage engine
+3. unbounded log growth consumed all disk
+4. sandbox data leaked into demo environment
+5. cache eviction rate spiked after memory pressure
+6. memory leak in worker process over several hours
+7. backup snapshot corrupted and unrestorable
+8. deploy queue backed up behind one stuck release
+9. connection pool leak drained available sockets
+10. storage tier promotion delayed by replication backlog
+11. service mesh sidecar restarted under memory pressure
+12. cache hit ratio collapsed after deploy
+13. message queue backlog growing faster than workers drain
+14. session store evicted active carts
+15. support tickets spiked after the holiday
+16. dashboard went red then green alone
+17. secret volume failed to mount
+18. thread pool starvation under fan-out
+19. single sign-on outage locked everyone out
+20. serializer mismatch between client and server
+
+ITEM para-003
+USER SYMPTOM: background jobs piling up unprocessed
+CANDIDATES:
+1. overnight batch finished but numbers look off
+2. gpu queue wait exceeded the job timeout
+3. memory leak in worker process over several hours
+4. traffic shadowing duplicated production load
+5. runaway cron spawning duplicate reports
+6. deploy queue backed up behind one stuck release
+7. scheduler fairness starved low-priority jobs
+8. message queue backlog growing faster than workers drain
+9. deploy finished yet graphs look flat
+10. misrouted traffic after config push
+11. webhook delivery delayed by backoff
+12. feature rollout stuck at ten percent
+13. connection churn from misconfigured keepalive
+14. database connection pool exhausted under peak load
+15. log volume spike saturated the ingest pipeline
+16. thread pool starvation under fan-out
+17. container cgroup limit killed the process
+18. connection pool leak drained available sockets
+19. container image pull throttled by registry
+20. the same alert fired three nights running
+
+ITEM para-004
+USER SYMPTOM: browsers warn the site is insecure
+CANDIDATES:
+1. poison message blocked the consumer group
+2. expired cache poisoned responses
+3. websocket connections dropped behind the proxy
+4. authentication token expired before refresh completed
+5. health check too strict caused flapping
+6. single sign-on outage locked everyone out
+7. cache stampede protection misfired on deploy
+8. authentication service returned 401 for valid tokens
+9. certificate rotation broke mutual TLS handshake
+10. clock skew broke token expiry validation
+11. SSL certificate chain validation failed on edge nodes
+12. users complain intermittently since tuesday
+13. l1rare040 kiln oven knurled peened
+14. secret volume failed to mount
+15. tls session resumption failed across restarts
+16. password rotation broke service account
+17. file descriptor leak in proxy
+18. load balancer health check flapped during deploy
+19. sandbox data leaked into demo environment
+20. schema migration locked the users table
+
+ITEM para-005
+USER SYMPTOM: responses suddenly much slower since release
+CANDIDATES:
+1. webhook delivery delayed by backoff
+2. expired cache poisoned responses
+3. p99 latency crept upward all week
+4. feature flag evaluation slow on cold start
+5. cache eviction rate spiked after memory pressure
+6. memory leak in worker process over several hours
+7. thread pool starvation under fan-out
+8. dns resolver returning stale records
+9. cache hit ratio collapsed after deploy
+10. rate limiter rejecting legitimate bursts
+11. error budget burned faster than planned
+12. users complain intermittently since tuesday
+13. search index lagging behind writes
+14. support tickets spiked after the holiday
+15. traffic shadowing duplicated production load
+16. websocket connections dropped behind the proxy
+17. storage tier promotion delayed by replication backlog
+18. customer success escalated a vague complaint
+19. connection churn from misconfigured keepalive
+20. deploy queue backed up behind one stuck release
+
+ITEM para-006
+USER SYMPTOM: clients reaching the wrong server address
+CANDIDATES:
+1. websocket connections dropped behind the proxy
+2. misrouted traffic after config push
+3. dns failover advertised the standby too early
+4. noisy neighbor saturated the shared host
+5. single sign-on outage locked everyone out
+6. fragmented packets dropped by firewall
+7. webhook delivery delayed by backoff
+8. serializer mismatch between client and server
+9. connection pool leak drained available sockets
+10. retry storm amplified downstream outage
+11. dns resolver returning stale records
+12. connection churn from misconfigured keepalive
+13. p99 latency crept upward all week
+14. pager fired twice after midnight
+15. request coalescing collapsed under thundering herd
+16. users complain intermittently since tuesday
+17. traffic shadowing duplicated production load
+18. redis replica fell behind primary by seconds
+19. support tickets spiked after the holiday
+20. changelog generated from wrong branch
+
+ITEM para-007
+USER SYMPTOM: service restarts fix rising ram usage temporarily
+CANDIDATES:
+1. service mesh sidecar restarted under memory pressure
+2. memory leak in worker process over several hours
+3. connection pool leak drained available sockets
+4. cache eviction rate spiked after memory pressure
+5. database connection pool exhausted under peak load
+6. unbounded log growth consumed all disk
+7. disk partition reached full capacity overnight
+8. password rotation broke service account
+9. thread pool starvation under fan-out
+10. support tickets spiked after the holiday
+11. connection churn from misconfigured keepalive
+12. sticky session affinity pinned load unevenly
+13. expired cache poisoned responses
+14. pager fired twice after midnight
+15. cache hit ratio collapsed after deploy
+16. container cgroup limit killed the process
+17. dashboard went red then green alone
+18. users complain intermittently since tuesday
+19. tls session resumption failed across restarts
+20. authentication service returned 401 for valid tokens
+
+ITEM para-008
+USER SYMPTOM: cluster keeps switching primary repeatedly
+CANDIDATES:
+1. redis replica fell behind primary by seconds
+2. stale lock held after node failure
+3. connection churn from misconfigured keepalive
+4. autoscaler oscillation added and removed nodes
+5. runaway cron spawning duplicate reports
+6. split brain after network partition
+7. storage tier promotion delayed by replication backlog
+8. hot partition throttled by key skew
+9. leader election flapping between replicas
+10. log aggregator dropped events during rotation
+11. traffic shadowing duplicated production load
+12. noisy neighbor saturated the shared host
+13. misrouted traffic after config push
+14. thread pool starvation under fan-out
+15. message ordering broke after partition rebalance
+16. pager fired twice after midnight
+17. database connection pool exhausted under peak load
+18. dns failover advertised the standby too early
+19. sticky session affinity pinned load unevenly
+20. the same alert fired three nights running
+
+ITEM para-009
+USER SYMPTOM: customers report blocked requests during sales
+CANDIDATES:
+1. users complain intermittently since tuesday
+2. customer success escalated a vague complaint
+3. support tickets spiked after the holiday
+4. rate limiter rejecting legitimate bursts
+5. webhook delivery delayed by backoff
+6. poison message blocked the consumer group
+7. holiday traffic dwarfed load test numbers
+8. single sign-on outage locked everyone out
+9. traffic shadowing duplicated production load
+10. staging passes but production fails
+11. gpu queue wait exceeded the job timeout
+12. runaway cron spawning duplicate reports
+13. websocket connections dropped behind the proxy
+14. pager fired twice after midnight
+15. health check too strict caused flapping
+16. rate card change broke billing estimates
+17. connection pool leak drained available sockets
+18. log aggregator dropped events during rotation
+19. load balancer health check flapped during deploy
+20. index rebuild blocked writes for twenty minutes

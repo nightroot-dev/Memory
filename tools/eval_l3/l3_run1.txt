@@ -1,0 +1,199 @@
+﻿# L3 raw run - lever 3 (bigger embedder / LLM rerank), 2026-10-21
+# Pre-reg commit: 81217f5. Instrument: cmhm_core/tests/ops_bench_l3_rerank.rs (MSVC+onnx).
+# Runs single, flagged (rerank LLM non-determinism: one rerank session per leg).
+# Frame: MiniLM record for dumps/rerank legs; bge-base-en-v1.5 for L3a (own frame).
+# Uninvolved rerank LLM: a stand-in client LLM (name withheld) via three fresh subagent
+#   sessions (no repo access; committed prompt batches only):
+#   l3b ses_ea22ba72dffezAJ0KTG94G1qFz | l3c ses_ea228db38ffeuouXv5plmA2Ghj | l3d ses_ea223129fffeywkRkPizb6KCP4
+# Fixtures: pools_*.json (dumps), batches/ + batch_manifest.json, rerank_*.raw (verbatim)
+#   parsed by parse_rerank.py into rerank_*.json (validation: 30/30, 100/100, 100/100 OK).
+cargo : warning: variable does not need to be mutable
+At line:1 char:94
++ ... | Out-Null; cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core -- ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   --> cmhm_core\src\migration.rs:276:9
+    |
+276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `n`
+   --> cmhm_core\src\backup.rs:119:9
+    |
+119 |     let n = verify_backup(bundle)?;
+    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.98s
+     Running tests\ops_bench_l3_rerank.rs 
+(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_l3_rerank-f2fdd0104c4afc4a.exe)
+
+running 1 test
+test l3a_bge_embedder_leg has been running for over 60 seconds
+
+## ops_bench_l3_rerank l3a_bge_embedder_leg (L1, bge-base-en-v1.5, n=200)
+| group          | seedP@1 | poolRec | chainAcc | MRR    | n    |
+|----------------|---------|---------|----------|--------|------|
+| lexical        | 0.0700 | 0.4400 | 0.0000 | 0.1736 |  100 |  WITHOUT-native
+| lexical        | 0.0400 | 0.1500 | 0.0000 | 0.0765 |  100 |  WITHOUT-proj
+| lexical        | 0.0700 | 0.3900 | 0.0200 | 0.1240 |  100 |  WITH-dense
+| lexical        | 1.0000 | 1.0000 | 0.0800 | 1.0000 |  100 |  WITH-fused
+| para-easy      | 0.1379 | 0.4483 | 0.0000 | 0.2325 |   29 |  WITHOUT-native
+| para-easy      | 0.1379 | 0.4138 | 0.0000 | 0.2067 |   29 |  WITHOUT-proj
+| para-easy      | 0.1379 | 0.6552 | 0.0000 | 0.2250 |   29 |  WITH-dense
+| para-easy      | 0.1379 | 0.6207 | 0.0000 | 0.2227 |   29 |  WITH-fused
+| para-medium    | 0.1707 | 0.5610 | 0.0000 | 0.2972 |   41 |  WITHOUT-native
+| para-medium    | 0.1951 | 0.5122 | 0.0000 | 0.2870 |   41 |  WITHOUT-proj
+| para-medium    | 0.1220 | 0.7561 | 0.0244 | 0.2662 |   41 |  WITH-dense
+| para-medium    | 0.1220 | 0.7317 | 0.0488 | 0.2640 |   41 |  WITH-fused
+| para-hard      | 0.1000 | 0.3333 | 0.0000 | 0.1531 |   30 |  WITHOUT-native
+| para-hard      | 0.1333 | 0.3000 | 0.0000 | 0.1817 |   30 |  WITHOUT-proj
+| para-hard      | 0.1000 | 0.5000 | 0.0333 | 0.1762 |   30 |  WITH-dense
+| para-hard      | 0.1000 | 0.5000 | 0.0000 | 0.1762 |   30 |  WITH-fused
+
+GATES l3a (bge frame, standing bar): A lexical_guard=100 (need ==1.00 -> 100/100), B hard_seed=3 (need >=15/30), C pool=163 (need >=170/200), D overall_R1=112 (need >=140/200), E not_a_swap_worse (pool >=164/200)
+MiniLM record anchors (informational only, no mixing): hard 2/30, pool 164/200, R@1 114/200
+test l3a_bge_embedder_leg ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 265.13s
+
+
+==== STAGE 2: pool dumps (l3b/l3c/l3d) ====
+
+cargo : warning: variable does not need to be mutable
+At line:1 char:1
++ cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_6 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   --> cmhm_core\src\migration.rs:276:9
+    |
+276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `n`
+   --> cmhm_core\src\backup.rs:119:9
+    |
+119 |     let n = verify_backup(bundle)?;
+    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.88s
+     Running tests\ops_bench_l3_rerank.rs 
+(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_l3_rerank-f2fdd0104c4afc4a.exe)
+
+running 3 tests
+written: pools_record_hard.json (30 items)
+test l3b_dump_record_hard ... ok
+written: pools_d2expanded_para.json (100 items)
+test l3c_dump_d2expanded_para ... ok
+written: pools_w1bridge_all.json (100 items)
+test l3d_dump_w1bridge_all ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 30.21s
+
+
+==== STAGE 3: scored rerank legs (l3b/l3c/l3d) ====
+
+cargo : warning: variable does not need to be mutable
+At line:1 char:1
++ cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_6 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   --> cmhm_core\src\migration.rs:276:9
+    |
+276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `n`
+   --> cmhm_core\src\backup.rs:119:9
+    |
+119 |     let n = verify_backup(bundle)?;
+    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
+   Compiling cmhm_core v0.2.0 (C:\Games\Projects\Memory\cmhm_core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.83s
+     Running tests\ops_bench_l3_rerank.rs 
+(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_l3_rerank-f2fdd0104c4afc4a.exe)
+
+running 3 tests
+
+## l3b_record_hard score (rerank seed = LLM pick; lexical bypassed at 100/100)
+| group          |  n | gold_in_pool | gold_presented | rerank_hits | acc_on_presented |
+|----------------|----|--------------|----------------|-------------|------------------|
+| para-hard      | 30 |           18 |             18 |          14 |           0.7778 |
+
+## attribution
+| group          | lost_candidate | lost_rerank_visibility | lost_rank_rerank |
+|----------------|----------------|------------------------|------------------|
+| para-hard      |             12 |                      0 |               16 |
+
+pick distribution (index: count): [(1, 8), (2, 5), (3, 5), (4, 2), (6, 4), (11, 1), (14, 1), (15, 1), (16, 1), (17, 1), (18, 1)]
+invalid/missing picks (counted as lost_rank_rerank): 0
+test l3b_score_record_hard ... ok
+
+## l3d_w1bridge score (rerank seed = LLM pick; lexical bypassed at 100/100)
+| group          |  n | gold_in_pool | gold_presented | rerank_hits | acc_on_presented |
+|----------------|----|--------------|----------------|-------------|------------------|
+| para-easy      | 29 |           29 |             29 |          29 |           1.0000 |
+| para-hard      | 30 |           30 |             30 |          30 |           1.0000 |
+| para-medium    | 41 |           41 |             41 |          41 |           1.0000 |
+
+## attribution
+| group          | lost_candidate | lost_rerank_visibility | lost_rank_rerank |
+|----------------|----------------|------------------------|------------------|
+| para-easy      |              0 |                      0 |                0 |
+| para-hard      |              0 |                      0 |                0 |
+| para-medium    |              0 |                      0 |                0 |
+
+pick distribution (index: count): [(1, 14), (2, 6), (3, 2), (4, 4), (5, 4), (6, 7), (7, 4), (8, 3), (9, 7), (11, 2), (12, 5), (13, 2), (14, 3), (15, 5), (16, 3), (17, 5), (18, 3), (19, 11), (20, 10)]
+invalid/missing picks (counted as lost_rank_rerank): 0
+GATES l3d_w1bridge: A lexical_bypass=100/100 (==1.00 by construction), B hard_seed=30/30 (need >=15): OK, C pool=200/200 (need >=170): OK, D overall_R1=200/200 (need >=140): OK, E pool>=164/200: OK
+test l3d_score_w1bridge ... ok
+
+## l3c_d2expanded score (rerank seed = LLM pick; lexical bypassed at 100/100)
+| group          |  n | gold_in_pool | gold_presented | rerank_hits | acc_on_presented |
+|----------------|----|--------------|----------------|-------------|------------------|
+| para-easy      | 29 |           18 |             18 |          14 |           0.7778 |
+| para-hard      | 30 |           26 |             18 |          14 |           0.7778 |
+| para-medium    | 41 |           28 |             28 |          24 |           0.8571 |
+
+## attribution
+| group          | lost_candidate | lost_rerank_visibility | lost_rank_rerank |
+|----------------|----------------|------------------------|------------------|
+| para-easy      |             11 |                      0 |               15 |
+| para-hard      |              4 |                      8 |               16 |
+| para-medium    |             13 |                      0 |               17 |
+
+pick distribution (index: count): [(1, 27), (2, 12), (3, 10), (4, 5), (5, 4), (6, 11), (7, 3), (8, 3), (9, 6), (11, 3), (12, 2), (13, 3), (14, 3), (15, 3), (16, 2), (17, 2), (18, 1)]
+invalid/missing picks (counted as lost_rank_rerank): 0
+GATES l3c_d2expanded: A lexical_bypass=100/100 (==1.00 by construction), B hard_seed=14/30 (need >=15): FAIL, C pool=172/200 (need >=170): OK, D overall_R1=152/200 (need >=140): OK, E pool>=164/200: OK
+test l3c_score_d2expanded ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.04s
+
+

@@ -1,0 +1,3337 @@
+{
+  "leg": "l3b_dump_record_hard",
+  "model": "minilm-l6-v2-int8",
+  "cap": 20,
+  "items": [
+    {
+      "id": "para-006",
+      "group": "para-hard",
+      "query": "clients reaching the wrong server address",
+      "gold_node_id": 319,
+      "gold_pool_rank": 10,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 2,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 3,
+          "node_id": 535,
+          "text": "dns failover advertised the standby too early"
+        },
+        {
+          "rank": 4,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 5,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 6,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 7,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 8,
+          "node_id": 391,
+          "text": "serializer mismatch between client and server"
+        },
+        {
+          "rank": 9,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 10,
+          "node_id": 346,
+          "text": "retry storm amplified downstream outage"
+        },
+        {
+          "rank": 11,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        },
+        {
+          "rank": 12,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 13,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 14,
+          "node_id": 571,
+          "text": "pager fired twice after midnight"
+        },
+        {
+          "rank": 15,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 16,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 17,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 18,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 19,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 20,
+          "node_id": 589,
+          "text": "changelog generated from wrong branch"
+        }
+      ],
+      "gold_presented_rank": 11
+    },
+    {
+      "id": "para-014",
+      "group": "para-hard",
+      "query": "sockets opening and closing constantly",
+      "gold_node_id": 343,
+      "gold_pool_rank": 2,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 2,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 3,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 4,
+          "node_id": 334,
+          "text": "stale lock held after node failure"
+        },
+        {
+          "rank": 5,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 6,
+          "node_id": 463,
+          "text": "file descriptor table filled under connection storm"
+        },
+        {
+          "rank": 7,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 8,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 9,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 10,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 11,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 12,
+          "node_id": 328,
+          "text": "rate limiter rejecting legitimate bursts"
+        },
+        {
+          "rank": 13,
+          "node_id": 388,
+          "text": "runaway cron spawning duplicate reports"
+        },
+        {
+          "rank": 14,
+          "node_id": 526,
+          "text": "autoscaler oscillation added and removed nodes"
+        },
+        {
+          "rank": 15,
+          "node_id": 571,
+          "text": "pager fired twice after midnight"
+        },
+        {
+          "rank": 16,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 17,
+          "node_id": 520,
+          "text": "tls session resumption failed across restarts"
+        },
+        {
+          "rank": 18,
+          "node_id": 562,
+          "text": "the same alert fired three nights running"
+        },
+        {
+          "rank": 19,
+          "node_id": 403,
+          "text": "split brain after network partition"
+        },
+        {
+          "rank": 20,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        }
+      ],
+      "gold_presented_rank": 3
+    },
+    {
+      "id": "para-025",
+      "group": "para-hard",
+      "query": "parallel requests queueing with idle cpu",
+      "gold_node_id": 376,
+      "gold_pool_rank": 3,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 2,
+          "node_id": 436,
+          "text": "scheduler fairness starved low-priority jobs"
+        },
+        {
+          "rank": 3,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 4,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 5,
+          "node_id": 460,
+          "text": "thread pool saturation rejected incoming tasks"
+        },
+        {
+          "rank": 6,
+          "node_id": 310,
+          "text": "message queue backlog growing faster than workers drain"
+        },
+        {
+          "rank": 7,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 8,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 9,
+          "node_id": 367,
+          "text": "search index lagging behind writes"
+        },
+        {
+          "rank": 10,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 11,
+          "node_id": 397,
+          "text": "priority inversion in scheduler"
+        },
+        {
+          "rank": 12,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 13,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 14,
+          "node_id": 337,
+          "text": "index rebuild blocked writes for twenty minutes"
+        },
+        {
+          "rank": 15,
+          "node_id": 475,
+          "text": "sticky session affinity pinned load unevenly"
+        },
+        {
+          "rank": 16,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 17,
+          "node_id": 451,
+          "text": "cache eviction rate spiked after memory pressure"
+        },
+        {
+          "rank": 18,
+          "node_id": 481,
+          "text": "heartbeat timeout evicted healthy members"
+        },
+        {
+          "rank": 19,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 20,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        }
+      ],
+      "gold_presented_rank": 4
+    },
+    {
+      "id": "para-032",
+      "group": "para-hard",
+      "query": "urgent tasks waiting behind batch work",
+      "gold_node_id": 397,
+      "gold_pool_rank": 3,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 2,
+          "node_id": 436,
+          "text": "scheduler fairness starved low-priority jobs"
+        },
+        {
+          "rank": 3,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 4,
+          "node_id": 397,
+          "text": "priority inversion in scheduler"
+        },
+        {
+          "rank": 5,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 6,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 7,
+          "node_id": 460,
+          "text": "thread pool saturation rejected incoming tasks"
+        },
+        {
+          "rank": 8,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 9,
+          "node_id": 310,
+          "text": "message queue backlog growing faster than workers drain"
+        },
+        {
+          "rank": 10,
+          "node_id": 367,
+          "text": "search index lagging behind writes"
+        },
+        {
+          "rank": 11,
+          "node_id": 337,
+          "text": "index rebuild blocked writes for twenty minutes"
+        },
+        {
+          "rank": 12,
+          "node_id": 364,
+          "text": "session store evicted active carts"
+        },
+        {
+          "rank": 13,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 14,
+          "node_id": 358,
+          "text": "feature flag evaluation slow on cold start"
+        },
+        {
+          "rank": 15,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 16,
+          "node_id": 559,
+          "text": "staging passes but production fails"
+        },
+        {
+          "rank": 17,
+          "node_id": 448,
+          "text": "service mesh sidecar restarted under memory pressure"
+        },
+        {
+          "rank": 18,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        },
+        {
+          "rank": 19,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 20,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        }
+      ],
+      "gold_presented_rank": 4
+    },
+    {
+      "id": "para-038",
+      "group": "para-hard",
+      "query": "duplicate identifiers appearing in traces",
+      "gold_node_id": 415,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 292,
+          "text": "l1rare097 impeller insert traced trued"
+        },
+        {
+          "rank": 2,
+          "node_id": 388,
+          "text": "runaway cron spawning duplicate reports"
+        },
+        {
+          "rank": 3,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 4,
+          "node_id": 523,
+          "text": "backup verification found unrestorable segments"
+        },
+        {
+          "rank": 5,
+          "node_id": 418,
+          "text": "charset mismatch garbled export file"
+        },
+        {
+          "rank": 6,
+          "node_id": 220,
+          "text": "l1rare073 chassis chimney matched mitered"
+        },
+        {
+          "rank": 7,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 8,
+          "node_id": 274,
+          "text": "l1rare091 grommet guard stamped stapled"
+        },
+        {
+          "rank": 9,
+          "node_id": 85,
+          "text": "l1rare028 engraver cutter caulked potted"
+        },
+        {
+          "rank": 10,
+          "node_id": 394,
+          "text": "file descriptor leak in proxy"
+        },
+        {
+          "rank": 11,
+          "node_id": 562,
+          "text": "the same alert fired three nights running"
+        },
+        {
+          "rank": 12,
+          "node_id": 463,
+          "text": "file descriptor table filled under connection storm"
+        },
+        {
+          "rank": 13,
+          "node_id": 589,
+          "text": "changelog generated from wrong branch"
+        },
+        {
+          "rank": 14,
+          "node_id": 94,
+          "text": "l1rare031 shaper grinder dyed bleached"
+        },
+        {
+          "rank": 15,
+          "node_id": 406,
+          "text": "slow query missing index on join"
+        },
+        {
+          "rank": 16,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 17,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 18,
+          "node_id": 598,
+          "text": "postmortem assigned to nobody in particular"
+        },
+        {
+          "rank": 19,
+          "node_id": 397,
+          "text": "priority inversion in scheduler"
+        },
+        {
+          "rank": 20,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-039",
+      "group": "para-hard",
+      "query": "csv download shows broken characters",
+      "gold_node_id": 418,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 418,
+          "text": "charset mismatch garbled export file"
+        },
+        {
+          "rank": 2,
+          "node_id": 484,
+          "text": "payload compression ratio collapsed on binary blobs"
+        },
+        {
+          "rank": 3,
+          "node_id": 394,
+          "text": "file descriptor leak in proxy"
+        },
+        {
+          "rank": 4,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 5,
+          "node_id": 463,
+          "text": "file descriptor table filled under connection storm"
+        },
+        {
+          "rank": 6,
+          "node_id": 370,
+          "text": "backup snapshot corrupted and unrestorable"
+        },
+        {
+          "rank": 7,
+          "node_id": 391,
+          "text": "serializer mismatch between client and server"
+        },
+        {
+          "rank": 8,
+          "node_id": 19,
+          "text": "l1rare006 codec transcoder plated coated"
+        },
+        {
+          "rank": 9,
+          "node_id": 106,
+          "text": "l1rare035 pliers chisel stitched hemmed"
+        },
+        {
+          "rank": 10,
+          "node_id": 214,
+          "text": "l1rare071 cam cartridge lined locked"
+        },
+        {
+          "rank": 11,
+          "node_id": 112,
+          "text": "l1rare037 punch die trimmed notched"
+        },
+        {
+          "rank": 12,
+          "node_id": 580,
+          "text": "sandbox data leaked into demo environment"
+        },
+        {
+          "rank": 13,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 14,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 15,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 16,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 17,
+          "node_id": 466,
+          "text": "poison message blocked the consumer group"
+        },
+        {
+          "rank": 18,
+          "node_id": 187,
+          "text": "l1rare062 terminal uplink framed frosted"
+        },
+        {
+          "rank": 19,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 20,
+          "node_id": 523,
+          "text": "backup verification found unrestorable segments"
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-049",
+      "group": "para-hard",
+      "query": "calls between systems drop briefly",
+      "gold_node_id": 448,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 2,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 3,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 4,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 5,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 6,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        },
+        {
+          "rank": 7,
+          "node_id": 535,
+          "text": "dns failover advertised the standby too early"
+        },
+        {
+          "rank": 8,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 9,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 10,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 11,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 12,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 13,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        },
+        {
+          "rank": 14,
+          "node_id": 346,
+          "text": "retry storm amplified downstream outage"
+        },
+        {
+          "rank": 15,
+          "node_id": 235,
+          "text": "l1rare078 console coupling plugged pressed"
+        },
+        {
+          "rank": 16,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 17,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 18,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 19,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 20,
+          "node_id": 391,
+          "text": "serializer mismatch between client and server"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-054",
+      "group": "para-hard",
+      "query": "process cannot open sockets",
+      "gold_node_id": 463,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 2,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 3,
+          "node_id": 511,
+          "text": "container cgroup limit killed the process"
+        },
+        {
+          "rank": 4,
+          "node_id": 391,
+          "text": "serializer mismatch between client and server"
+        },
+        {
+          "rank": 5,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 6,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        },
+        {
+          "rank": 7,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 8,
+          "node_id": 466,
+          "text": "poison message blocked the consumer group"
+        },
+        {
+          "rank": 9,
+          "node_id": 334,
+          "text": "stale lock held after node failure"
+        },
+        {
+          "rank": 10,
+          "node_id": 520,
+          "text": "tls session resumption failed across restarts"
+        },
+        {
+          "rank": 11,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 12,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 13,
+          "node_id": 433,
+          "text": "certificate rotation broke mutual TLS handshake"
+        },
+        {
+          "rank": 14,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 15,
+          "node_id": 460,
+          "text": "thread pool saturation rejected incoming tasks"
+        },
+        {
+          "rank": 16,
+          "node_id": 313,
+          "text": "tls certificate renewal failed on edge nodes"
+        },
+        {
+          "rank": 17,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 18,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 19,
+          "node_id": 430,
+          "text": "database migration locked the events table"
+        },
+        {
+          "rank": 20,
+          "node_id": 412,
+          "text": "secret volume failed to mount"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-057",
+      "group": "para-hard",
+      "query": "reads degrade over time",
+      "gold_node_id": 472,
+      "gold_pool_rank": 5,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 2,
+          "node_id": 400,
+          "text": "expired cache poisoned responses"
+        },
+        {
+          "rank": 3,
+          "node_id": 367,
+          "text": "search index lagging behind writes"
+        },
+        {
+          "rank": 4,
+          "node_id": 337,
+          "text": "index rebuild blocked writes for twenty minutes"
+        },
+        {
+          "rank": 5,
+          "node_id": 451,
+          "text": "cache eviction rate spiked after memory pressure"
+        },
+        {
+          "rank": 6,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 7,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 8,
+          "node_id": 370,
+          "text": "backup snapshot corrupted and unrestorable"
+        },
+        {
+          "rank": 9,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 10,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 11,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        },
+        {
+          "rank": 12,
+          "node_id": 346,
+          "text": "retry storm amplified downstream outage"
+        },
+        {
+          "rank": 13,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        },
+        {
+          "rank": 14,
+          "node_id": 427,
+          "text": "storage tier promotion delayed by replication backlog"
+        },
+        {
+          "rank": 15,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 16,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 17,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 18,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 19,
+          "node_id": 310,
+          "text": "message queue backlog growing faster than workers drain"
+        },
+        {
+          "rank": 20,
+          "node_id": 76,
+          "text": "l1rare025 multimeter analyzer shaped mortised"
+        }
+      ],
+      "gold_presented_rank": 6
+    },
+    {
+      "id": "para-059",
+      "group": "para-hard",
+      "query": "cache stampede overloaded origin",
+      "gold_node_id": 478,
+      "gold_pool_rank": 7,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 532,
+          "text": "cache stampede protection misfired on deploy"
+        },
+        {
+          "rank": 2,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 3,
+          "node_id": 400,
+          "text": "expired cache poisoned responses"
+        },
+        {
+          "rank": 4,
+          "node_id": 451,
+          "text": "cache eviction rate spiked after memory pressure"
+        },
+        {
+          "rank": 5,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 6,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 7,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 8,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 9,
+          "node_id": 475,
+          "text": "sticky session affinity pinned load unevenly"
+        },
+        {
+          "rank": 10,
+          "node_id": 394,
+          "text": "file descriptor leak in proxy"
+        },
+        {
+          "rank": 11,
+          "node_id": 535,
+          "text": "dns failover advertised the standby too early"
+        },
+        {
+          "rank": 12,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 13,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        },
+        {
+          "rank": 14,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 15,
+          "node_id": 364,
+          "text": "session store evicted active carts"
+        },
+        {
+          "rank": 16,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 17,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 18,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 19,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 20,
+          "node_id": 448,
+          "text": "service mesh sidecar restarted under memory pressure"
+        }
+      ],
+      "gold_presented_rank": 8
+    },
+    {
+      "id": "para-060",
+      "group": "para-hard",
+      "query": "cluster shrinks for no reason",
+      "gold_node_id": 481,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 526,
+          "text": "autoscaler oscillation added and removed nodes"
+        },
+        {
+          "rank": 2,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        },
+        {
+          "rank": 3,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 4,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 5,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 6,
+          "node_id": 484,
+          "text": "payload compression ratio collapsed on binary blobs"
+        },
+        {
+          "rank": 7,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 8,
+          "node_id": 403,
+          "text": "split brain after network partition"
+        },
+        {
+          "rank": 9,
+          "node_id": 355,
+          "text": "hot partition throttled by key skew"
+        },
+        {
+          "rank": 10,
+          "node_id": 565,
+          "text": "deploy finished yet graphs look flat"
+        },
+        {
+          "rank": 11,
+          "node_id": 427,
+          "text": "storage tier promotion delayed by replication backlog"
+        },
+        {
+          "rank": 12,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 13,
+          "node_id": 517,
+          "text": "message ordering broke after partition rebalance"
+        },
+        {
+          "rank": 14,
+          "node_id": 367,
+          "text": "search index lagging behind writes"
+        },
+        {
+          "rank": 15,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 16,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 17,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 18,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 19,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 20,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-061",
+      "group": "para-hard",
+      "query": "bandwidth savings vanished",
+      "gold_node_id": 484,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 2,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 3,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 4,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 5,
+          "node_id": 583,
+          "text": "rate card change broke billing estimates"
+        },
+        {
+          "rank": 6,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 7,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 8,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 9,
+          "node_id": 346,
+          "text": "retry storm amplified downstream outage"
+        },
+        {
+          "rank": 10,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 11,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 12,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 13,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 14,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 15,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 16,
+          "node_id": 328,
+          "text": "rate limiter rejecting legitimate bursts"
+        },
+        {
+          "rank": 17,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 18,
+          "node_id": 310,
+          "text": "message queue backlog growing faster than workers drain"
+        },
+        {
+          "rank": 19,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 20,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-072",
+      "group": "para-hard",
+      "query": "events arrive shuffled",
+      "gold_node_id": 517,
+      "gold_pool_rank": 13,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 2,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 3,
+          "node_id": 397,
+          "text": "priority inversion in scheduler"
+        },
+        {
+          "rank": 4,
+          "node_id": 430,
+          "text": "database migration locked the events table"
+        },
+        {
+          "rank": 5,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 6,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 7,
+          "node_id": 571,
+          "text": "pager fired twice after midnight"
+        },
+        {
+          "rank": 8,
+          "node_id": 436,
+          "text": "scheduler fairness starved low-priority jobs"
+        },
+        {
+          "rank": 9,
+          "node_id": 388,
+          "text": "runaway cron spawning duplicate reports"
+        },
+        {
+          "rank": 10,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 11,
+          "node_id": 562,
+          "text": "the same alert fired three nights running"
+        },
+        {
+          "rank": 12,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 13,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 14,
+          "node_id": 517,
+          "text": "message ordering broke after partition rebalance"
+        },
+        {
+          "rank": 15,
+          "node_id": 505,
+          "text": "database sequence exhausted available integers"
+        },
+        {
+          "rank": 16,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 17,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 18,
+          "node_id": 358,
+          "text": "feature flag evaluation slow on cold start"
+        },
+        {
+          "rank": 19,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 20,
+          "node_id": 442,
+          "text": "query planner chose suboptimal index after stats update"
+        }
+      ],
+      "gold_presented_rank": 14
+    },
+    {
+      "id": "para-073",
+      "group": "para-hard",
+      "query": "returning visitors handshake fully",
+      "gold_node_id": 520,
+      "gold_pool_rank": 1,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 2,
+          "node_id": 520,
+          "text": "tls session resumption failed across restarts"
+        },
+        {
+          "rank": 3,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 4,
+          "node_id": 499,
+          "text": "authentication service returned 401 for valid tokens"
+        },
+        {
+          "rank": 5,
+          "node_id": 433,
+          "text": "certificate rotation broke mutual TLS handshake"
+        },
+        {
+          "rank": 6,
+          "node_id": 304,
+          "text": "authentication token expired before refresh completed"
+        },
+        {
+          "rank": 7,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 8,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 9,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 10,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 11,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 12,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 13,
+          "node_id": 475,
+          "text": "sticky session affinity pinned load unevenly"
+        },
+        {
+          "rank": 14,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 15,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 16,
+          "node_id": 403,
+          "text": "split brain after network partition"
+        },
+        {
+          "rank": 17,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 18,
+          "node_id": 391,
+          "text": "serializer mismatch between client and server"
+        },
+        {
+          "rank": 19,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 20,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        }
+      ],
+      "gold_presented_rank": 2
+    },
+    {
+      "id": "para-075",
+      "group": "para-hard",
+      "query": "capacity flaps up and down",
+      "gold_node_id": 526,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 409,
+          "text": "health check too strict caused flapping"
+        },
+        {
+          "rank": 2,
+          "node_id": 268,
+          "text": "l1rare089 flap frame slottedx solderedx"
+        },
+        {
+          "rank": 3,
+          "node_id": 421,
+          "text": "load balancer health check flapped during deploy"
+        },
+        {
+          "rank": 4,
+          "node_id": 208,
+          "text": "l1rare069 barrel bellows knurledx lashed"
+        },
+        {
+          "rank": 5,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 6,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 7,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        },
+        {
+          "rank": 8,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 9,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 10,
+          "node_id": 265,
+          "text": "l1rare088 fin flexure sized skived"
+        },
+        {
+          "rank": 11,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 12,
+          "node_id": 448,
+          "text": "service mesh sidecar restarted under memory pressure"
+        },
+        {
+          "rank": 13,
+          "node_id": 514,
+          "text": "feature rollout stuck at ten percent"
+        },
+        {
+          "rank": 14,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 15,
+          "node_id": 262,
+          "text": "l1rare087 fender ferrule shimmed shrunk"
+        },
+        {
+          "rank": 16,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 17,
+          "node_id": 295,
+          "text": "l1rare098 intake jack trussed tucked"
+        },
+        {
+          "rank": 18,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 19,
+          "node_id": 226,
+          "text": "l1rare075 clamp cleat packed patched"
+        },
+        {
+          "rank": 20,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-076",
+      "group": "para-hard",
+      "query": "single page load fires hundreds of queries",
+      "gold_node_id": 529,
+      "gold_pool_rank": 5,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 2,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 3,
+          "node_id": 367,
+          "text": "search index lagging behind writes"
+        },
+        {
+          "rank": 4,
+          "node_id": 406,
+          "text": "slow query missing index on join"
+        },
+        {
+          "rank": 5,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 6,
+          "node_id": 529,
+          "text": "graphql resolver n-plus-one hammered the database"
+        },
+        {
+          "rank": 7,
+          "node_id": 475,
+          "text": "sticky session affinity pinned load unevenly"
+        },
+        {
+          "rank": 8,
+          "node_id": 388,
+          "text": "runaway cron spawning duplicate reports"
+        },
+        {
+          "rank": 9,
+          "node_id": 421,
+          "text": "load balancer health check flapped during deploy"
+        },
+        {
+          "rank": 10,
+          "node_id": 571,
+          "text": "pager fired twice after midnight"
+        },
+        {
+          "rank": 11,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 12,
+          "node_id": 532,
+          "text": "cache stampede protection misfired on deploy"
+        },
+        {
+          "rank": 13,
+          "node_id": 463,
+          "text": "file descriptor table filled under connection storm"
+        },
+        {
+          "rank": 14,
+          "node_id": 409,
+          "text": "health check too strict caused flapping"
+        },
+        {
+          "rank": 15,
+          "node_id": 358,
+          "text": "feature flag evaluation slow on cold start"
+        },
+        {
+          "rank": 16,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 17,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        },
+        {
+          "rank": 18,
+          "node_id": 451,
+          "text": "cache eviction rate spiked after memory pressure"
+        },
+        {
+          "rank": 19,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 20,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        }
+      ],
+      "gold_presented_rank": 6
+    },
+    {
+      "id": "para-077",
+      "group": "para-hard",
+      "query": "origin absorbed full traffic",
+      "gold_node_id": 532,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 2,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 3,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 4,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 5,
+          "node_id": 538,
+          "text": "log volume spike saturated the ingest pipeline"
+        },
+        {
+          "rank": 6,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 7,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 8,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 9,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        },
+        {
+          "rank": 10,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 11,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 12,
+          "node_id": 346,
+          "text": "retry storm amplified downstream outage"
+        },
+        {
+          "rank": 13,
+          "node_id": 394,
+          "text": "file descriptor leak in proxy"
+        },
+        {
+          "rank": 14,
+          "node_id": 328,
+          "text": "rate limiter rejecting legitimate bursts"
+        },
+        {
+          "rank": 15,
+          "node_id": 463,
+          "text": "file descriptor table filled under connection storm"
+        },
+        {
+          "rank": 16,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 17,
+          "node_id": 583,
+          "text": "rate card change broke billing estimates"
+        },
+        {
+          "rank": 18,
+          "node_id": 73,
+          "text": "l1rare024 interferometer oscilloscope jointed routed"
+        },
+        {
+          "rank": 19,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 20,
+          "node_id": 109,
+          "text": "l1rare036 rasp awl piped edged"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-080",
+      "group": "para-hard",
+      "query": "everything feels slow",
+      "gold_node_id": 541,
+      "gold_pool_rank": 1,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 358,
+          "text": "feature flag evaluation slow on cold start"
+        },
+        {
+          "rank": 2,
+          "node_id": 541,
+          "text": "p99 latency crept upward all week"
+        },
+        {
+          "rank": 3,
+          "node_id": 367,
+          "text": "search index lagging behind writes"
+        },
+        {
+          "rank": 4,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 5,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 6,
+          "node_id": 406,
+          "text": "slow query missing index on join"
+        },
+        {
+          "rank": 7,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 8,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 9,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 10,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 11,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 12,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 13,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 14,
+          "node_id": 481,
+          "text": "heartbeat timeout evicted healthy members"
+        },
+        {
+          "rank": 15,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 16,
+          "node_id": 565,
+          "text": "deploy finished yet graphs look flat"
+        },
+        {
+          "rank": 17,
+          "node_id": 310,
+          "text": "message queue backlog growing faster than workers drain"
+        },
+        {
+          "rank": 18,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 19,
+          "node_id": 355,
+          "text": "hot partition throttled by key skew"
+        },
+        {
+          "rank": 20,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        }
+      ],
+      "gold_presented_rank": 2
+    },
+    {
+      "id": "para-081",
+      "group": "para-hard",
+      "query": "we may freeze releases",
+      "gold_node_id": 544,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        },
+        {
+          "rank": 2,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 3,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 4,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 5,
+          "node_id": 319,
+          "text": "dns resolver returning stale records"
+        },
+        {
+          "rank": 6,
+          "node_id": 334,
+          "text": "stale lock held after node failure"
+        },
+        {
+          "rank": 7,
+          "node_id": 580,
+          "text": "sandbox data leaked into demo environment"
+        },
+        {
+          "rank": 8,
+          "node_id": 427,
+          "text": "storage tier promotion delayed by replication backlog"
+        },
+        {
+          "rank": 9,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 10,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 11,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 12,
+          "node_id": 520,
+          "text": "tls session resumption failed across restarts"
+        },
+        {
+          "rank": 13,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 14,
+          "node_id": 400,
+          "text": "expired cache poisoned responses"
+        },
+        {
+          "rank": 15,
+          "node_id": 337,
+          "text": "index rebuild blocked writes for twenty minutes"
+        },
+        {
+          "rank": 16,
+          "node_id": 358,
+          "text": "feature flag evaluation slow on cold start"
+        },
+        {
+          "rank": 17,
+          "node_id": 514,
+          "text": "feature rollout stuck at ten percent"
+        },
+        {
+          "rank": 18,
+          "node_id": 160,
+          "text": "l1rare053 beacon cabinet crated creased"
+        },
+        {
+          "rank": 19,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 20,
+          "node_id": 511,
+          "text": "container cgroup limit killed the process"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-082",
+      "group": "para-hard",
+      "query": "reports disagree",
+      "gold_node_id": 547,
+      "gold_pool_rank": 14,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 2,
+          "node_id": 568,
+          "text": "customer success escalated a vague complaint"
+        },
+        {
+          "rank": 3,
+          "node_id": 388,
+          "text": "runaway cron spawning duplicate reports"
+        },
+        {
+          "rank": 4,
+          "node_id": 442,
+          "text": "query planner chose suboptimal index after stats update"
+        },
+        {
+          "rank": 5,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 6,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 7,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 8,
+          "node_id": 559,
+          "text": "staging passes but production fails"
+        },
+        {
+          "rank": 9,
+          "node_id": 571,
+          "text": "pager fired twice after midnight"
+        },
+        {
+          "rank": 10,
+          "node_id": 514,
+          "text": "feature rollout stuck at ten percent"
+        },
+        {
+          "rank": 11,
+          "node_id": 565,
+          "text": "deploy finished yet graphs look flat"
+        },
+        {
+          "rank": 12,
+          "node_id": 409,
+          "text": "health check too strict caused flapping"
+        },
+        {
+          "rank": 13,
+          "node_id": 598,
+          "text": "postmortem assigned to nobody in particular"
+        },
+        {
+          "rank": 14,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 15,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 16,
+          "node_id": 589,
+          "text": "changelog generated from wrong branch"
+        },
+        {
+          "rank": 17,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 18,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 19,
+          "node_id": 433,
+          "text": "certificate rotation broke mutual TLS handshake"
+        },
+        {
+          "rank": 20,
+          "node_id": 583,
+          "text": "rate card change broke billing estimates"
+        }
+      ],
+      "gold_presented_rank": 15
+    },
+    {
+      "id": "para-083",
+      "group": "para-hard",
+      "query": "nothing reproduces",
+      "gold_node_id": 550,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 598,
+          "text": "postmortem assigned to nobody in particular"
+        },
+        {
+          "rank": 2,
+          "node_id": 559,
+          "text": "staging passes but production fails"
+        },
+        {
+          "rank": 3,
+          "node_id": 580,
+          "text": "sandbox data leaked into demo environment"
+        },
+        {
+          "rank": 4,
+          "node_id": 4,
+          "text": "l1rare001 hypervisor bios jammed snapped"
+        },
+        {
+          "rank": 5,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        },
+        {
+          "rank": 6,
+          "node_id": 565,
+          "text": "deploy finished yet graphs look flat"
+        },
+        {
+          "rank": 7,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 8,
+          "node_id": 514,
+          "text": "feature rollout stuck at ten percent"
+        },
+        {
+          "rank": 9,
+          "node_id": 388,
+          "text": "runaway cron spawning duplicate reports"
+        },
+        {
+          "rank": 10,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 11,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 12,
+          "node_id": 364,
+          "text": "session store evicted active carts"
+        },
+        {
+          "rank": 13,
+          "node_id": 298,
+          "text": "l1rare099 jig journal turnedx waxed"
+        },
+        {
+          "rank": 14,
+          "node_id": 493,
+          "text": "noisy neighbor saturated the shared host"
+        },
+        {
+          "rank": 15,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 16,
+          "node_id": 79,
+          "text": "l1rare026 synthesizer sequencer doweled glued"
+        },
+        {
+          "rank": 17,
+          "node_id": 589,
+          "text": "changelog generated from wrong branch"
+        },
+        {
+          "rank": 18,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 19,
+          "node_id": 568,
+          "text": "customer success escalated a vague complaint"
+        },
+        {
+          "rank": 20,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-084",
+      "group": "para-hard",
+      "query": "flapping with no deploy",
+      "gold_node_id": 553,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 421,
+          "text": "load balancer health check flapped during deploy"
+        },
+        {
+          "rank": 2,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        },
+        {
+          "rank": 3,
+          "node_id": 409,
+          "text": "health check too strict caused flapping"
+        },
+        {
+          "rank": 4,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 5,
+          "node_id": 565,
+          "text": "deploy finished yet graphs look flat"
+        },
+        {
+          "rank": 6,
+          "node_id": 514,
+          "text": "feature rollout stuck at ten percent"
+        },
+        {
+          "rank": 7,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 8,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 9,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 10,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 11,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 12,
+          "node_id": 580,
+          "text": "sandbox data leaked into demo environment"
+        },
+        {
+          "rank": 13,
+          "node_id": 532,
+          "text": "cache stampede protection misfired on deploy"
+        },
+        {
+          "rank": 14,
+          "node_id": 382,
+          "text": "password rotation broke service account"
+        },
+        {
+          "rank": 15,
+          "node_id": 559,
+          "text": "staging passes but production fails"
+        },
+        {
+          "rank": 16,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 17,
+          "node_id": 208,
+          "text": "l1rare069 barrel bellows knurledx lashed"
+        },
+        {
+          "rank": 18,
+          "node_id": 502,
+          "text": "canary analysis halted the rollout automatically"
+        },
+        {
+          "rank": 19,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 20,
+          "node_id": 238,
+          "text": "l1rare079 cover cowling probed punched"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-085",
+      "group": "para-hard",
+      "query": "something broke quietly",
+      "gold_node_id": 556,
+      "gold_pool_rank": 4,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 2,
+          "node_id": 238,
+          "text": "l1rare079 cover cowling probed punched"
+        },
+        {
+          "rank": 3,
+          "node_id": 370,
+          "text": "backup snapshot corrupted and unrestorable"
+        },
+        {
+          "rank": 4,
+          "node_id": 568,
+          "text": "customer success escalated a vague complaint"
+        },
+        {
+          "rank": 5,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 6,
+          "node_id": 4,
+          "text": "l1rare001 hypervisor bios jammed snapped"
+        },
+        {
+          "rank": 7,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        },
+        {
+          "rank": 8,
+          "node_id": 481,
+          "text": "heartbeat timeout evicted healthy members"
+        },
+        {
+          "rank": 9,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 10,
+          "node_id": 259,
+          "text": "l1rare086 fan faucet shaved sheared"
+        },
+        {
+          "rank": 11,
+          "node_id": 334,
+          "text": "stale lock held after node failure"
+        },
+        {
+          "rank": 12,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        },
+        {
+          "rank": 13,
+          "node_id": 409,
+          "text": "health check too strict caused flapping"
+        },
+        {
+          "rank": 14,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 15,
+          "node_id": 583,
+          "text": "rate card change broke billing estimates"
+        },
+        {
+          "rank": 16,
+          "node_id": 382,
+          "text": "password rotation broke service account"
+        },
+        {
+          "rank": 17,
+          "node_id": 433,
+          "text": "certificate rotation broke mutual TLS handshake"
+        },
+        {
+          "rank": 18,
+          "node_id": 517,
+          "text": "message ordering broke after partition rebalance"
+        },
+        {
+          "rank": 19,
+          "node_id": 340,
+          "text": "clock skew broke token validation"
+        },
+        {
+          "rank": 20,
+          "node_id": 469,
+          "text": "clock skew broke token expiry validation"
+        }
+      ],
+      "gold_presented_rank": 5
+    },
+    {
+      "id": "para-086",
+      "group": "para-hard",
+      "query": "works on my machine",
+      "gold_node_id": 559,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 2,
+          "node_id": 148,
+          "text": "l1rare049 suspension catalytic brushed burned"
+        },
+        {
+          "rank": 3,
+          "node_id": 97,
+          "text": "l1rare032 polisher sander carded spun"
+        },
+        {
+          "rank": 4,
+          "node_id": 169,
+          "text": "l1rare056 heatsink isolator doweledx dressed"
+        },
+        {
+          "rank": 5,
+          "node_id": 172,
+          "text": "l1rare057 junction keypad eased embossed"
+        },
+        {
+          "rank": 6,
+          "node_id": 121,
+          "text": "l1rare040 kiln oven knurled peened"
+        },
+        {
+          "rank": 7,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 8,
+          "node_id": 118,
+          "text": "l1rare039 forge furnace dimpled splined"
+        },
+        {
+          "rank": 9,
+          "node_id": 298,
+          "text": "l1rare099 jig journal turnedx waxed"
+        },
+        {
+          "rank": 10,
+          "node_id": 382,
+          "text": "password rotation broke service account"
+        },
+        {
+          "rank": 11,
+          "node_id": 223,
+          "text": "l1rare074 chuck circuit notchedx oiled"
+        },
+        {
+          "rank": 12,
+          "node_id": 214,
+          "text": "l1rare071 cam cartridge lined locked"
+        },
+        {
+          "rank": 13,
+          "node_id": 58,
+          "text": "l1rare019 thermometer thermostat polished sanded"
+        },
+        {
+          "rank": 14,
+          "node_id": 532,
+          "text": "cache stampede protection misfired on deploy"
+        },
+        {
+          "rank": 15,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 16,
+          "node_id": 358,
+          "text": "feature flag evaluation slow on cold start"
+        },
+        {
+          "rank": 17,
+          "node_id": 484,
+          "text": "payload compression ratio collapsed on binary blobs"
+        },
+        {
+          "rank": 18,
+          "node_id": 496,
+          "text": "SSL certificate chain validation failed on edge nodes"
+        },
+        {
+          "rank": 19,
+          "node_id": 313,
+          "text": "tls certificate renewal failed on edge nodes"
+        },
+        {
+          "rank": 20,
+          "node_id": 406,
+          "text": "slow query missing index on join"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-087",
+      "group": "para-hard",
+      "query": "paging fatigue sets in",
+      "gold_node_id": 562,
+      "gold_pool_rank": null,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 2,
+          "node_id": 256,
+          "text": "l1rare085 eyelet fairing seamed seated"
+        },
+        {
+          "rank": 3,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 4,
+          "node_id": 337,
+          "text": "index rebuild blocked writes for twenty minutes"
+        },
+        {
+          "rank": 5,
+          "node_id": 421,
+          "text": "load balancer health check flapped during deploy"
+        },
+        {
+          "rank": 6,
+          "node_id": 409,
+          "text": "health check too strict caused flapping"
+        },
+        {
+          "rank": 7,
+          "node_id": 481,
+          "text": "heartbeat timeout evicted healthy members"
+        },
+        {
+          "rank": 8,
+          "node_id": 475,
+          "text": "sticky session affinity pinned load unevenly"
+        },
+        {
+          "rank": 9,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 10,
+          "node_id": 157,
+          "text": "l1rare052 solenoid actuatorx cleated coupled"
+        },
+        {
+          "rank": 11,
+          "node_id": 217,
+          "text": "l1rare072 caster chamber looped louvered"
+        },
+        {
+          "rank": 12,
+          "node_id": 448,
+          "text": "service mesh sidecar restarted under memory pressure"
+        },
+        {
+          "rank": 13,
+          "node_id": 265,
+          "text": "l1rare088 fin flexure sized skived"
+        },
+        {
+          "rank": 14,
+          "node_id": 403,
+          "text": "split brain after network partition"
+        },
+        {
+          "rank": 15,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 16,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 17,
+          "node_id": 397,
+          "text": "priority inversion in scheduler"
+        },
+        {
+          "rank": 18,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        },
+        {
+          "rank": 19,
+          "node_id": 598,
+          "text": "postmortem assigned to nobody in particular"
+        },
+        {
+          "rank": 20,
+          "node_id": 394,
+          "text": "file descriptor leak in proxy"
+        }
+      ],
+      "gold_presented_rank": null
+    },
+    {
+      "id": "para-088",
+      "group": "para-hard",
+      "query": "traffic may not be flowing",
+      "gold_node_id": 565,
+      "gold_pool_rank": 16,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 379,
+          "text": "misrouted traffic after config push"
+        },
+        {
+          "rank": 2,
+          "node_id": 385,
+          "text": "fragmented packets dropped by firewall"
+        },
+        {
+          "rank": 3,
+          "node_id": 346,
+          "text": "retry storm amplified downstream outage"
+        },
+        {
+          "rank": 4,
+          "node_id": 487,
+          "text": "traffic shadowing duplicated production load"
+        },
+        {
+          "rank": 5,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 6,
+          "node_id": 508,
+          "text": "websocket connections dropped behind the proxy"
+        },
+        {
+          "rank": 7,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 8,
+          "node_id": 559,
+          "text": "staging passes but production fails"
+        },
+        {
+          "rank": 9,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 10,
+          "node_id": 454,
+          "text": "connection pool leak drained available sockets"
+        },
+        {
+          "rank": 11,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 12,
+          "node_id": 463,
+          "text": "file descriptor table filled under connection storm"
+        },
+        {
+          "rank": 13,
+          "node_id": 496,
+          "text": "SSL certificate chain validation failed on edge nodes"
+        },
+        {
+          "rank": 14,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 15,
+          "node_id": 328,
+          "text": "rate limiter rejecting legitimate bursts"
+        },
+        {
+          "rank": 16,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 17,
+          "node_id": 565,
+          "text": "deploy finished yet graphs look flat"
+        },
+        {
+          "rank": 18,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 19,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 20,
+          "node_id": 421,
+          "text": "load balancer health check flapped during deploy"
+        }
+      ],
+      "gold_presented_rank": 17
+    },
+    {
+      "id": "para-089",
+      "group": "para-hard",
+      "query": "big account is unhappy",
+      "gold_node_id": 568,
+      "gold_pool_rank": 5,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 2,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 3,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        },
+        {
+          "rank": 4,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 5,
+          "node_id": 583,
+          "text": "rate card change broke billing estimates"
+        },
+        {
+          "rank": 6,
+          "node_id": 568,
+          "text": "customer success escalated a vague complaint"
+        },
+        {
+          "rank": 7,
+          "node_id": 514,
+          "text": "feature rollout stuck at ten percent"
+        },
+        {
+          "rank": 8,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 9,
+          "node_id": 427,
+          "text": "storage tier promotion delayed by replication backlog"
+        },
+        {
+          "rank": 10,
+          "node_id": 355,
+          "text": "hot partition throttled by key skew"
+        },
+        {
+          "rank": 11,
+          "node_id": 382,
+          "text": "password rotation broke service account"
+        },
+        {
+          "rank": 12,
+          "node_id": 325,
+          "text": "leader election flapping between replicas"
+        },
+        {
+          "rank": 13,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 14,
+          "node_id": 310,
+          "text": "message queue backlog growing faster than workers drain"
+        },
+        {
+          "rank": 15,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        },
+        {
+          "rank": 16,
+          "node_id": 517,
+          "text": "message ordering broke after partition rebalance"
+        },
+        {
+          "rank": 17,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 18,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 19,
+          "node_id": 466,
+          "text": "poison message blocked the consumer group"
+        },
+        {
+          "rank": 20,
+          "node_id": 364,
+          "text": "session store evicted active carts"
+        }
+      ],
+      "gold_presented_rank": 6
+    },
+    {
+      "id": "para-090",
+      "group": "para-hard",
+      "query": "sleep interrupted again",
+      "gold_node_id": 571,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 571,
+          "text": "pager fired twice after midnight"
+        },
+        {
+          "rank": 2,
+          "node_id": 562,
+          "text": "the same alert fired three nights running"
+        },
+        {
+          "rank": 3,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 4,
+          "node_id": 586,
+          "text": "single sign-on outage locked everyone out"
+        },
+        {
+          "rank": 5,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 6,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 7,
+          "node_id": 448,
+          "text": "service mesh sidecar restarted under memory pressure"
+        },
+        {
+          "rank": 8,
+          "node_id": 490,
+          "text": "leader election flapped between two candidates"
+        },
+        {
+          "rank": 9,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 10,
+          "node_id": 520,
+          "text": "tls session resumption failed across restarts"
+        },
+        {
+          "rank": 11,
+          "node_id": 547,
+          "text": "overnight batch finished but numbers look off"
+        },
+        {
+          "rank": 12,
+          "node_id": 574,
+          "text": "deploy queue backed up behind one stuck release"
+        },
+        {
+          "rank": 13,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 14,
+          "node_id": 481,
+          "text": "heartbeat timeout evicted healthy members"
+        },
+        {
+          "rank": 15,
+          "node_id": 334,
+          "text": "stale lock held after node failure"
+        },
+        {
+          "rank": 16,
+          "node_id": 235,
+          "text": "l1rare078 console coupling plugged pressed"
+        },
+        {
+          "rank": 17,
+          "node_id": 343,
+          "text": "connection churn from misconfigured keepalive"
+        },
+        {
+          "rank": 18,
+          "node_id": 370,
+          "text": "backup snapshot corrupted and unrestorable"
+        },
+        {
+          "rank": 19,
+          "node_id": 337,
+          "text": "index rebuild blocked writes for twenty minutes"
+        },
+        {
+          "rank": 20,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-098",
+      "group": "para-hard",
+      "query": "capacity planning was fantasy",
+      "gold_node_id": 595,
+      "gold_pool_rank": 16,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 307,
+          "text": "disk partition reached full capacity overnight"
+        },
+        {
+          "rank": 2,
+          "node_id": 349,
+          "text": "unbounded log growth consumed all disk"
+        },
+        {
+          "rank": 3,
+          "node_id": 559,
+          "text": "staging passes but production fails"
+        },
+        {
+          "rank": 4,
+          "node_id": 436,
+          "text": "scheduler fairness starved low-priority jobs"
+        },
+        {
+          "rank": 5,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 6,
+          "node_id": 544,
+          "text": "error budget burned faster than planned"
+        },
+        {
+          "rank": 7,
+          "node_id": 460,
+          "text": "thread pool saturation rejected incoming tasks"
+        },
+        {
+          "rank": 8,
+          "node_id": 592,
+          "text": "gpu queue wait exceeded the job timeout"
+        },
+        {
+          "rank": 9,
+          "node_id": 361,
+          "text": "webhook delivery delayed by backoff"
+        },
+        {
+          "rank": 10,
+          "node_id": 427,
+          "text": "storage tier promotion delayed by replication backlog"
+        },
+        {
+          "rank": 11,
+          "node_id": 568,
+          "text": "customer success escalated a vague complaint"
+        },
+        {
+          "rank": 12,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 13,
+          "node_id": 457,
+          "text": "read replica lagged minutes behind the writer"
+        },
+        {
+          "rank": 14,
+          "node_id": 301,
+          "text": "database connection pool exhausted under peak load"
+        },
+        {
+          "rank": 15,
+          "node_id": 505,
+          "text": "database sequence exhausted available integers"
+        },
+        {
+          "rank": 16,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 17,
+          "node_id": 595,
+          "text": "holiday traffic dwarfed load test numbers"
+        },
+        {
+          "rank": 18,
+          "node_id": 448,
+          "text": "service mesh sidecar restarted under memory pressure"
+        },
+        {
+          "rank": 19,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 20,
+          "node_id": 376,
+          "text": "thread pool starvation under fan-out"
+        }
+      ],
+      "gold_presented_rank": 17
+    },
+    {
+      "id": "para-099",
+      "group": "para-hard",
+      "query": "action items will rot",
+      "gold_node_id": 598,
+      "gold_pool_rank": 15,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 400,
+          "text": "expired cache poisoned responses"
+        },
+        {
+          "rank": 2,
+          "node_id": 445,
+          "text": "log aggregator dropped events during rotation"
+        },
+        {
+          "rank": 3,
+          "node_id": 451,
+          "text": "cache eviction rate spiked after memory pressure"
+        },
+        {
+          "rank": 4,
+          "node_id": 331,
+          "text": "null pointer crash in payment handler"
+        },
+        {
+          "rank": 5,
+          "node_id": 364,
+          "text": "session store evicted active carts"
+        },
+        {
+          "rank": 6,
+          "node_id": 382,
+          "text": "password rotation broke service account"
+        },
+        {
+          "rank": 7,
+          "node_id": 550,
+          "text": "users complain intermittently since tuesday"
+        },
+        {
+          "rank": 8,
+          "node_id": 556,
+          "text": "support tickets spiked after the holiday"
+        },
+        {
+          "rank": 9,
+          "node_id": 478,
+          "text": "request coalescing collapsed under thundering herd"
+        },
+        {
+          "rank": 10,
+          "node_id": 430,
+          "text": "database migration locked the events table"
+        },
+        {
+          "rank": 11,
+          "node_id": 532,
+          "text": "cache stampede protection misfired on deploy"
+        },
+        {
+          "rank": 12,
+          "node_id": 316,
+          "text": "cache hit ratio collapsed after deploy"
+        },
+        {
+          "rank": 13,
+          "node_id": 472,
+          "text": "compaction backlog grew on the storage engine"
+        },
+        {
+          "rank": 14,
+          "node_id": 334,
+          "text": "stale lock held after node failure"
+        },
+        {
+          "rank": 15,
+          "node_id": 322,
+          "text": "memory leak in worker process over several hours"
+        },
+        {
+          "rank": 16,
+          "node_id": 598,
+          "text": "postmortem assigned to nobody in particular"
+        },
+        {
+          "rank": 17,
+          "node_id": 553,
+          "text": "dashboard went red then green alone"
+        },
+        {
+          "rank": 18,
+          "node_id": 424,
+          "text": "redis replica fell behind primary by seconds"
+        },
+        {
+          "rank": 19,
+          "node_id": 97,
+          "text": "l1rare032 polisher sander carded spun"
+        },
+        {
+          "rank": 20,
+          "node_id": 7,
+          "text": "l1rare002 uefi raid cracked warped"
+        }
+      ],
+      "gold_presented_rank": 16
+    }
+  ]
+}

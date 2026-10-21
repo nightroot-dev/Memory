@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-090
+USER SYMPTOM: sleep interrupted again
+CANDIDATES:
+1. pager fired twice after midnight keywords: sleep interrupted
+2. the same alert fired three nights running keywords: paging fatigue sets
+3. disk partition reached full capacity overnight keywords: server ran storage space
+4. single sign-on outage locked everyone out keywords: nobody log
+5. memory leak in worker process over several hours keywords: service restarts fix rising ram usage temporarily
+6. gpu queue wait exceeded the job timeout keywords: training never starts
+7. service mesh sidecar restarted under memory pressure keywords: calls between systems drop briefly
+8. leader election flapped between two candidates keywords: members cannot agree primary
+9. users complain intermittently since tuesday keywords: nothing reproduces
+10. tls session resumption failed across restarts keywords: returning visitors handshake fully
+11. overnight batch finished but numbers look off keywords: reports disagree
+12. deploy queue backed up behind one stuck release keywords: nothing ships until clears
+13. webhook delivery delayed by backoff keywords: integrations receiving events late
+14. heartbeat timeout evicted healthy members keywords: cluster shrinks reason
+15. stale lock held after node failure keywords: jobs stuck waiting dead owner
+16. l1rare078 console coupling plugged pressed keywords: l1rare078
+17. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+18. backup snapshot corrupted and unrestorable keywords: disaster recovery drill failed bring data back
+19. index rebuild blocked writes for twenty minutes keywords: database froze maintenance window
+20. dashboard went red then green alone keywords: flapping deploy
+
+ITEM para-091
+USER SYMPTOM: nothing ships until it clears
+CANDIDATES:
+1. overnight batch finished but numbers look off keywords: reports disagree
+2. webhook delivery delayed by backoff keywords: integrations receiving events late
+3. deploy finished yet graphs look flat keywords: traffic may flowing
+4. request coalescing collapsed under thundering herd keywords: cache stampede overloaded origin
+5. deploy queue backed up behind one stuck release keywords: nothing ships until clears
+6. fragmented packets dropped by firewall keywords: large uploads failing corporate network
+7. poison message blocked the consumer group keywords: one bad record halts processing
+8. storage tier promotion delayed by replication backlog keywords: hot data lags cold media
+9. disk partition reached full capacity overnight keywords: server ran storage space
+10. misrouted traffic after config push keywords: half regions serving errors post deploy
+11. gpu queue wait exceeded the job timeout keywords: training never starts
+12. expired cache poisoned responses keywords: users seeing yesterday prices
+13. redis replica fell behind primary by seconds keywords: cache reads return stale data
+14. container cgroup limit killed the process keywords: app dies without logs
+15. authentication token expired before refresh completed keywords: users getting logged unexpectedly
+16. message queue backlog growing faster than workers drain keywords: background jobs piling unprocessed
+17. index rebuild blocked writes for twenty minutes keywords: database froze maintenance window
+18. staging passes but production fails keywords: works machine
+19. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+20. users complain intermittently since tuesday keywords: nothing reproduces
+
+ITEM para-092
+USER SYMPTOM: two services wait on each other
+CANDIDATES:
+1. webhook delivery delayed by backoff keywords: integrations receiving events late
+2. gpu queue wait exceeded the job timeout keywords: training never starts
+3. dns failover advertised the standby too early keywords: clients flap between sites
+4. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+5. storage tier promotion delayed by replication backlog keywords: hot data lags cold media
+6. deploy queue backed up behind one stuck release keywords: nothing ships until clears
+7. websocket connections dropped behind the proxy keywords: live updates stall
+8. read replica lagged minutes behind the writer keywords: queries return outdated rows
+9. message queue backlog growing faster than workers drain keywords: background jobs piling unprocessed
+10. redis replica fell behind primary by seconds keywords: cache reads return stale data
+11. single sign-on outage locked everyone out keywords: nobody log
+12. certificate rotation broke mutual TLS handshake keywords: services cannot connect
+13. connection pool leak drained available sockets keywords: new requests wait indefinitely
+14. leader election flapped between two candidates keywords: members cannot agree primary
+15. split brain after network partition keywords: two primaries accepting writes simultaneously
+16. slow query missing index on join keywords: report page loads minutes seconds
+17. compaction backlog grew on the storage engine keywords: reads degrade time
+18. cache stampede protection misfired on deploy keywords: origin absorbed full traffic
+19. feature dependency map has a cycle keywords: two services wait
+20. payload compression ratio collapsed on binary blobs keywords: bandwidth savings vanished
+
+ITEM para-093
+USER SYMPTOM: prospects saw fake accounts
+CANDIDATES:
+1. leader election flapping between replicas keywords: cluster keeps switching primary repeatedly
+2. users complain intermittently since tuesday keywords: nothing reproduces
+3. staging passes but production fails keywords: works machine
+4. support tickets spiked after the holiday keywords: something broke quietly
+5. password rotation broke service account keywords: nightly sync failing authentication
+6. customer success escalated a vague complaint keywords: big account unhappy
+7. runaway cron spawning duplicate reports keywords: customers emailed invoice twice
+8. l1rare097 impeller insert traced trued keywords: l1rare097
+9. l1rare090 funnel fusible spotted staked keywords: l1rare090
+10. single sign-on outage locked everyone out keywords: nobody log
+11. leader election flapped between two candidates keywords: members cannot agree primary
+12. authentication service returned 401 for valid tokens keywords: legitimate users blocked
+13. overflow counter wrapped request ids keywords: duplicate identifiers appearing traces
+14. holiday traffic dwarfed load test numbers keywords: capacity planning fantasy
+15. traffic shadowing duplicated production load keywords: mirror copies overwhelm staging
+16. rate limiter rejecting legitimate bursts keywords: customers report blocked requests sales
+17. overnight batch finished but numbers look off keywords: reports disagree
+18. backup verification found unrestorable segments keywords: disaster drill partially failed
+19. sandbox data leaked into demo environment keywords: prospects saw fake accounts
+20. l1rare033 drill saw woven knitted keywords: l1rare033
+
+ITEM para-094
+USER SYMPTOM: quotes are wrong this month
+CANDIDATES:
+1. error budget burned faster than planned keywords: may freeze releases
+2. users complain intermittently since tuesday keywords: nothing reproduces
+3. rate card change broke billing estimates keywords: quotes wrong month
+4. support tickets spiked after the holiday keywords: something broke quietly
+5. clock skew broke token expiry validation keywords: fresh credentials rejected stale
+6. query planner chose suboptimal index after stats update keywords: queries became slow overnight
+7. clock skew broke token validation keywords: fresh logins rejected expired
+8. charset mismatch garbled export file keywords: csv download shows broken characters
+9. password rotation broke service account keywords: nightly sync failing authentication
+10. overnight batch finished but numbers look off keywords: reports disagree
+11. expired cache poisoned responses keywords: users seeing yesterday prices
+12. staging passes but production fails keywords: works machine
+13. customer success escalated a vague complaint keywords: big account unhappy
+14. changelog generated from wrong branch keywords: release notes describe features
+15. authentication service returned 401 for valid tokens keywords: legitimate users blocked
+16. log aggregator dropped events during rotation keywords: lines missing
+17. webhook delivery delayed by backoff keywords: integrations receiving events late
+18. holiday traffic dwarfed load test numbers keywords: capacity planning fantasy
+19. authentication token expired before refresh completed keywords: users getting logged unexpectedly
+20. dns resolver returning stale records keywords: clients reaching wrong server address
+
+ITEM para-095
+USER SYMPTOM: nobody can log in
+CANDIDATES:
+1. single sign-on outage locked everyone out keywords: nobody log
+2. password rotation broke service account keywords: nightly sync failing authentication
+3. dashboard went red then green alone keywords: flapping deploy
+4. schema migration locked the users table keywords: signups timing upgrade
+5. authentication token expired before refresh completed keywords: users getting logged unexpectedly
+6. users complain intermittently since tuesday keywords: nothing reproduces
+7. authentication service returned 401 for valid tokens keywords: legitimate users blocked
+8. secret volume failed to mount keywords: pods crashlooping missing config
+9. session store evicted active carts keywords: shoppers losing basket contents
+10. postmortem assigned to nobody in particular keywords: action items rot
+11. database migration locked the events table keywords: writes paused upgrade
+12. changelog generated from wrong branch keywords: release notes describe features
+13. log aggregator dropped events during rotation keywords: lines missing
+14. clock skew broke token expiry validation keywords: fresh credentials rejected stale
+15. unbounded log growth consumed all disk keywords: alerts fired filesystem one hundred percent
+16. null pointer crash in payment handler keywords: checkout fails internal error
+17. log volume spike saturated the ingest pipeline keywords: search misses recent entries
+18. memory leak in worker process over several hours keywords: service restarts fix rising ram usage temporarily
+19. file descriptor leak in proxy keywords: gateway refusing connections days uptime
+20. priority inversion in scheduler keywords: urgent tasks waiting behind batch work
+
+ITEM para-096
+USER SYMPTOM: release notes describe other features
+CANDIDATES:
+1. customer success escalated a vague complaint keywords: big account unhappy
+2. compaction backlog grew on the storage engine keywords: reads degrade time
+3. feature dependency map has a cycle keywords: two services wait
+4. webhook delivery delayed by backoff keywords: integrations receiving events late
+5. file descriptor table filled under connection storm keywords: process cannot open sockets
+6. sandbox data leaked into demo environment keywords: prospects saw fake accounts
+7. connection pool leak drained available sockets keywords: new requests wait indefinitely
+8. feature rollout stuck at ten percent keywords: users never
+9. single sign-on outage locked everyone out keywords: nobody log
+10. l1rare009 inductor transistor brazed welded keywords: l1rare009
+11. l1rare010 diode thyristor riveted bolted keywords: l1rare010
+12. feature flag evaluation slow on cold start keywords: first request boot takes forever
+13. l1rare021 ionizer ozonizer etched milled keywords: l1rare021
+14. schema migration locked the users table keywords: signups timing upgrade
+15. l1rare057 junction keypad eased embossed keywords: l1rare057
+16. storage tier promotion delayed by replication backlog keywords: hot data lags cold media
+17. canary analysis halted the rollout automatically keywords: release stopped halfway
+18. deploy queue backed up behind one stuck release keywords: nothing ships until clears
+19. cache hit ratio collapsed after deploy keywords: responses suddenly much slower since release
+20. changelog generated from wrong branch keywords: release notes describe features
+
+ITEM para-097
+USER SYMPTOM: training never starts
+CANDIDATES:
+1. l1rare051 alternator starter chained cinched keywords: l1rare051
+2. database connection pool exhausted under peak load keywords: connections timing busy hours
+3. webhook delivery delayed by backoff keywords: integrations receiving events late
+4. feature flag evaluation slow on cold start keywords: first request boot takes forever
+5. feature dependency map has a cycle keywords: two services wait
+6. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+7. password rotation broke service account keywords: nightly sync failing authentication
+8. deploy finished yet graphs look flat keywords: traffic may flowing
+9. l1rare015 valve actuator chamfered tapped keywords: l1rare015
+10. l1rare019 thermometer thermostat polished sanded keywords: l1rare019
+11. pager fired twice after midnight keywords: sleep interrupted
+12. overnight batch finished but numbers look off keywords: reports disagree
+13. l1rare002 uefi raid cracked warped keywords: l1rare002
+14. l1rare092 guide gusset stitchedx strapped keywords: l1rare092
+15. l1rare017 accelerometer magnetometer reamed honed keywords: l1rare017
+16. l1rare000 firmware bootloader halted seized keywords: l1rare000
+17. l1rare001 hypervisor bios jammed snapped keywords: l1rare001
+18. feature rollout stuck at ten percent keywords: users never
+19. gpu queue wait exceeded the job timeout keywords: training never starts
+20. scheduler fairness starved low-priority jobs keywords: background tasks never run
+
+ITEM para-098
+USER SYMPTOM: capacity planning was fantasy
+CANDIDATES:
+1. disk partition reached full capacity overnight keywords: server ran storage space
+2. unbounded log growth consumed all disk keywords: alerts fired filesystem one hundred percent
+3. staging passes but production fails keywords: works machine
+4. scheduler fairness starved low-priority jobs keywords: background tasks never run
+5. compaction backlog grew on the storage engine keywords: reads degrade time
+6. error budget burned faster than planned keywords: may freeze releases
+7. thread pool saturation rejected incoming tasks keywords: server turns away work
+8. gpu queue wait exceeded the job timeout keywords: training never starts
+9. webhook delivery delayed by backoff keywords: integrations receiving events late
+10. storage tier promotion delayed by replication backlog keywords: hot data lags cold media
+11. customer success escalated a vague complaint keywords: big account unhappy
+12. support tickets spiked after the holiday keywords: something broke quietly
+13. read replica lagged minutes behind the writer keywords: queries return outdated rows
+14. database connection pool exhausted under peak load keywords: connections timing busy hours
+15. database sequence exhausted available integers keywords: inserts fail duplicate key
+16. redis replica fell behind primary by seconds keywords: cache reads return stale data
+17. holiday traffic dwarfed load test numbers keywords: capacity planning fantasy
+18. service mesh sidecar restarted under memory pressure keywords: calls between systems drop briefly
+19. request coalescing collapsed under thundering herd keywords: cache stampede overloaded origin
+20. autoscaler oscillation added and removed nodes keywords: capacity flaps
+
+ITEM para-099
+USER SYMPTOM: action items will rot
+CANDIDATES:
+1. expired cache poisoned responses keywords: users seeing yesterday prices
+2. log aggregator dropped events during rotation keywords: lines missing
+3. cache eviction rate spiked after memory pressure keywords: responses sluggish
+4. null pointer crash in payment handler keywords: checkout fails internal error
+5. session store evicted active carts keywords: shoppers losing basket contents
+6. password rotation broke service account keywords: nightly sync failing authentication
+7. users complain intermittently since tuesday keywords: nothing reproduces
+8. support tickets spiked after the holiday keywords: something broke quietly
+9. request coalescing collapsed under thundering herd keywords: cache stampede overloaded origin
+10. database migration locked the events table keywords: writes paused upgrade
+11. cache stampede protection misfired on deploy keywords: origin absorbed full traffic
+12. cache hit ratio collapsed after deploy keywords: responses suddenly much slower since release
+13. compaction backlog grew on the storage engine keywords: reads degrade time
+14. stale lock held after node failure keywords: jobs stuck waiting dead owner
+15. memory leak in worker process over several hours keywords: service restarts fix rising ram usage temporarily
+16. postmortem assigned to nobody in particular keywords: action items rot
+17. dashboard went red then green alone keywords: flapping deploy
+18. redis replica fell behind primary by seconds keywords: cache reads return stale data
+19. l1rare032 polisher sander carded spun keywords: l1rare032
+20. l1rare002 uefi raid cracked warped keywords: l1rare002

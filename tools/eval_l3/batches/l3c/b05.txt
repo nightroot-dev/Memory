@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-040
+USER SYMPTOM: traffic shifted unexpectedly
+CANDIDATES:
+1. misrouted traffic after config push
+2. fragmented packets dropped by firewall
+3. traffic shadowing duplicated production load
+4. holiday traffic dwarfed load test numbers
+5. p99 latency crept upward all week
+6. websocket connections dropped behind the proxy
+7. support tickets spiked after the holiday
+8. retry storm amplified downstream outage
+9. connection churn from misconfigured keepalive
+10. leader election flapped between two candidates
+11. leader election flapping between replicas
+12. log aggregator dropped events during rotation
+13. pager fired twice after midnight
+14. rate limiter rejecting legitimate bursts
+15. webhook delivery delayed by backoff
+16. noisy neighbor saturated the shared host
+17. memory leak in worker process over several hours
+18. unbounded log growth consumed all disk
+19. rate card change broke billing estimates
+20. dashboard went red then green alone
+
+ITEM para-041
+USER SYMPTOM: cache reads return stale data
+CANDIDATES:
+1. expired cache poisoned responses
+2. dns resolver returning stale records
+3. cache eviction rate spiked after memory pressure
+4. search index lagging behind writes
+5. cache hit ratio collapsed after deploy
+6. memory leak in worker process over several hours
+7. cache stampede protection misfired on deploy
+8. stale lock held after node failure
+9. read replica lagged minutes behind the writer
+10. compaction backlog grew on the storage engine
+11. file descriptor leak in proxy
+12. index rebuild blocked writes for twenty minutes
+13. slow query missing index on join
+14. sticky session affinity pinned load unevenly
+15. authentication token expired before refresh completed
+16. connection churn from misconfigured keepalive
+17. p99 latency crept upward all week
+18. session store evicted active carts
+19. websocket connections dropped behind the proxy
+20. sandbox data leaked into demo environment
+
+ITEM para-042
+USER SYMPTOM: hot data lags on cold media
+CANDIDATES:
+1. search index lagging behind writes
+2. p99 latency crept upward all week
+3. read replica lagged minutes behind the writer
+4. feature flag evaluation slow on cold start
+5. hot partition throttled by key skew
+6. storage tier promotion delayed by replication backlog
+7. slow query missing index on join
+8. webhook delivery delayed by backoff
+9. noisy neighbor saturated the shared host
+10. fragmented packets dropped by firewall
+11. thread pool starvation under fan-out
+12. dns resolver returning stale records
+13. index rebuild blocked writes for twenty minutes
+14. compaction backlog grew on the storage engine
+15. cache stampede protection misfired on deploy
+16. single sign-on outage locked everyone out
+17. payload compression ratio collapsed on binary blobs
+18. sandbox data leaked into demo environment
+19. tls certificate renewal failed on edge nodes
+20. SSL certificate chain validation failed on edge nodes
+
+ITEM para-043
+USER SYMPTOM: writes paused during upgrade
+CANDIDATES:
+1. index rebuild blocked writes for twenty minutes
+2. deploy queue backed up behind one stuck release
+3. search index lagging behind writes
+4. gpu queue wait exceeded the job timeout
+5. webhook delivery delayed by backoff
+6. error budget burned faster than planned
+7. thread pool starvation under fan-out
+8. feature flag evaluation slow on cold start
+9. memory leak in worker process over several hours
+10. feature rollout stuck at ten percent
+11. service mesh sidecar restarted under memory pressure
+12. storage tier promotion delayed by replication backlog
+13. stale lock held after node failure
+14. cache eviction rate spiked after memory pressure
+15. message queue backlog growing faster than workers drain
+16. overnight batch finished but numbers look off
+17. connection churn from misconfigured keepalive
+18. database migration locked the events table
+19. load balancer health check flapped during deploy
+20. log aggregator dropped events during rotation
+
+ITEM para-044
+USER SYMPTOM: some services cannot connect
+CANDIDATES:
+1. websocket connections dropped behind the proxy
+2. password rotation broke service account
+3. connection churn from misconfigured keepalive
+4. certificate rotation broke mutual TLS handshake
+5. webhook delivery delayed by backoff
+6. single sign-on outage locked everyone out
+7. dashboard went red then green alone
+8. authentication service returned 401 for valid tokens
+9. retry storm amplified downstream outage
+10. connection pool leak drained available sockets
+11. dns failover advertised the standby too early
+12. tls session resumption failed across restarts
+13. tls certificate renewal failed on edge nodes
+14. misrouted traffic after config push
+15. database connection pool exhausted under peak load
+16. fragmented packets dropped by firewall
+17. serializer mismatch between client and server
+18. SSL certificate chain validation failed on edge nodes
+19. authentication token expired before refresh completed
+20. poison message blocked the consumer group
+
+ITEM para-045
+USER SYMPTOM: background tasks never run
+CANDIDATES:
+1. overnight batch finished but numbers look off
+2. gpu queue wait exceeded the job timeout
+3. memory leak in worker process over several hours
+4. thread pool saturation rejected incoming tasks
+5. thread pool starvation under fan-out
+6. the same alert fired three nights running
+7. message queue backlog growing faster than workers drain
+8. scheduler fairness starved low-priority jobs
+9. runaway cron spawning duplicate reports
+10. dashboard went red then green alone
+11. webhook delivery delayed by backoff
+12. pager fired twice after midnight
+13. deploy queue backed up behind one stuck release
+14. container cgroup limit killed the process
+15. log volume spike saturated the ingest pipeline
+16. connection churn from misconfigured keepalive
+17. index rebuild blocked writes for twenty minutes
+18. database migration locked the events table
+19. feature rollout stuck at ten percent
+20. log aggregator dropped events during rotation
+
+ITEM para-046
+USER SYMPTOM: some events processed twice
+CANDIDATES:
+1. pager fired twice after midnight
+2. the same alert fired three nights running
+3. runaway cron spawning duplicate reports
+4. log aggregator dropped events during rotation
+5. leader election flapped between two candidates
+6. priority inversion in scheduler
+7. leader election flapping between replicas
+8. traffic shadowing duplicated production load
+9. support tickets spiked after the holiday
+10. database migration locked the events table
+11. redis replica fell behind primary by seconds
+12. overnight batch finished but numbers look off
+13. webhook delivery delayed by backoff
+14. read replica lagged minutes behind the writer
+15. message dedup key collided across tenants
+16. gpu queue wait exceeded the job timeout
+17. sticky session affinity pinned load unevenly
+18. scheduler fairness starved low-priority jobs
+19. users complain intermittently since tuesday
+20. error budget burned faster than planned
+
+ITEM para-047
+USER SYMPTOM: queries became slow overnight
+CANDIDATES:
+1. slow query missing index on join
+2. search index lagging behind writes
+3. feature flag evaluation slow on cold start
+4. users complain intermittently since tuesday
+5. overnight batch finished but numbers look off
+6. p99 latency crept upward all week
+7. memory leak in worker process over several hours
+8. graphql resolver n-plus-one hammered the database
+9. query planner chose suboptimal index after stats update
+10. gpu queue wait exceeded the job timeout
+11. index rebuild blocked writes for twenty minutes
+12. webhook delivery delayed by backoff
+13. dns resolver returning stale records
+14. database connection pool exhausted under peak load
+15. message queue backlog growing faster than workers drain
+16. cache eviction rate spiked after memory pressure
+17. pager fired twice after midnight
+18. disk partition reached full capacity overnight
+19. error budget burned faster than planned
+20. support tickets spiked after the holiday
+
+ITEM para-048
+USER SYMPTOM: some lines are missing
+CANDIDATES:
+1. dashboard went red then green alone
+2. charset mismatch garbled export file
+3. deploy finished yet graphs look flat
+4. l1rare039 forge furnace dimpled splined
+5. l1rare037 punch die trimmed notched
+6. staging passes but production fails
+7. misrouted traffic after config push
+8. overnight batch finished but numbers look off
+9. l1rare027 plotter printer epoxied grouted
+10. websocket connections dropped behind the proxy
+11. l1rare035 pliers chisel stitched hemmed
+12. l1rare059 nodex outlet filleted fitted
+13. l1rare087 fender ferrule shimmed shrunk
+14. l1rare097 impeller insert traced trued
+15. slow query missing index on join
+16. customer success escalated a vague complaint
+17. error budget burned faster than planned
+18. l1rare033 drill saw woven knitted
+19. leader election flapped between two candidates
+20. fragmented packets dropped by firewall
+
+ITEM para-049
+USER SYMPTOM: calls between systems drop briefly
+CANDIDATES:
+1. fragmented packets dropped by firewall
+2. traffic shadowing duplicated production load
+3. p99 latency crept upward all week
+4. memory leak in worker process over several hours
+5. websocket connections dropped behind the proxy
+6. dns resolver returning stale records
+7. dns failover advertised the standby too early
+8. connection churn from misconfigured keepalive
+9. webhook delivery delayed by backoff
+10. connection pool leak drained available sockets
+11. request coalescing collapsed under thundering herd
+12. redis replica fell behind primary by seconds
+13. null pointer crash in payment handler
+14. retry storm amplified downstream outage
+15. l1rare078 console coupling plugged pressed
+16. users complain intermittently since tuesday
+17. thread pool starvation under fan-out
+18. leader election flapped between two candidates
+19. leader election flapping between replicas
+20. serializer mismatch between client and server

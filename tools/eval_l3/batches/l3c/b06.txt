@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-050
+USER SYMPTOM: responses are sluggish
+CANDIDATES:
+1. webhook delivery delayed by backoff
+2. users complain intermittently since tuesday
+3. slow query missing index on join
+4. expired cache poisoned responses
+5. search index lagging behind writes
+6. customer success escalated a vague complaint
+7. error budget burned faster than planned
+8. thread pool starvation under fan-out
+9. feature flag evaluation slow on cold start
+10. thread pool saturation rejected incoming tasks
+11. dns resolver returning stale records
+12. websocket connections dropped behind the proxy
+13. support tickets spiked after the holiday
+14. p99 latency crept upward all week
+15. database connection pool exhausted under peak load
+16. heartbeat timeout evicted healthy members
+17. cache hit ratio collapsed after deploy
+18. noisy neighbor saturated the shared host
+19. redis replica fell behind primary by seconds
+20. hot partition throttled by key skew
+
+ITEM para-051
+USER SYMPTOM: new requests wait indefinitely
+CANDIDATES:
+1. webhook delivery delayed by backoff
+2. authentication token expired before refresh completed
+3. request coalescing collapsed under thundering herd
+4. gpu queue wait exceeded the job timeout
+5. index rebuild blocked writes for twenty minutes
+6. overflow counter wrapped request ids
+7. users complain intermittently since tuesday
+8. expired cache poisoned responses
+9. database connection pool exhausted under peak load
+10. read replica lagged minutes behind the writer
+11. websocket connections dropped behind the proxy
+12. thread pool saturation rejected incoming tasks
+13. search index lagging behind writes
+14. dns resolver returning stale records
+15. rate limiter rejecting legitimate bursts
+16. connection churn from misconfigured keepalive
+17. storage tier promotion delayed by replication backlog
+18. stale lock held after node failure
+19. traffic shadowing duplicated production load
+20. redis replica fell behind primary by seconds
+
+ITEM para-052
+USER SYMPTOM: queries return outdated rows
+CANDIDATES:
+1. dns resolver returning stale records
+2. query planner chose suboptimal index after stats update
+3. slow query missing index on join
+4. expired cache poisoned responses
+5. database sequence exhausted available integers
+6. users complain intermittently since tuesday
+7. search index lagging behind writes
+8. p99 latency crept upward all week
+9. support tickets spiked after the holiday
+10. overnight batch finished but numbers look off
+11. error budget burned faster than planned
+12. rate card change broke billing estimates
+13. session store evicted active carts
+14. cache eviction rate spiked after memory pressure
+15. database migration locked the events table
+16. health check too strict caused flapping
+17. graphql resolver n-plus-one hammered the database
+18. runaway cron spawning duplicate reports
+19. storage tier promotion delayed by replication backlog
+20. customer success escalated a vague complaint
+
+ITEM para-053
+USER SYMPTOM: server turns away work
+CANDIDATES:
+1. webhook delivery delayed by backoff
+2. dashboard went red then green alone
+3. dns failover advertised the standby too early
+4. single sign-on outage locked everyone out
+5. websocket connections dropped behind the proxy
+6. connection pool leak drained available sockets
+7. connection churn from misconfigured keepalive
+8. deploy queue backed up behind one stuck release
+9. thread pool starvation under fan-out
+10. memory leak in worker process over several hours
+11. redis replica fell behind primary by seconds
+12. stale lock held after node failure
+13. heartbeat timeout evicted healthy members
+14. pager fired twice after midnight
+15. load balancer health check flapped during deploy
+16. overnight batch finished but numbers look off
+17. users complain intermittently since tuesday
+18. password rotation broke service account
+19. database connection pool exhausted under peak load
+20. serializer mismatch between client and server
+
+ITEM para-054
+USER SYMPTOM: process cannot open sockets
+CANDIDATES:
+1. connection pool leak drained available sockets
+2. websocket connections dropped behind the proxy
+3. container cgroup limit killed the process
+4. serializer mismatch between client and server
+5. memory leak in worker process over several hours
+6. null pointer crash in payment handler
+7. thread pool starvation under fan-out
+8. poison message blocked the consumer group
+9. stale lock held after node failure
+10. tls session resumption failed across restarts
+11. fragmented packets dropped by firewall
+12. connection churn from misconfigured keepalive
+13. certificate rotation broke mutual TLS handshake
+14. gpu queue wait exceeded the job timeout
+15. thread pool saturation rejected incoming tasks
+16. tls certificate renewal failed on edge nodes
+17. dashboard went red then green alone
+18. database connection pool exhausted under peak load
+19. database migration locked the events table
+20. secret volume failed to mount
+
+ITEM para-055
+USER SYMPTOM: one bad record halts processing
+CANDIDATES:
+1. database sequence exhausted available integers
+2. null pointer crash in payment handler
+3. runaway cron spawning duplicate reports
+4. backup snapshot corrupted and unrestorable
+5. dns resolver returning stale records
+6. index rebuild blocked writes for twenty minutes
+7. thread pool starvation under fan-out
+8. health check too strict caused flapping
+9. pager fired twice after midnight
+10. gpu queue wait exceeded the job timeout
+11. stale lock held after node failure
+12. rate limiter rejecting legitimate bursts
+13. users complain intermittently since tuesday
+14. memory leak in worker process over several hours
+15. unbounded log growth consumed all disk
+16. feature rollout stuck at ten percent
+17. database migration locked the events table
+18. backup verification found unrestorable segments
+19. deploy queue backed up behind one stuck release
+20. graphql resolver n-plus-one hammered the database
+
+ITEM para-056
+USER SYMPTOM: fresh credentials rejected as stale
+CANDIDATES:
+1. authentication token expired before refresh completed
+2. connection churn from misconfigured keepalive
+3. authentication service returned 401 for valid tokens
+4. password rotation broke service account
+5. tls session resumption failed across restarts
+6. clock skew broke token expiry validation
+7. schema migration locked the users table
+8. secret volume failed to mount
+9. certificate rotation broke mutual TLS handshake
+10. clock skew broke token validation
+11. expired cache poisoned responses
+12. single sign-on outage locked everyone out
+13. users complain intermittently since tuesday
+14. dns resolver returning stale records
+15. canary analysis halted the rollout automatically
+16. leader election flapping between replicas
+17. backup verification found unrestorable segments
+18. tls certificate renewal failed on edge nodes
+19. stale lock held after node failure
+20. thread pool saturation rejected incoming tasks
+
+ITEM para-057
+USER SYMPTOM: reads degrade over time
+CANDIDATES:
+1. read replica lagged minutes behind the writer
+2. expired cache poisoned responses
+3. search index lagging behind writes
+4. index rebuild blocked writes for twenty minutes
+5. cache eviction rate spiked after memory pressure
+6. compaction backlog grew on the storage engine
+7. p99 latency crept upward all week
+8. backup snapshot corrupted and unrestorable
+9. memory leak in worker process over several hours
+10. error budget burned faster than planned
+11. unbounded log growth consumed all disk
+12. retry storm amplified downstream outage
+13. dns resolver returning stale records
+14. storage tier promotion delayed by replication backlog
+15. holiday traffic dwarfed load test numbers
+16. disk partition reached full capacity overnight
+17. database connection pool exhausted under peak load
+18. users complain intermittently since tuesday
+19. message queue backlog growing faster than workers drain
+20. l1rare025 multimeter analyzer shaped mortised
+
+ITEM para-058
+USER SYMPTOM: one server gets everything
+CANDIDATES:
+1. websocket connections dropped behind the proxy
+2. noisy neighbor saturated the shared host
+3. traffic shadowing duplicated production load
+4. connection pool leak drained available sockets
+5. single sign-on outage locked everyone out
+6. request coalescing collapsed under thundering herd
+7. serializer mismatch between client and server
+8. database connection pool exhausted under peak load
+9. split brain after network partition
+10. sandbox data leaked into demo environment
+11. webhook delivery delayed by backoff
+12. dashboard went red then green alone
+13. deploy finished yet graphs look flat
+14. file descriptor table filled under connection storm
+15. dns failover advertised the standby too early
+16. sticky session affinity pinned load unevenly
+17. graphql resolver n-plus-one hammered the database
+18. connection churn from misconfigured keepalive
+19. cache stampede protection misfired on deploy
+20. deploy queue backed up behind one stuck release
+
+ITEM para-059
+USER SYMPTOM: cache stampede overloaded origin
+CANDIDATES:
+1. cache stampede protection misfired on deploy
+2. cache hit ratio collapsed after deploy
+3. expired cache poisoned responses
+4. cache eviction rate spiked after memory pressure
+5. traffic shadowing duplicated production load
+6. websocket connections dropped behind the proxy
+7. misrouted traffic after config push
+8. request coalescing collapsed under thundering herd
+9. sticky session affinity pinned load unevenly
+10. file descriptor leak in proxy
+11. dns failover advertised the standby too early
+12. holiday traffic dwarfed load test numbers
+13. dns resolver returning stale records
+14. redis replica fell behind primary by seconds
+15. session store evicted active carts
+16. log aggregator dropped events during rotation
+17. p99 latency crept upward all week
+18. support tickets spiked after the holiday
+19. error budget burned faster than planned
+20. service mesh sidecar restarted under memory pressure

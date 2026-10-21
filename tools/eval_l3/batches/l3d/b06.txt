@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-050
+USER SYMPTOM: responses are sluggish
+CANDIDATES:
+1. webhook delivery delayed by backoff keywords: integrations receiving events late
+2. users complain intermittently since tuesday keywords: nothing reproduces
+3. slow query missing index on join keywords: report page loads minutes seconds
+4. expired cache poisoned responses keywords: users seeing yesterday prices
+5. search index lagging behind writes keywords: new documents appearing results
+6. customer success escalated a vague complaint keywords: big account unhappy
+7. error budget burned faster than planned keywords: may freeze releases
+8. thread pool starvation under fan-out keywords: parallel requests queueing idle cpu
+9. feature flag evaluation slow on cold start keywords: first request boot takes forever
+10. thread pool saturation rejected incoming tasks keywords: server turns away work
+11. dns resolver returning stale records keywords: clients reaching wrong server address
+12. websocket connections dropped behind the proxy keywords: live updates stall
+13. support tickets spiked after the holiday keywords: something broke quietly
+14. p99 latency crept upward all week keywords: everything feels slow
+15. database connection pool exhausted under peak load keywords: connections timing busy hours
+16. heartbeat timeout evicted healthy members keywords: cluster shrinks reason
+17. cache hit ratio collapsed after deploy keywords: responses suddenly much slower since release
+18. noisy neighbor saturated the shared host keywords: unrelated tenant slows us
+19. redis replica fell behind primary by seconds keywords: cache reads return stale data
+20. cache eviction rate spiked after memory pressure keywords: responses sluggish
+
+ITEM para-051
+USER SYMPTOM: new requests wait indefinitely
+CANDIDATES:
+1. webhook delivery delayed by backoff keywords: integrations receiving events late
+2. authentication token expired before refresh completed keywords: users getting logged unexpectedly
+3. request coalescing collapsed under thundering herd keywords: cache stampede overloaded origin
+4. gpu queue wait exceeded the job timeout keywords: training never starts
+5. index rebuild blocked writes for twenty minutes keywords: database froze maintenance window
+6. overflow counter wrapped request ids keywords: duplicate identifiers appearing traces
+7. users complain intermittently since tuesday keywords: nothing reproduces
+8. expired cache poisoned responses keywords: users seeing yesterday prices
+9. database connection pool exhausted under peak load keywords: connections timing busy hours
+10. read replica lagged minutes behind the writer keywords: queries return outdated rows
+11. websocket connections dropped behind the proxy keywords: live updates stall
+12. thread pool saturation rejected incoming tasks keywords: server turns away work
+13. search index lagging behind writes keywords: new documents appearing results
+14. dns resolver returning stale records keywords: clients reaching wrong server address
+15. rate limiter rejecting legitimate bursts keywords: customers report blocked requests sales
+16. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+17. thread pool starvation under fan-out keywords: parallel requests queueing idle cpu
+18. connection pool leak drained available sockets keywords: new requests wait indefinitely
+19. serializer mismatch between client and server keywords: mobile app crashing new api response
+20. feature dependency map has a cycle keywords: two services wait
+
+ITEM para-052
+USER SYMPTOM: queries return outdated rows
+CANDIDATES:
+1. dns resolver returning stale records keywords: clients reaching wrong server address
+2. query planner chose suboptimal index after stats update keywords: queries became slow overnight
+3. slow query missing index on join keywords: report page loads minutes seconds
+4. expired cache poisoned responses keywords: users seeing yesterday prices
+5. database sequence exhausted available integers keywords: inserts fail duplicate key
+6. users complain intermittently since tuesday keywords: nothing reproduces
+7. search index lagging behind writes keywords: new documents appearing results
+8. p99 latency crept upward all week keywords: everything feels slow
+9. support tickets spiked after the holiday keywords: something broke quietly
+10. overnight batch finished but numbers look off keywords: reports disagree
+11. error budget burned faster than planned keywords: may freeze releases
+12. rate card change broke billing estimates keywords: quotes wrong month
+13. session store evicted active carts keywords: shoppers losing basket contents
+14. cache eviction rate spiked after memory pressure keywords: responses sluggish
+15. database migration locked the events table keywords: writes paused upgrade
+16. health check too strict caused flapping keywords: instances cycling rotation
+17. graphql resolver n-plus-one hammered the database keywords: single page load fires hundreds queries
+18. runaway cron spawning duplicate reports keywords: customers emailed invoice twice
+19. read replica lagged minutes behind the writer keywords: queries return outdated rows
+20. redis replica fell behind primary by seconds keywords: cache reads return stale data
+
+ITEM para-053
+USER SYMPTOM: server turns away work
+CANDIDATES:
+1. webhook delivery delayed by backoff keywords: integrations receiving events late
+2. dashboard went red then green alone keywords: flapping deploy
+3. dns failover advertised the standby too early keywords: clients flap between sites
+4. single sign-on outage locked everyone out keywords: nobody log
+5. websocket connections dropped behind the proxy keywords: live updates stall
+6. connection pool leak drained available sockets keywords: new requests wait indefinitely
+7. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+8. deploy queue backed up behind one stuck release keywords: nothing ships until clears
+9. thread pool starvation under fan-out keywords: parallel requests queueing idle cpu
+10. memory leak in worker process over several hours keywords: service restarts fix rising ram usage temporarily
+11. redis replica fell behind primary by seconds keywords: cache reads return stale data
+12. stale lock held after node failure keywords: jobs stuck waiting dead owner
+13. heartbeat timeout evicted healthy members keywords: cluster shrinks reason
+14. pager fired twice after midnight keywords: sleep interrupted
+15. thread pool saturation rejected incoming tasks keywords: server turns away work
+16. serializer mismatch between client and server keywords: mobile app crashing new api response
+17. dns resolver returning stale records keywords: clients reaching wrong server address
+18. disk partition reached full capacity overnight keywords: server ran storage space
+19. sticky session affinity pinned load unevenly keywords: one server gets everything
+20. priority inversion in scheduler keywords: urgent tasks waiting behind batch work
+
+ITEM para-054
+USER SYMPTOM: process cannot open sockets
+CANDIDATES:
+1. connection pool leak drained available sockets keywords: new requests wait indefinitely
+2. websocket connections dropped behind the proxy keywords: live updates stall
+3. container cgroup limit killed the process keywords: app dies without logs
+4. serializer mismatch between client and server keywords: mobile app crashing new api response
+5. memory leak in worker process over several hours keywords: service restarts fix rising ram usage temporarily
+6. null pointer crash in payment handler keywords: checkout fails internal error
+7. thread pool starvation under fan-out keywords: parallel requests queueing idle cpu
+8. poison message blocked the consumer group keywords: one bad record halts processing
+9. stale lock held after node failure keywords: jobs stuck waiting dead owner
+10. tls session resumption failed across restarts keywords: returning visitors handshake fully
+11. fragmented packets dropped by firewall keywords: large uploads failing corporate network
+12. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+13. certificate rotation broke mutual TLS handshake keywords: services cannot connect
+14. gpu queue wait exceeded the job timeout keywords: training never starts
+15. thread pool saturation rejected incoming tasks keywords: server turns away work
+16. tls certificate renewal failed on edge nodes keywords: browsers warn site insecure
+17. dashboard went red then green alone keywords: flapping deploy
+18. database connection pool exhausted under peak load keywords: connections timing busy hours
+19. file descriptor table filled under connection storm keywords: process cannot open sockets
+20. leader election flapped between two candidates keywords: members cannot agree primary
+
+ITEM para-055
+USER SYMPTOM: one bad record halts processing
+CANDIDATES:
+1. database sequence exhausted available integers keywords: inserts fail duplicate key
+2. null pointer crash in payment handler keywords: checkout fails internal error
+3. runaway cron spawning duplicate reports keywords: customers emailed invoice twice
+4. backup snapshot corrupted and unrestorable keywords: disaster recovery drill failed bring data back
+5. dns resolver returning stale records keywords: clients reaching wrong server address
+6. index rebuild blocked writes for twenty minutes keywords: database froze maintenance window
+7. thread pool starvation under fan-out keywords: parallel requests queueing idle cpu
+8. health check too strict caused flapping keywords: instances cycling rotation
+9. pager fired twice after midnight keywords: sleep interrupted
+10. gpu queue wait exceeded the job timeout keywords: training never starts
+11. stale lock held after node failure keywords: jobs stuck waiting dead owner
+12. rate limiter rejecting legitimate bursts keywords: customers report blocked requests sales
+13. users complain intermittently since tuesday keywords: nothing reproduces
+14. unbounded log growth consumed all disk keywords: alerts fired filesystem one hundred percent
+15. deploy queue backed up behind one stuck release keywords: nothing ships until clears
+16. graphql resolver n-plus-one hammered the database keywords: single page load fires hundreds queries
+17. hot partition throttled by key skew keywords: one shard overloaded while others idle
+18. retry storm amplified downstream outage keywords: one failing service took rest
+19. poison message blocked the consumer group keywords: one bad record halts processing
+20. sticky session affinity pinned load unevenly keywords: one server gets everything
+
+ITEM para-056
+USER SYMPTOM: fresh credentials rejected as stale
+CANDIDATES:
+1. authentication token expired before refresh completed keywords: users getting logged unexpectedly
+2. connection churn from misconfigured keepalive keywords: sockets opening closing constantly
+3. authentication service returned 401 for valid tokens keywords: legitimate users blocked
+4. password rotation broke service account keywords: nightly sync failing authentication
+5. tls session resumption failed across restarts keywords: returning visitors handshake fully
+6. clock skew broke token expiry validation keywords: fresh credentials rejected stale
+7. schema migration locked the users table keywords: signups timing upgrade
+8. secret volume failed to mount keywords: pods crashlooping missing config
+9. certificate rotation broke mutual TLS handshake keywords: services cannot connect
+10. clock skew broke token validation keywords: fresh logins rejected expired
+11. expired cache poisoned responses keywords: users seeing yesterday prices
+12. single sign-on outage locked everyone out keywords: nobody log
+13. users complain intermittently since tuesday keywords: nothing reproduces
+14. dns resolver returning stale records keywords: clients reaching wrong server address
+15. canary analysis halted the rollout automatically keywords: release stopped halfway
+16. leader election flapping between replicas keywords: cluster keeps switching primary repeatedly
+17. backup verification found unrestorable segments keywords: disaster drill partially failed
+18. stale lock held after node failure keywords: jobs stuck waiting dead owner
+19. redis replica fell behind primary by seconds keywords: cache reads return stale data
+20. thread pool saturation rejected incoming tasks keywords: server turns away work
+
+ITEM para-057
+USER SYMPTOM: reads degrade over time
+CANDIDATES:
+1. read replica lagged minutes behind the writer keywords: queries return outdated rows
+2. expired cache poisoned responses keywords: users seeing yesterday prices
+3. search index lagging behind writes keywords: new documents appearing results
+4. index rebuild blocked writes for twenty minutes keywords: database froze maintenance window
+5. cache eviction rate spiked after memory pressure keywords: responses sluggish
+6. compaction backlog grew on the storage engine keywords: reads degrade time
+7. p99 latency crept upward all week keywords: everything feels slow
+8. backup snapshot corrupted and unrestorable keywords: disaster recovery drill failed bring data back
+9. memory leak in worker process over several hours keywords: service restarts fix rising ram usage temporarily
+10. error budget burned faster than planned keywords: may freeze releases
+11. unbounded log growth consumed all disk keywords: alerts fired filesystem one hundred percent
+12. retry storm amplified downstream outage keywords: one failing service took rest
+13. dns resolver returning stale records keywords: clients reaching wrong server address
+14. storage tier promotion delayed by replication backlog keywords: hot data lags cold media
+15. holiday traffic dwarfed load test numbers keywords: capacity planning fantasy
+16. disk partition reached full capacity overnight keywords: server ran storage space
+17. database connection pool exhausted under peak load keywords: connections timing busy hours
+18. users complain intermittently since tuesday keywords: nothing reproduces
+19. message queue backlog growing faster than workers drain keywords: background jobs piling unprocessed
+20. redis replica fell behind primary by seconds keywords: cache reads return stale data
+
+ITEM para-058
+USER SYMPTOM: one server gets everything
+CANDIDATES:
+1. websocket connections dropped behind the proxy keywords: live updates stall
+2. noisy neighbor saturated the shared host keywords: unrelated tenant slows us
+3. traffic shadowing duplicated production load keywords: mirror copies overwhelm staging
+4. connection pool leak drained available sockets keywords: new requests wait indefinitely
+5. single sign-on outage locked everyone out keywords: nobody log
+6. request coalescing collapsed under thundering herd keywords: cache stampede overloaded origin
+7. serializer mismatch between client and server keywords: mobile app crashing new api response
+8. database connection pool exhausted under peak load keywords: connections timing busy hours
+9. split brain after network partition keywords: two primaries accepting writes simultaneously
+10. sandbox data leaked into demo environment keywords: prospects saw fake accounts
+11. webhook delivery delayed by backoff keywords: integrations receiving events late
+12. sticky session affinity pinned load unevenly keywords: one server gets everything
+13. graphql resolver n-plus-one hammered the database keywords: single page load fires hundreds queries
+14. retry storm amplified downstream outage keywords: one failing service took rest
+15. dns resolver returning stale records keywords: clients reaching wrong server address
+16. thread pool saturation rejected incoming tasks keywords: server turns away work
+17. disk partition reached full capacity overnight keywords: server ran storage space
+18. poison message blocked the consumer group keywords: one bad record halts processing
+19. unbounded log growth consumed all disk keywords: alerts fired filesystem one hundred percent
+20. p99 latency crept upward all week keywords: everything feels slow
+
+ITEM para-059
+USER SYMPTOM: cache stampede overloaded origin
+CANDIDATES:
+1. cache stampede protection misfired on deploy keywords: origin absorbed full traffic
+2. cache hit ratio collapsed after deploy keywords: responses suddenly much slower since release
+3. expired cache poisoned responses keywords: users seeing yesterday prices
+4. cache eviction rate spiked after memory pressure keywords: responses sluggish
+5. traffic shadowing duplicated production load keywords: mirror copies overwhelm staging
+6. websocket connections dropped behind the proxy keywords: live updates stall
+7. misrouted traffic after config push keywords: half regions serving errors post deploy
+8. request coalescing collapsed under thundering herd keywords: cache stampede overloaded origin
+9. sticky session affinity pinned load unevenly keywords: one server gets everything
+10. file descriptor leak in proxy keywords: gateway refusing connections days uptime
+11. dns failover advertised the standby too early keywords: clients flap between sites
+12. holiday traffic dwarfed load test numbers keywords: capacity planning fantasy
+13. dns resolver returning stale records keywords: clients reaching wrong server address
+14. redis replica fell behind primary by seconds keywords: cache reads return stale data
+15. session store evicted active carts keywords: shoppers losing basket contents
+16. log aggregator dropped events during rotation keywords: lines missing
+17. p99 latency crept upward all week keywords: everything feels slow
+18. support tickets spiked after the holiday keywords: something broke quietly
+19. error budget burned faster than planned keywords: may freeze releases
+20. hot partition throttled by key skew keywords: one shard overloaded while others idle

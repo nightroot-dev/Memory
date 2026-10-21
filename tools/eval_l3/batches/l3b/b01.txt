@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-006
+USER SYMPTOM: clients reaching the wrong server address
+CANDIDATES:
+1. websocket connections dropped behind the proxy
+2. misrouted traffic after config push
+3. dns failover advertised the standby too early
+4. noisy neighbor saturated the shared host
+5. single sign-on outage locked everyone out
+6. fragmented packets dropped by firewall
+7. webhook delivery delayed by backoff
+8. serializer mismatch between client and server
+9. connection pool leak drained available sockets
+10. retry storm amplified downstream outage
+11. dns resolver returning stale records
+12. connection churn from misconfigured keepalive
+13. p99 latency crept upward all week
+14. pager fired twice after midnight
+15. request coalescing collapsed under thundering herd
+16. users complain intermittently since tuesday
+17. traffic shadowing duplicated production load
+18. redis replica fell behind primary by seconds
+19. support tickets spiked after the holiday
+20. changelog generated from wrong branch
+
+ITEM para-014
+USER SYMPTOM: sockets opening and closing constantly
+CANDIDATES:
+1. connection pool leak drained available sockets
+2. websocket connections dropped behind the proxy
+3. connection churn from misconfigured keepalive
+4. stale lock held after node failure
+5. memory leak in worker process over several hours
+6. file descriptor table filled under connection storm
+7. thread pool starvation under fan-out
+8. fragmented packets dropped by firewall
+9. webhook delivery delayed by backoff
+10. database connection pool exhausted under peak load
+11. single sign-on outage locked everyone out
+12. rate limiter rejecting legitimate bursts
+13. runaway cron spawning duplicate reports
+14. autoscaler oscillation added and removed nodes
+15. pager fired twice after midnight
+16. leader election flapped between two candidates
+17. tls session resumption failed across restarts
+18. the same alert fired three nights running
+19. split brain after network partition
+20. null pointer crash in payment handler
+
+ITEM para-025
+USER SYMPTOM: parallel requests queueing with idle cpu
+CANDIDATES:
+1. gpu queue wait exceeded the job timeout
+2. scheduler fairness starved low-priority jobs
+3. traffic shadowing duplicated production load
+4. thread pool starvation under fan-out
+5. thread pool saturation rejected incoming tasks
+6. message queue backlog growing faster than workers drain
+7. read replica lagged minutes behind the writer
+8. webhook delivery delayed by backoff
+9. search index lagging behind writes
+10. memory leak in worker process over several hours
+11. priority inversion in scheduler
+12. noisy neighbor saturated the shared host
+13. database connection pool exhausted under peak load
+14. index rebuild blocked writes for twenty minutes
+15. sticky session affinity pinned load unevenly
+16. request coalescing collapsed under thundering herd
+17. cache eviction rate spiked after memory pressure
+18. heartbeat timeout evicted healthy members
+19. holiday traffic dwarfed load test numbers
+20. deploy queue backed up behind one stuck release
+
+ITEM para-032
+USER SYMPTOM: urgent tasks waiting behind batch work
+CANDIDATES:
+1. overnight batch finished but numbers look off
+2. scheduler fairness starved low-priority jobs
+3. gpu queue wait exceeded the job timeout
+4. priority inversion in scheduler
+5. webhook delivery delayed by backoff
+6. memory leak in worker process over several hours
+7. thread pool saturation rejected incoming tasks
+8. read replica lagged minutes behind the writer
+9. message queue backlog growing faster than workers drain
+10. search index lagging behind writes
+11. index rebuild blocked writes for twenty minutes
+12. session store evicted active carts
+13. error budget burned faster than planned
+14. feature flag evaluation slow on cold start
+15. thread pool starvation under fan-out
+16. staging passes but production fails
+17. service mesh sidecar restarted under memory pressure
+18. deploy queue backed up behind one stuck release
+19. redis replica fell behind primary by seconds
+20. websocket connections dropped behind the proxy
+
+ITEM para-038
+USER SYMPTOM: duplicate identifiers appearing in traces
+CANDIDATES:
+1. l1rare097 impeller insert traced trued
+2. runaway cron spawning duplicate reports
+3. traffic shadowing duplicated production load
+4. backup verification found unrestorable segments
+5. charset mismatch garbled export file
+6. l1rare073 chassis chimney matched mitered
+7. leader election flapping between replicas
+8. l1rare091 grommet guard stamped stapled
+9. l1rare028 engraver cutter caulked potted
+10. file descriptor leak in proxy
+11. the same alert fired three nights running
+12. file descriptor table filled under connection storm
+13. changelog generated from wrong branch
+14. l1rare031 shaper grinder dyed bleached
+15. slow query missing index on join
+16. leader election flapped between two candidates
+17. memory leak in worker process over several hours
+18. postmortem assigned to nobody in particular
+19. priority inversion in scheduler
+20. null pointer crash in payment handler
+
+ITEM para-039
+USER SYMPTOM: csv download shows broken characters
+CANDIDATES:
+1. charset mismatch garbled export file
+2. payload compression ratio collapsed on binary blobs
+3. file descriptor leak in proxy
+4. fragmented packets dropped by firewall
+5. file descriptor table filled under connection storm
+6. backup snapshot corrupted and unrestorable
+7. serializer mismatch between client and server
+8. l1rare006 codec transcoder plated coated
+9. l1rare035 pliers chisel stitched hemmed
+10. l1rare071 cam cartridge lined locked
+11. l1rare037 punch die trimmed notched
+12. sandbox data leaked into demo environment
+13. holiday traffic dwarfed load test numbers
+14. websocket connections dropped behind the proxy
+15. database connection pool exhausted under peak load
+16. support tickets spiked after the holiday
+17. poison message blocked the consumer group
+18. l1rare062 terminal uplink framed frosted
+19. webhook delivery delayed by backoff
+20. backup verification found unrestorable segments
+
+ITEM para-049
+USER SYMPTOM: calls between systems drop briefly
+CANDIDATES:
+1. fragmented packets dropped by firewall
+2. traffic shadowing duplicated production load
+3. p99 latency crept upward all week
+4. memory leak in worker process over several hours
+5. websocket connections dropped behind the proxy
+6. dns resolver returning stale records
+7. dns failover advertised the standby too early
+8. connection churn from misconfigured keepalive
+9. webhook delivery delayed by backoff
+10. connection pool leak drained available sockets
+11. request coalescing collapsed under thundering herd
+12. redis replica fell behind primary by seconds
+13. null pointer crash in payment handler
+14. retry storm amplified downstream outage
+15. l1rare078 console coupling plugged pressed
+16. users complain intermittently since tuesday
+17. thread pool starvation under fan-out
+18. leader election flapped between two candidates
+19. leader election flapping between replicas
+20. serializer mismatch between client and server
+
+ITEM para-054
+USER SYMPTOM: process cannot open sockets
+CANDIDATES:
+1. connection pool leak drained available sockets
+2. websocket connections dropped behind the proxy
+3. container cgroup limit killed the process
+4. serializer mismatch between client and server
+5. memory leak in worker process over several hours
+6. null pointer crash in payment handler
+7. thread pool starvation under fan-out
+8. poison message blocked the consumer group
+9. stale lock held after node failure
+10. tls session resumption failed across restarts
+11. fragmented packets dropped by firewall
+12. connection churn from misconfigured keepalive
+13. certificate rotation broke mutual TLS handshake
+14. gpu queue wait exceeded the job timeout
+15. thread pool saturation rejected incoming tasks
+16. tls certificate renewal failed on edge nodes
+17. dashboard went red then green alone
+18. database connection pool exhausted under peak load
+19. database migration locked the events table
+20. secret volume failed to mount
+
+ITEM para-057
+USER SYMPTOM: reads degrade over time
+CANDIDATES:
+1. read replica lagged minutes behind the writer
+2. expired cache poisoned responses
+3. search index lagging behind writes
+4. index rebuild blocked writes for twenty minutes
+5. cache eviction rate spiked after memory pressure
+6. compaction backlog grew on the storage engine
+7. p99 latency crept upward all week
+8. backup snapshot corrupted and unrestorable
+9. memory leak in worker process over several hours
+10. error budget burned faster than planned
+11. unbounded log growth consumed all disk
+12. retry storm amplified downstream outage
+13. dns resolver returning stale records
+14. storage tier promotion delayed by replication backlog
+15. holiday traffic dwarfed load test numbers
+16. disk partition reached full capacity overnight
+17. database connection pool exhausted under peak load
+18. users complain intermittently since tuesday
+19. message queue backlog growing faster than workers drain
+20. l1rare025 multimeter analyzer shaped mortised
+
+ITEM para-059
+USER SYMPTOM: cache stampede overloaded origin
+CANDIDATES:
+1. cache stampede protection misfired on deploy
+2. cache hit ratio collapsed after deploy
+3. expired cache poisoned responses
+4. cache eviction rate spiked after memory pressure
+5. traffic shadowing duplicated production load
+6. websocket connections dropped behind the proxy
+7. misrouted traffic after config push
+8. request coalescing collapsed under thundering herd
+9. sticky session affinity pinned load unevenly
+10. file descriptor leak in proxy
+11. dns failover advertised the standby too early
+12. holiday traffic dwarfed load test numbers
+13. dns resolver returning stale records
+14. redis replica fell behind primary by seconds
+15. session store evicted active carts
+16. log aggregator dropped events during rotation
+17. p99 latency crept upward all week
+18. support tickets spiked after the holiday
+19. error budget burned faster than planned
+20. service mesh sidecar restarted under memory pressure

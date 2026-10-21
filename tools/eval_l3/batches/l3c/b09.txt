@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-080
+USER SYMPTOM: everything feels slow
+CANDIDATES:
+1. feature flag evaluation slow on cold start
+2. p99 latency crept upward all week
+3. search index lagging behind writes
+4. thread pool starvation under fan-out
+5. webhook delivery delayed by backoff
+6. slow query missing index on join
+7. gpu queue wait exceeded the job timeout
+8. read replica lagged minutes behind the writer
+9. noisy neighbor saturated the shared host
+10. traffic shadowing duplicated production load
+11. error budget burned faster than planned
+12. database connection pool exhausted under peak load
+13. disk partition reached full capacity overnight
+14. heartbeat timeout evicted healthy members
+15. overnight batch finished but numbers look off
+16. deploy finished yet graphs look flat
+17. message queue backlog growing faster than workers drain
+18. dashboard went red then green alone
+19. hot partition throttled by key skew
+20. memory leak in worker process over several hours
+
+ITEM para-081
+USER SYMPTOM: we may freeze releases
+CANDIDATES:
+1. deploy queue backed up behind one stuck release
+2. webhook delivery delayed by backoff
+3. single sign-on outage locked everyone out
+4. thread pool starvation under fan-out
+5. dns resolver returning stale records
+6. stale lock held after node failure
+7. sandbox data leaked into demo environment
+8. storage tier promotion delayed by replication backlog
+9. memory leak in worker process over several hours
+10. support tickets spiked after the holiday
+11. compaction backlog grew on the storage engine
+12. tls session resumption failed across restarts
+13. request coalescing collapsed under thundering herd
+14. expired cache poisoned responses
+15. index rebuild blocked writes for twenty minutes
+16. feature flag evaluation slow on cold start
+17. feature rollout stuck at ten percent
+18. l1rare053 beacon cabinet crated creased
+19. cache hit ratio collapsed after deploy
+20. container cgroup limit killed the process
+
+ITEM para-082
+USER SYMPTOM: reports disagree
+CANDIDATES:
+1. users complain intermittently since tuesday
+2. customer success escalated a vague complaint
+3. runaway cron spawning duplicate reports
+4. query planner chose suboptimal index after stats update
+5. log aggregator dropped events during rotation
+6. leader election flapping between replicas
+7. error budget burned faster than planned
+8. staging passes but production fails
+9. pager fired twice after midnight
+10. feature rollout stuck at ten percent
+11. deploy finished yet graphs look flat
+12. health check too strict caused flapping
+13. postmortem assigned to nobody in particular
+14. leader election flapped between two candidates
+15. overnight batch finished but numbers look off
+16. changelog generated from wrong branch
+17. support tickets spiked after the holiday
+18. holiday traffic dwarfed load test numbers
+19. certificate rotation broke mutual TLS handshake
+20. rate card change broke billing estimates
+
+ITEM para-083
+USER SYMPTOM: nothing reproduces
+CANDIDATES:
+1. postmortem assigned to nobody in particular
+2. staging passes but production fails
+3. sandbox data leaked into demo environment
+4. l1rare001 hypervisor bios jammed snapped
+5. null pointer crash in payment handler
+6. deploy finished yet graphs look flat
+7. traffic shadowing duplicated production load
+8. feature rollout stuck at ten percent
+9. runaway cron spawning duplicate reports
+10. misrouted traffic after config push
+11. dashboard went red then green alone
+12. session store evicted active carts
+13. l1rare099 jig journal turnedx waxed
+14. noisy neighbor saturated the shared host
+15. overnight batch finished but numbers look off
+16. l1rare026 synthesizer sequencer doweled glued
+17. changelog generated from wrong branch
+18. log aggregator dropped events during rotation
+19. customer success escalated a vague complaint
+20. thread pool starvation under fan-out
+
+ITEM para-084
+USER SYMPTOM: flapping with no deploy
+CANDIDATES:
+1. load balancer health check flapped during deploy
+2. deploy queue backed up behind one stuck release
+3. health check too strict caused flapping
+4. cache hit ratio collapsed after deploy
+5. deploy finished yet graphs look flat
+6. feature rollout stuck at ten percent
+7. webhook delivery delayed by backoff
+8. misrouted traffic after config push
+9. request coalescing collapsed under thundering herd
+10. leader election flapped between two candidates
+11. single sign-on outage locked everyone out
+12. sandbox data leaked into demo environment
+13. cache stampede protection misfired on deploy
+14. password rotation broke service account
+15. staging passes but production fails
+16. websocket connections dropped behind the proxy
+17. l1rare069 barrel bellows knurledx lashed
+18. canary analysis halted the rollout automatically
+19. leader election flapping between replicas
+20. l1rare079 cover cowling probed punched
+
+ITEM para-085
+USER SYMPTOM: something broke quietly
+CANDIDATES:
+1. dashboard went red then green alone
+2. l1rare079 cover cowling probed punched
+3. backup snapshot corrupted and unrestorable
+4. customer success escalated a vague complaint
+5. support tickets spiked after the holiday
+6. l1rare001 hypervisor bios jammed snapped
+7. deploy queue backed up behind one stuck release
+8. heartbeat timeout evicted healthy members
+9. fragmented packets dropped by firewall
+10. l1rare086 fan faucet shaved sheared
+11. stale lock held after node failure
+12. null pointer crash in payment handler
+13. health check too strict caused flapping
+14. users complain intermittently since tuesday
+15. rate card change broke billing estimates
+16. password rotation broke service account
+17. certificate rotation broke mutual TLS handshake
+18. message ordering broke after partition rebalance
+19. clock skew broke token validation
+20. clock skew broke token expiry validation
+
+ITEM para-086
+USER SYMPTOM: works on my machine
+CANDIDATES:
+1. single sign-on outage locked everyone out
+2. l1rare049 suspension catalytic brushed burned
+3. l1rare032 polisher sander carded spun
+4. l1rare056 heatsink isolator doweledx dressed
+5. l1rare057 junction keypad eased embossed
+6. l1rare040 kiln oven knurled peened
+7. overnight batch finished but numbers look off
+8. l1rare039 forge furnace dimpled splined
+9. l1rare099 jig journal turnedx waxed
+10. password rotation broke service account
+11. l1rare074 chuck circuit notchedx oiled
+12. l1rare071 cam cartridge lined locked
+13. l1rare019 thermometer thermostat polished sanded
+14. cache stampede protection misfired on deploy
+15. compaction backlog grew on the storage engine
+16. feature flag evaluation slow on cold start
+17. payload compression ratio collapsed on binary blobs
+18. SSL certificate chain validation failed on edge nodes
+19. tls certificate renewal failed on edge nodes
+20. slow query missing index on join
+
+ITEM para-087
+USER SYMPTOM: paging fatigue sets in
+CANDIDATES:
+1. compaction backlog grew on the storage engine
+2. l1rare085 eyelet fairing seamed seated
+3. holiday traffic dwarfed load test numbers
+4. index rebuild blocked writes for twenty minutes
+5. load balancer health check flapped during deploy
+6. health check too strict caused flapping
+7. heartbeat timeout evicted healthy members
+8. sticky session affinity pinned load unevenly
+9. database connection pool exhausted under peak load
+10. l1rare052 solenoid actuatorx cleated coupled
+11. l1rare072 caster chamber looped louvered
+12. service mesh sidecar restarted under memory pressure
+13. l1rare088 fin flexure sized skived
+14. split brain after network partition
+15. request coalescing collapsed under thundering herd
+16. memory leak in worker process over several hours
+17. priority inversion in scheduler
+18. null pointer crash in payment handler
+19. postmortem assigned to nobody in particular
+20. file descriptor leak in proxy
+
+ITEM para-088
+USER SYMPTOM: traffic may not be flowing
+CANDIDATES:
+1. misrouted traffic after config push
+2. fragmented packets dropped by firewall
+3. retry storm amplified downstream outage
+4. traffic shadowing duplicated production load
+5. holiday traffic dwarfed load test numbers
+6. websocket connections dropped behind the proxy
+7. database connection pool exhausted under peak load
+8. staging passes but production fails
+9. dashboard went red then green alone
+10. connection pool leak drained available sockets
+11. gpu queue wait exceeded the job timeout
+12. file descriptor table filled under connection storm
+13. SSL certificate chain validation failed on edge nodes
+14. connection churn from misconfigured keepalive
+15. rate limiter rejecting legitimate bursts
+16. webhook delivery delayed by backoff
+17. deploy finished yet graphs look flat
+18. leader election flapped between two candidates
+19. single sign-on outage locked everyone out
+20. load balancer health check flapped during deploy
+
+ITEM para-089
+USER SYMPTOM: big account is unhappy
+CANDIDATES:
+1. users complain intermittently since tuesday
+2. support tickets spiked after the holiday
+3. unbounded log growth consumed all disk
+4. disk partition reached full capacity overnight
+5. rate card change broke billing estimates
+6. customer success escalated a vague complaint
+7. feature rollout stuck at ten percent
+8. log aggregator dropped events during rotation
+9. storage tier promotion delayed by replication backlog
+10. hot partition throttled by key skew
+11. password rotation broke service account
+12. leader election flapping between replicas
+13. error budget burned faster than planned
+14. message queue backlog growing faster than workers drain
+15. thread pool starvation under fan-out
+16. message ordering broke after partition rebalance
+17. webhook delivery delayed by backoff
+18. single sign-on outage locked everyone out
+19. poison message blocked the consumer group
+20. session store evicted active carts

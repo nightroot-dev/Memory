@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-090
+USER SYMPTOM: sleep interrupted again
+CANDIDATES:
+1. pager fired twice after midnight
+2. the same alert fired three nights running
+3. disk partition reached full capacity overnight
+4. single sign-on outage locked everyone out
+5. memory leak in worker process over several hours
+6. gpu queue wait exceeded the job timeout
+7. service mesh sidecar restarted under memory pressure
+8. leader election flapped between two candidates
+9. users complain intermittently since tuesday
+10. tls session resumption failed across restarts
+11. overnight batch finished but numbers look off
+12. deploy queue backed up behind one stuck release
+13. webhook delivery delayed by backoff
+14. heartbeat timeout evicted healthy members
+15. stale lock held after node failure
+16. l1rare078 console coupling plugged pressed
+17. connection churn from misconfigured keepalive
+18. backup snapshot corrupted and unrestorable
+19. index rebuild blocked writes for twenty minutes
+20. dashboard went red then green alone
+
+ITEM para-091
+USER SYMPTOM: nothing ships until it clears
+CANDIDATES:
+1. overnight batch finished but numbers look off
+2. webhook delivery delayed by backoff
+3. deploy finished yet graphs look flat
+4. request coalescing collapsed under thundering herd
+5. deploy queue backed up behind one stuck release
+6. fragmented packets dropped by firewall
+7. poison message blocked the consumer group
+8. storage tier promotion delayed by replication backlog
+9. disk partition reached full capacity overnight
+10. misrouted traffic after config push
+11. gpu queue wait exceeded the job timeout
+12. expired cache poisoned responses
+13. redis replica fell behind primary by seconds
+14. container cgroup limit killed the process
+15. authentication token expired before refresh completed
+16. message queue backlog growing faster than workers drain
+17. index rebuild blocked writes for twenty minutes
+18. staging passes but production fails
+19. connection churn from misconfigured keepalive
+20. dns resolver returning stale records
+
+ITEM para-092
+USER SYMPTOM: two services wait on each other
+CANDIDATES:
+1. webhook delivery delayed by backoff
+2. gpu queue wait exceeded the job timeout
+3. dns failover advertised the standby too early
+4. connection churn from misconfigured keepalive
+5. storage tier promotion delayed by replication backlog
+6. deploy queue backed up behind one stuck release
+7. websocket connections dropped behind the proxy
+8. read replica lagged minutes behind the writer
+9. message queue backlog growing faster than workers drain
+10. redis replica fell behind primary by seconds
+11. the same alert fired three nights running
+12. single sign-on outage locked everyone out
+13. leader election flapped between two candidates
+14. feature flag evaluation slow on cold start
+15. tls certificate renewal failed on edge nodes
+16. slow query missing index on join
+17. compaction backlog grew on the storage engine
+18. SSL certificate chain validation failed on edge nodes
+19. cache stampede protection misfired on deploy
+20. payload compression ratio collapsed on binary blobs
+
+ITEM para-093
+USER SYMPTOM: prospects saw fake accounts
+CANDIDATES:
+1. leader election flapping between replicas
+2. users complain intermittently since tuesday
+3. staging passes but production fails
+4. support tickets spiked after the holiday
+5. password rotation broke service account
+6. customer success escalated a vague complaint
+7. runaway cron spawning duplicate reports
+8. l1rare097 impeller insert traced trued
+9. l1rare090 funnel fusible spotted staked
+10. single sign-on outage locked everyone out
+11. leader election flapped between two candidates
+12. authentication service returned 401 for valid tokens
+13. overflow counter wrapped request ids
+14. holiday traffic dwarfed load test numbers
+15. traffic shadowing duplicated production load
+16. rate limiter rejecting legitimate bursts
+17. overnight batch finished but numbers look off
+18. backup verification found unrestorable segments
+19. l1rare040 kiln oven knurled peened
+20. l1rare033 drill saw woven knitted
+
+ITEM para-094
+USER SYMPTOM: quotes are wrong this month
+CANDIDATES:
+1. error budget burned faster than planned
+2. users complain intermittently since tuesday
+3. rate card change broke billing estimates
+4. support tickets spiked after the holiday
+5. clock skew broke token expiry validation
+6. query planner chose suboptimal index after stats update
+7. clock skew broke token validation
+8. charset mismatch garbled export file
+9. password rotation broke service account
+10. overnight batch finished but numbers look off
+11. expired cache poisoned responses
+12. staging passes but production fails
+13. customer success escalated a vague complaint
+14. changelog generated from wrong branch
+15. authentication service returned 401 for valid tokens
+16. log aggregator dropped events during rotation
+17. webhook delivery delayed by backoff
+18. holiday traffic dwarfed load test numbers
+19. authentication token expired before refresh completed
+20. the same alert fired three nights running
+
+ITEM para-095
+USER SYMPTOM: nobody can log in
+CANDIDATES:
+1. single sign-on outage locked everyone out
+2. password rotation broke service account
+3. dashboard went red then green alone
+4. schema migration locked the users table
+5. authentication token expired before refresh completed
+6. users complain intermittently since tuesday
+7. authentication service returned 401 for valid tokens
+8. secret volume failed to mount
+9. session store evicted active carts
+10. postmortem assigned to nobody in particular
+11. database migration locked the events table
+12. changelog generated from wrong branch
+13. log aggregator dropped events during rotation
+14. clock skew broke token expiry validation
+15. unbounded log growth consumed all disk
+16. null pointer crash in payment handler
+17. log volume spike saturated the ingest pipeline
+18. memory leak in worker process over several hours
+19. file descriptor leak in proxy
+20. priority inversion in scheduler
+
+ITEM para-096
+USER SYMPTOM: release notes describe other features
+CANDIDATES:
+1. customer success escalated a vague complaint
+2. compaction backlog grew on the storage engine
+3. feature dependency map has a cycle
+4. webhook delivery delayed by backoff
+5. file descriptor table filled under connection storm
+6. sandbox data leaked into demo environment
+7. connection pool leak drained available sockets
+8. feature rollout stuck at ten percent
+9. single sign-on outage locked everyone out
+10. l1rare009 inductor transistor brazed welded
+11. l1rare010 diode thyristor riveted bolted
+12. feature flag evaluation slow on cold start
+13. l1rare021 ionizer ozonizer etched milled
+14. schema migration locked the users table
+15. l1rare057 junction keypad eased embossed
+16. storage tier promotion delayed by replication backlog
+17. deploy finished yet graphs look flat
+18. canary analysis halted the rollout automatically
+19. support tickets spiked after the holiday
+20. deploy queue backed up behind one stuck release
+
+ITEM para-097
+USER SYMPTOM: training never starts
+CANDIDATES:
+1. l1rare051 alternator starter chained cinched
+2. database connection pool exhausted under peak load
+3. webhook delivery delayed by backoff
+4. feature flag evaluation slow on cold start
+5. feature dependency map has a cycle
+6. connection churn from misconfigured keepalive
+7. password rotation broke service account
+8. deploy finished yet graphs look flat
+9. l1rare015 valve actuator chamfered tapped
+10. l1rare019 thermometer thermostat polished sanded
+11. pager fired twice after midnight
+12. overnight batch finished but numbers look off
+13. l1rare002 uefi raid cracked warped
+14. l1rare092 guide gusset stitchedx strapped
+15. l1rare017 accelerometer magnetometer reamed honed
+16. l1rare000 firmware bootloader halted seized
+17. l1rare001 hypervisor bios jammed snapped
+18. l1rare087 fender ferrule shimmed shrunk
+19. database sequence exhausted available integers
+20. feature rollout stuck at ten percent
+
+ITEM para-098
+USER SYMPTOM: capacity planning was fantasy
+CANDIDATES:
+1. disk partition reached full capacity overnight
+2. unbounded log growth consumed all disk
+3. staging passes but production fails
+4. scheduler fairness starved low-priority jobs
+5. compaction backlog grew on the storage engine
+6. error budget burned faster than planned
+7. thread pool saturation rejected incoming tasks
+8. gpu queue wait exceeded the job timeout
+9. webhook delivery delayed by backoff
+10. storage tier promotion delayed by replication backlog
+11. customer success escalated a vague complaint
+12. support tickets spiked after the holiday
+13. read replica lagged minutes behind the writer
+14. database connection pool exhausted under peak load
+15. database sequence exhausted available integers
+16. redis replica fell behind primary by seconds
+17. holiday traffic dwarfed load test numbers
+18. service mesh sidecar restarted under memory pressure
+19. request coalescing collapsed under thundering herd
+20. thread pool starvation under fan-out
+
+ITEM para-099
+USER SYMPTOM: action items will rot
+CANDIDATES:
+1. expired cache poisoned responses
+2. log aggregator dropped events during rotation
+3. cache eviction rate spiked after memory pressure
+4. null pointer crash in payment handler
+5. session store evicted active carts
+6. password rotation broke service account
+7. users complain intermittently since tuesday
+8. support tickets spiked after the holiday
+9. request coalescing collapsed under thundering herd
+10. database migration locked the events table
+11. cache stampede protection misfired on deploy
+12. cache hit ratio collapsed after deploy
+13. compaction backlog grew on the storage engine
+14. stale lock held after node failure
+15. memory leak in worker process over several hours
+16. postmortem assigned to nobody in particular
+17. dashboard went red then green alone
+18. redis replica fell behind primary by seconds
+19. l1rare032 polisher sander carded spun
+20. l1rare002 uefi raid cracked warped

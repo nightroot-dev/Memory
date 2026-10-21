@@ -1,0 +1,46 @@
+{
+  "l3b": {
+    "dump": "pools_record_hard.json",
+    "files": [
+      "b01.txt",
+      "b02.txt",
+      "b03.txt"
+    ],
+    "items": 30,
+    "temp_dir": "C:\\Users\\dbroot\\AppData\\Local\\Temp\\opencode\\l3_batches\\l3b"
+  },
+  "l3c": {
+    "dump": "pools_d2expanded_para.json",
+    "files": [
+      "b01.txt",
+      "b02.txt",
+      "b03.txt",
+      "b04.txt",
+      "b05.txt",
+      "b06.txt",
+      "b07.txt",
+      "b08.txt",
+      "b09.txt",
+      "b10.txt"
+    ],
+    "items": 100,
+    "temp_dir": "C:\\Users\\dbroot\\AppData\\Local\\Temp\\opencode\\l3_batches\\l3c"
+  },
+  "l3d": {
+    "dump": "pools_w1bridge_all.json",
+    "files": [
+      "b01.txt",
+      "b02.txt",
+      "b03.txt",
+      "b04.txt",
+      "b05.txt",
+      "b06.txt",
+      "b07.txt",
+      "b08.txt",
+      "b09.txt",
+      "b10.txt"
+    ],
+    "items": 100,
+    "temp_dir": "C:\\Users\\dbroot\\AppData\\Local\\Temp\\opencode\\l3_batches\\l3d"
+  }
+}

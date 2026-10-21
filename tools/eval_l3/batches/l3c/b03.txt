@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-020
+USER SYMPTOM: integrations receiving events late
+CANDIDATES:
+1. log aggregator dropped events during rotation
+2. webhook delivery delayed by backoff
+3. support tickets spiked after the holiday
+4. websocket connections dropped behind the proxy
+5. p99 latency crept upward all week
+6. the same alert fired three nights running
+7. connection churn from misconfigured keepalive
+8. retry storm amplified downstream outage
+9. pager fired twice after midnight
+10. database migration locked the events table
+11. redis replica fell behind primary by seconds
+12. misrouted traffic after config push
+13. users complain intermittently since tuesday
+14. storage tier promotion delayed by replication backlog
+15. gpu queue wait exceeded the job timeout
+16. error budget burned faster than planned
+17. staging passes but production fails
+18. customer success escalated a vague complaint
+19. authentication token expired before refresh completed
+20. read replica lagged minutes behind the writer
+
+ITEM para-021
+USER SYMPTOM: shoppers losing basket contents
+CANDIDATES:
+1. session store evicted active carts
+2. users complain intermittently since tuesday
+3. thread pool starvation under fan-out
+4. log aggregator dropped events during rotation
+5. dashboard went red then green alone
+6. customer success escalated a vague complaint
+7. memory leak in worker process over several hours
+8. null pointer crash in payment handler
+9. fragmented packets dropped by firewall
+10. support tickets spiked after the holiday
+11. connection pool leak drained available sockets
+12. container cgroup limit killed the process
+13. storage tier promotion delayed by replication backlog
+14. disk partition reached full capacity overnight
+15. service mesh sidecar restarted under memory pressure
+16. unbounded log growth consumed all disk
+17. overnight batch finished but numbers look off
+18. log volume spike saturated the ingest pipeline
+19. webhook delivery delayed by backoff
+20. runaway cron spawning duplicate reports
+
+ITEM para-022
+USER SYMPTOM: new documents not appearing in results
+CANDIDATES:
+1. search index lagging behind writes
+2. slow query missing index on join
+3. query planner chose suboptimal index after stats update
+4. overnight batch finished but numbers look off
+5. dns resolver returning stale records
+6. l1rare027 plotter printer epoxied grouted
+7. deploy finished yet graphs look flat
+8. index rebuild blocked writes for twenty minutes
+9. runaway cron spawning duplicate reports
+10. support tickets spiked after the holiday
+11. staging passes but production fails
+12. file descriptor table filled under connection storm
+13. sandbox data leaked into demo environment
+14. dashboard went red then green alone
+15. l1rare044 flange manifold primed sealed
+16. postmortem assigned to nobody in particular
+17. memory leak in worker process over several hours
+18. null pointer crash in payment handler
+19. file descriptor leak in proxy
+20. priority inversion in scheduler
+
+ITEM para-023
+USER SYMPTOM: disaster recovery drill failed to bring data back
+CANDIDATES:
+1. backup snapshot corrupted and unrestorable
+2. backup verification found unrestorable segments
+3. sandbox data leaked into demo environment
+4. retry storm amplified downstream outage
+5. l1rare001 hypervisor bios jammed snapped
+6. l1rare003 nas san dented pitted
+7. disk partition reached full capacity overnight
+8. database migration locked the events table
+9. secret volume failed to mount
+10. dashboard went red then green alone
+11. fragmented packets dropped by firewall
+12. deploy queue backed up behind one stuck release
+13. staging passes but production fails
+14. compaction backlog grew on the storage engine
+15. error budget burned faster than planned
+16. postmortem assigned to nobody in particular
+17. tls session resumption failed across restarts
+18. l1rare033 drill saw woven knitted
+19. tls certificate renewal failed on edge nodes
+20. SSL certificate chain validation failed on edge nodes
+
+ITEM para-024
+USER SYMPTOM: deploys stuck waiting on downloads
+CANDIDATES:
+1. deploy queue backed up behind one stuck release
+2. webhook delivery delayed by backoff
+3. deploy finished yet graphs look flat
+4. cache stampede protection misfired on deploy
+5. cache hit ratio collapsed after deploy
+6. connection churn from misconfigured keepalive
+7. gpu queue wait exceeded the job timeout
+8. feature rollout stuck at ten percent
+9. storage tier promotion delayed by replication backlog
+10. retry storm amplified downstream outage
+11. misrouted traffic after config push
+12. staging passes but production fails
+13. error budget burned faster than planned
+14. tls certificate renewal failed on edge nodes
+15. single sign-on outage locked everyone out
+16. feature flag evaluation slow on cold start
+17. slow query missing index on join
+18. payload compression ratio collapsed on binary blobs
+19. SSL certificate chain validation failed on edge nodes
+20. compaction backlog grew on the storage engine
+
+ITEM para-025
+USER SYMPTOM: parallel requests queueing with idle cpu
+CANDIDATES:
+1. gpu queue wait exceeded the job timeout
+2. scheduler fairness starved low-priority jobs
+3. traffic shadowing duplicated production load
+4. thread pool starvation under fan-out
+5. thread pool saturation rejected incoming tasks
+6. message queue backlog growing faster than workers drain
+7. read replica lagged minutes behind the writer
+8. webhook delivery delayed by backoff
+9. search index lagging behind writes
+10. memory leak in worker process over several hours
+11. priority inversion in scheduler
+12. noisy neighbor saturated the shared host
+13. database connection pool exhausted under peak load
+14. index rebuild blocked writes for twenty minutes
+15. sticky session affinity pinned load unevenly
+16. request coalescing collapsed under thundering herd
+17. cache eviction rate spiked after memory pressure
+18. heartbeat timeout evicted healthy members
+19. holiday traffic dwarfed load test numbers
+20. deploy queue backed up behind one stuck release
+
+ITEM para-026
+USER SYMPTOM: half the regions serving errors post deploy
+CANDIDATES:
+1. staging passes but production fails
+2. deploy queue backed up behind one stuck release
+3. cache stampede protection misfired on deploy
+4. cache hit ratio collapsed after deploy
+5. deploy finished yet graphs look flat
+6. misrouted traffic after config push
+7. load balancer health check flapped during deploy
+8. feature rollout stuck at ten percent
+9. tls session resumption failed across restarts
+10. error budget burned faster than planned
+11. customer success escalated a vague complaint
+12. message ordering broke after partition rebalance
+13. webhook delivery delayed by backoff
+14. dashboard went red then green alone
+15. retry storm amplified downstream outage
+16. certificate rotation broke mutual TLS handshake
+17. sandbox data leaked into demo environment
+18. connection churn from misconfigured keepalive
+19. redis replica fell behind primary by seconds
+20. request coalescing collapsed under thundering herd
+
+ITEM para-027
+USER SYMPTOM: nightly sync failing authentication
+CANDIDATES:
+1. password rotation broke service account
+2. authentication service returned 401 for valid tokens
+3. authentication token expired before refresh completed
+4. clock skew broke token expiry validation
+5. connection churn from misconfigured keepalive
+6. certificate rotation broke mutual TLS handshake
+7. clock skew broke token validation
+8. single sign-on outage locked everyone out
+9. tls session resumption failed across restarts
+10. heartbeat timeout evicted healthy members
+11. websocket connections dropped behind the proxy
+12. secret volume failed to mount
+13. tls certificate renewal failed on edge nodes
+14. SSL certificate chain validation failed on edge nodes
+15. users complain intermittently since tuesday
+16. redis replica fell behind primary by seconds
+17. stale lock held after node failure
+18. webhook delivery delayed by backoff
+19. cache stampede protection misfired on deploy
+20. canary analysis halted the rollout automatically
+
+ITEM para-028
+USER SYMPTOM: large uploads failing on corporate network
+CANDIDATES:
+1. fragmented packets dropped by firewall
+2. webhook delivery delayed by backoff
+3. traffic shadowing duplicated production load
+4. database connection pool exhausted under peak load
+5. support tickets spiked after the holiday
+6. payload compression ratio collapsed on binary blobs
+7. file descriptor table filled under connection storm
+8. holiday traffic dwarfed load test numbers
+9. retry storm amplified downstream outage
+10. rate limiter rejecting legitimate bursts
+11. error budget burned faster than planned
+12. users complain intermittently since tuesday
+13. split brain after network partition
+14. single sign-on outage locked everyone out
+15. slow query missing index on join
+16. cache stampede protection misfired on deploy
+17. tls certificate renewal failed on edge nodes
+18. SSL certificate chain validation failed on edge nodes
+19. compaction backlog grew on the storage engine
+20. feature flag evaluation slow on cold start
+
+ITEM para-029
+USER SYMPTOM: customers emailed the same invoice twice
+CANDIDATES:
+1. message dedup key collided across tenants
+2. customer success escalated a vague complaint
+3. users complain intermittently since tuesday
+4. pager fired twice after midnight
+5. rate card change broke billing estimates
+6. traffic shadowing duplicated production load
+7. the same alert fired three nights running
+8. webhook delivery delayed by backoff
+9. support tickets spiked after the holiday
+10. holiday traffic dwarfed load test numbers
+11. error budget burned faster than planned
+12. runaway cron spawning duplicate reports
+13. priority inversion in scheduler
+14. single sign-on outage locked everyone out
+15. read replica lagged minutes behind the writer
+16. overnight batch finished but numbers look off
+17. storage tier promotion delayed by replication backlog
+18. l1rare027 plotter printer epoxied grouted
+19. scheduler fairness starved low-priority jobs
+20. log aggregator dropped events during rotation
