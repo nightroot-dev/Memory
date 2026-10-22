@@ -499,7 +499,7 @@ fn l3d_dump_w1bridge_all() {
 // ------------------------------------------------------------ scoring ----
 
 fn load_dump(file: &str) -> DumpFile {
-    for p in [out_path(file), PathBuf::from("..").join(out_path(file).to_string_lossy().to_string())] {
+    for p in [PathBuf::from(file), PathBuf::from("..").join(file)] {
         if p.exists() {
             return serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
         }
@@ -508,7 +508,7 @@ fn load_dump(file: &str) -> DumpFile {
 }
 
 fn load_rerank(file: &str) -> HashMap<String, usize> {
-    for p in [out_path(file), PathBuf::from("..").join(out_path(file).to_string_lossy().to_string())] {
+    for p in [PathBuf::from(file), PathBuf::from("..").join(file)] {
         if p.exists() {
             let raw: HashMap<String, serde_json::Value> =
                 serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();

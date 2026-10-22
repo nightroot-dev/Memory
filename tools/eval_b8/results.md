@@ -754,3 +754,26 @@ Deviation summary: one scorer path-resolution bug found and fixed BEFORE
 any scored verdict (loader re-prefixed a root-relative path; fix contained,
 no measurement semantics); scored runs are post-fix. Otherwise as
 registered (gates honored, singles flagged, no re-rolls).
+
+---
+
+## RECORD AMENDMENT 2026-10-22 - reviewer tree-hygiene finding closed
+
+Reviewer check flagged: (a) cmhm_core/tests/ops_bench_l3_rerank.rs carried
+uncommitted edits while its runs were cited by committed records, and
+(b) untracked residue. Verified: the pending diff is EXACTLY the two loader
+lines fixed pre-verdict (the deviation disclosed in the L3 section above:
+scorer path re-prefix panic, fix contained, no measurement semantics) — it
+simply never got committed; that was a miss. Committed post-verdict with
+this stamp, together with 	ools/eval_l3/cost_probe.py (provenance for the
+usage numbers quoted in chat on 2026-10-21/22; derived from committed pools
+only). Precision note for the README (supersedes chat approximations):
+L3b hard = 14/30 = 46.7%, Clopper-Pearson 95% CI [28.3%, 65.6%]; hard-slice
+only; easy/medium pick-over-shipped-pool unmeasured. W1a is the
+same-words/supply-your-words CEILING (W1b blind = 2/30 stays the engine
+floor); no drifted-phrasing full-corpus cell exists; the 77.8% figure is
+picker accuracy on presented candidates, not a recall figure.
+ackups/ remains untracked by policy (hash-verified rollback point,
+2026-10-19); 	ools/eval_b12/runs/* are aborted-B12 residue, untracked,
+referenced only by B12's own record — owner decides deletion.
+No gate, target, or verdict is changed by this amendment.
