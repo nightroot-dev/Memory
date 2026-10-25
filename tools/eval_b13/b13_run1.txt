@@ -1,0 +1,159 @@
+﻿cargo : warning: variable does not need to be mutable
+At line:1 char:1
++ cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_6 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   --> cmhm_core\src\migration.rs:276:9
+    |
+276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
+    |         ----^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `n`
+   --> cmhm_core\src\backup.rs:119:9
+    |
+119 |     let n = verify_backup(bundle)?;
+    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.54s
+     Running tests\ops_bench_b13_ship_default.rs 
+(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_b13_ship_default-dbb908990364fecf.exe)
+
+running 4 tests
+
+## ops_bench_b13_ship_default leg=control cap=40 (L1, MiniLM, n=200)
+| group          | seedP@1 | poolRec | chainAcc | MRR    | n    |
+|----------------|---------|---------|----------|--------|------|
+| lexical        | 0.0200 | 0.2100 | 0.0000 | 0.0595 |  100 |  WITHOUT-native
+| lexical        | 0.0200 | 0.1400 | 0.0000 | 0.0475 |  100 |  WITHOUT-proj
+| lexical        | 0.0200 | 0.3200 | 0.0000 | 0.0757 |  100 |  WITH-dense
+| lexical        | 1.0000 | 1.0000 | 0.1000 | 1.0000 |  100 |  WITH-fused
+| para-easy      | 0.2069 | 0.4828 | 0.0000 | 0.2728 |   29 |  WITHOUT-native
+| para-easy      | 0.2069 | 0.4483 | 0.0000 | 0.2527 |   29 |  WITHOUT-proj
+| para-easy      | 0.2069 | 0.6552 | 0.0690 | 0.2688 |   29 |  WITH-dense
+| para-easy      | 0.2069 | 0.6552 | 0.1034 | 0.2688 |   29 |  WITH-fused
+| para-medium    | 0.0976 | 0.4878 | 0.0000 | 0.1992 |   41 |  WITHOUT-native
+| para-medium    | 0.1220 | 0.4878 | 0.0000 | 0.2235 |   41 |  WITHOUT-proj
+| para-medium    | 0.1463 | 0.7073 | 0.0244 | 0.2572 |   41 |  WITH-dense
+| para-medium    | 0.1463 | 0.7073 | 0.0488 | 0.2572 |   41 |  WITH-fused
+| para-hard      | 0.0333 | 0.4000 | 0.0000 | 0.1298 |   30 |  WITHOUT-native
+| para-hard      | 0.0667 | 0.3667 | 0.0000 | 0.1483 |   30 |  WITHOUT-proj
+| para-hard      | 0.0667 | 0.6000 | 0.0333 | 0.1689 |   30 |  WITH-dense
+| para-hard      | 0.0667 | 0.6000 | 0.0667 | 0.1689 |   30 |  WITH-fused
+
+## stage attribution (WITH-fused misses only, leg=control cap=40)
+| group          | lost_candidate | lost_safety | lost_rank | n_miss |
+|----------------|----------------|-------------|-----------|--------|
+| lexical        |              0 |           0 |         0 |      0 |
+| para-easy      |             10 |           0 |        13 |     23 |
+| para-medium    |             12 |           0 |        23 |     35 |
+| para-hard      |             12 |           0 |        16 |     28 |
+
+GATES leg=control cap=40: A lexical_guard=100 (need ==1.00), B hard_seed=2 (need >=21/30), C pool=166 (need >=170/200), D overall_R1=114 (need >=140/200), E not_a_swap_worse=166 (pool >=164/200)
+F control_fidelity leg=control cap=40: hard_seed=2 (record 2/30), pool=166 (record 164/200), R@1=114 (record 114/200), lexical=100
+test b13_control_cap40 ... ok
+
+## ops_bench_b13_ship_default leg=control cap=20 (L1, MiniLM, n=200)
+| group          | seedP@1 | poolRec | chainAcc | MRR    | n    |
+|----------------|---------|---------|----------|--------|------|
+| lexical        | 0.0200 | 0.2100 | 0.0000 | 0.0595 |  100 |  WITHOUT-native
+| lexical        | 0.0200 | 0.1400 | 0.0000 | 0.0475 |  100 |  WITHOUT-proj
+| lexical        | 0.0200 | 0.3200 | 0.0100 | 0.0757 |  100 |  WITH-dense
+| lexical        | 1.0000 | 1.0000 | 0.0600 | 1.0000 |  100 |  WITH-fused
+| para-easy      | 0.2069 | 0.4828 | 0.0000 | 0.2728 |   29 |  WITHOUT-native
+| para-easy      | 0.2069 | 0.4483 | 0.0000 | 0.2527 |   29 |  WITHOUT-proj
+| para-easy      | 0.2069 | 0.6552 | 0.1379 | 0.2688 |   29 |  WITH-dense
+| para-easy      | 0.2069 | 0.6207 | 0.0345 | 0.2667 |   29 |  WITH-fused
+| para-medium    | 0.0976 | 0.4878 | 0.0000 | 0.1992 |   41 |  WITHOUT-native
+| para-medium    | 0.1220 | 0.4878 | 0.0000 | 0.2235 |   41 |  WITHOUT-proj
+| para-medium    | 0.1463 | 0.7073 | 0.0488 | 0.2572 |   41 |  WITH-dense
+| para-medium    | 0.1463 | 0.6829 | 0.0488 | 0.2553 |   41 |  WITH-fused
+| para-hard      | 0.0333 | 0.4000 | 0.0000 | 0.1298 |   30 |  WITHOUT-native
+| para-hard      | 0.0667 | 0.3667 | 0.0000 | 0.1483 |   30 |  WITHOUT-proj
+| para-hard      | 0.0667 | 0.6000 | 0.0333 | 0.1689 |   30 |  WITH-dense
+| para-hard      | 0.0667 | 0.6000 | 0.0667 | 0.1689 |   30 |  WITH-fused
+
+## stage attribution (WITH-fused misses only, leg=control cap=20)
+| group          | lost_candidate | lost_safety | lost_rank | n_miss |
+|----------------|----------------|-------------|-----------|--------|
+| lexical        |              0 |           0 |         0 |      0 |
+| para-easy      |             11 |           0 |        12 |     23 |
+| para-medium    |             13 |           0 |        22 |     35 |
+| para-hard      |             12 |           0 |        16 |     28 |
+
+GATES leg=control cap=20: A lexical_guard=100 (need ==1.00), B hard_seed=2 (need >=21/30), C pool=164 (need >=170/200), D overall_R1=114 (need >=140/200), E not_a_swap_worse=164 (pool >=164/200)
+F control_fidelity leg=control cap=20: hard_seed=2 (record 2/30), pool=164 (record 164/200), R@1=114 (record 114/200), lexical=100
+test b13_control_cap20 ... ok
+
+## ops_bench_b13_ship_default leg=discipline cap=20 (L1, MiniLM, n=200)
+| group          | seedP@1 | poolRec | chainAcc | MRR    | n    |
+|----------------|---------|---------|----------|--------|------|
+| lexical        | 0.0200 | 0.2100 | 0.0000 | 0.0595 |  100 |  WITHOUT-native
+| lexical        | 0.0200 | 0.1400 | 0.0000 | 0.0475 |  100 |  WITHOUT-proj
+| lexical        | 0.1400 | 0.7300 | 0.0200 | 0.2906 |  100 |  WITH-dense
+| lexical        | 1.0000 | 1.0000 | 0.0900 | 1.0000 |  100 |  WITH-fused
+| para-easy      | 0.2069 | 0.4828 | 0.0000 | 0.2728 |   29 |  WITHOUT-native
+| para-easy      | 0.2069 | 0.4483 | 0.0000 | 0.2527 |   29 |  WITHOUT-proj
+| para-easy      | 0.9655 | 1.0000 | 0.2759 | 0.9828 |   29 |  WITH-dense
+| para-easy      | 0.9655 | 1.0000 | 0.3103 | 0.9828 |   29 |  WITH-fused
+| para-medium    | 0.0976 | 0.4878 | 0.0000 | 0.1992 |   41 |  WITHOUT-native
+| para-medium    | 0.1220 | 0.4878 | 0.0000 | 0.2235 |   41 |  WITHOUT-proj
+| para-medium    | 1.0000 | 1.0000 | 0.3659 | 1.0000 |   41 |  WITH-dense
+| para-medium    | 1.0000 | 1.0000 | 0.2439 | 1.0000 |   41 |  WITH-fused
+| para-hard      | 0.0333 | 0.4000 | 0.0000 | 0.1298 |   30 |  WITHOUT-native
+| para-hard      | 0.0667 | 0.3667 | 0.0000 | 0.1483 |   30 |  WITHOUT-proj
+| para-hard      | 0.9667 | 1.0000 | 0.2667 | 0.9833 |   30 |  WITH-dense
+| para-hard      | 0.9667 | 1.0000 | 0.4333 | 0.9833 |   30 |  WITH-fused
+
+## stage attribution (WITH-fused misses only, leg=discipline cap=20)
+| group          | lost_candidate | lost_safety | lost_rank | n_miss |
+|----------------|----------------|-------------|-----------|--------|
+| lexical        |              0 |           0 |         0 |      0 |
+| para-easy      |              0 |           0 |         1 |      1 |
+| para-medium    |              0 |           0 |         0 |      0 |
+| para-hard      |              0 |           0 |         1 |      1 |
+
+GATES leg=discipline cap=20: A lexical_guard=100 (need ==1.00), B hard_seed=29 (need >=21/30), C pool=200 (need >=170/200), D overall_R1=198 (need >=140/200), E not_a_swap_worse=200 (pool >=164/200)
+test b13_discipline_cap20 ... ok
+
+## ops_bench_b13_ship_default leg=discipline cap=40 (L1, MiniLM, n=200)
+| group          | seedP@1 | poolRec | chainAcc | MRR    | n    |
+|----------------|---------|---------|----------|--------|------|
+| lexical        | 0.0200 | 0.2100 | 0.0000 | 0.0595 |  100 |  WITHOUT-native
+| lexical        | 0.0200 | 0.1400 | 0.0000 | 0.0475 |  100 |  WITHOUT-proj
+| lexical        | 0.1400 | 0.7300 | 0.0200 | 0.2906 |  100 |  WITH-dense
+| lexical        | 1.0000 | 1.0000 | 0.0700 | 1.0000 |  100 |  WITH-fused
+| para-easy      | 0.2069 | 0.4828 | 0.0000 | 0.2728 |   29 |  WITHOUT-native
+| para-easy      | 0.2069 | 0.4483 | 0.0000 | 0.2527 |   29 |  WITHOUT-proj
+| para-easy      | 0.9655 | 1.0000 | 0.1724 | 0.9828 |   29 |  WITH-dense
+| para-easy      | 0.9655 | 1.0000 | 0.3103 | 0.9828 |   29 |  WITH-fused
+| para-medium    | 0.0976 | 0.4878 | 0.0000 | 0.1992 |   41 |  WITHOUT-native
+| para-medium    | 0.1220 | 0.4878 | 0.0000 | 0.2235 |   41 |  WITHOUT-proj
+| para-medium    | 1.0000 | 1.0000 | 0.3415 | 1.0000 |   41 |  WITH-dense
+| para-medium    | 1.0000 | 1.0000 | 0.3902 | 1.0000 |   41 |  WITH-fused
+| para-hard      | 0.0333 | 0.4000 | 0.0000 | 0.1298 |   30 |  WITHOUT-native
+| para-hard      | 0.0667 | 0.3667 | 0.0000 | 0.1483 |   30 |  WITHOUT-proj
+| para-hard      | 0.9667 | 1.0000 | 0.2667 | 0.9833 |   30 |  WITH-dense
+| para-hard      | 0.9667 | 1.0000 | 0.1333 | 0.9833 |   30 |  WITH-fused
+
+## stage attribution (WITH-fused misses only, leg=discipline cap=40)
+| group          | lost_candidate | lost_safety | lost_rank | n_miss |
+|----------------|----------------|-------------|-----------|--------|
+| lexical        |              0 |           0 |         0 |      0 |
+| para-easy      |              0 |           0 |         1 |      1 |
+| para-medium    |              0 |           0 |         0 |      0 |
+| para-hard      |              0 |           0 |         1 |      1 |
+
+GATES leg=discipline cap=40: A lexical_guard=100 (need ==1.00), B hard_seed=29 (need >=21/30), C pool=200 (need >=170/200), D overall_R1=198 (need >=140/200), E not_a_swap_worse=200 (pool >=164/200)
+test b13_discipline_cap40 ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.78s
+

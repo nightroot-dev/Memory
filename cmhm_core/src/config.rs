@@ -195,8 +195,9 @@ pub struct Config {
     /// B13: maximum candidates kept after dense+BM25 fusion — the cap
     /// argument of `rrf_fuse` (the fused shortlist handed downstream).
     /// Larger values widen the shortlist so gold candidates beyond the
-    /// 20-cap become visible to ranking/callers. Default: 20 — identical
-    /// to every recorded bench (this knob replaces the hardcoded literal).
+    /// old 20-cap become visible to ranking/callers. Default: 40 — the
+    /// pre-registered B13 6c flip verdict (value 20 matched every
+    /// recorded bench before that verdict).
     #[serde(default = "default_retrieval_fusion_cap")]
     pub retrieval_fusion_cap: usize,
 }
@@ -240,7 +241,7 @@ impl Default for Config {
             gate_threshold:                0.35,
             gate_kappa:                    2.0,
             retrieval_seed_pool_size:      20,  // R3: was hardcoded 8
-            retrieval_fusion_cap:          20,  // B13: knob added; was hardcoded 20
+            retrieval_fusion_cap:          40,  // B13 verdict: pre-registered 6c flip applied (was 20)
         }
     }
 }
@@ -258,7 +259,7 @@ fn default_enforce_gate()                  -> bool  { false }
 fn default_gate_threshold()                -> f32   { 0.35 }
 fn default_gate_kappa()                    -> f32   { 2.0 }
 fn default_retrieval_seed_pool_size()      -> usize { 20 }  // R3: was hardcoded 8
-fn default_retrieval_fusion_cap()          -> usize { 20 }  // B13: knob added; was hardcoded 20
+fn default_retrieval_fusion_cap()          -> usize { 40 }  // B13 verdict: 6c flip applied (was 20)
 fn default_working_memory_size()           -> usize { 5 }
 fn default_edge_birth_threshold()          -> f32   { 0.35 }
 fn default_novelty_threshold()             -> f32   { 0.55 }

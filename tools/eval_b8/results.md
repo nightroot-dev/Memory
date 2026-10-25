@@ -777,3 +777,66 @@ picker accuracy on presented candidates, not a recall figure.
 2026-10-19); 	ools/eval_b12/runs/* are aborted-B12 residue, untracked,
 referenced only by B12's own record — owner decides deletion.
 No gate, target, or verdict is changed by this amendment.
+
+## B13 - ship-default save discipline + fusion cap: PASS - first registration to clear the standing 70% hard bar on the engine path alone (2026-10-25)
+
+Pre-registered `53bdaa3` (`tools/eval_b8/b13-ship-default.md`, BEFORE any
+engine edit, fixture, instrument, or run; owner GO 2026-10-25,
+save-first sequencing). Run-affecting commit `7713015`: discipline
+fixture script + generated `corpus_b13_discipline.json` (mechanical
+template only; all self-checks green; para-hard zero-overlap holds) +
+4-leg instrument `ops_bench_b13_ship_default.rs` +
+`Config::retrieval_fusion_cap` threaded to `retrieval::retrieve`
+(default 20 = unchanged behavior) + the learn-path save-discipline
+nudge (cmhm_mcp) + config.toml knob doc. Compile-green before the run:
+cmhm_core lib 228 + cmhm_mcp tool_tests 74.
+
+Single run, all four legs, one instrument, 32.78 s. Raw leg output:
+`tools/eval_b13/b13_run1.txt` (source of every number below). No
+deviations; no LLM session opened (no pick, no reranker, no re-roll
+anywhere in this run).
+
+Gate lines verbatim:
+
+    GATES leg=control cap=20: A lexical_guard=100 (need ==1.00), B hard_seed=2 (need >=21/30), C pool=164 (need >=170/200), D overall_R1=114 (need >=140/200), E not_a_swap_worse=164 (pool >=164/200)
+    F control_fidelity leg=control cap=20: hard_seed=2 (record 2/30), pool=164 (record 164/200), R@1=114 (record 114/200), lexical=100
+    GATES leg=control cap=40: A lexical_guard=100 (need ==1.00), B hard_seed=2 (need >=21/30), C pool=166 (need >=170/200), D overall_R1=114 (need >=140/200), E not_a_swap_worse=166 (pool >=164/200)
+    GATES leg=discipline cap=20: A lexical_guard=100 (need ==1.00), B hard_seed=29 (need >=21/30), C pool=200 (need >=170/200), D overall_R1=198 (need >=140/200), E not_a_swap_worse=200 (pool >=164/200)
+    GATES leg=discipline cap=40: A lexical_guard=100 (need ==1.00), B hard_seed=29 (need >=21/30), C pool=200 (need >=170/200), D overall_R1=198 (need >=140/200), E not_a_swap_worse=200 (pool >=164/200)
+
+Attribution (discipline cap20, WITH-fused misses): para-easy 1
+lost_rank; para-hard 1 lost_rank; lost_candidate 0 in every group;
+lost_safety 0 in every group. Control attribution keeps the record
+shape (hard: 12 lost_candidate / 16 lost_rank). The two discipline
+misses are identical across both cap settings (the cap did not alter
+the miss set).
+
+Verdict: **B13 PASS.** Hard WITH-fused retrieval@1 = **29/30 = 96.7%**,
+CP95 **[82.78%, 99.92%]** (corrected helper `score_repl.py::cp_ci` via
+`tools/eval_b13/cp_29_30.py`; the helper's 30/30 reference reproduces
+the B12-R entry [88.43%, 100.00%] exactly). Channel check honored: on
+para-hard, lost_candidate collapsed 12 -> 0 AND lost_rank converted
+16 -> 1 (the BM25 bridge + top-1 conversion the registration named as
+the honest mechanism); zero lost_safety anywhere; no safety-carried
+pass. Gate F intact: the control cap-20 leg equals the MiniLM record
+exactly, so the deltas are attributable to the two registered treatments
+only.
+
+Cap-40 flip (registered 6c, isolated on control texts): pool40 166 >=
+164, R@1 114 >= 113 (0 delta), hard 2 >= 1, lost_safety 0 = 0 ->
+shipped `retrieval_fusion_cap` default 20 -> 40 applied in the
+post-verdict commit together with this entry (knob documented in
+config.toml; wider fused shortlist costs more tokens per retrieve).
+
+Standing-claim discipline carries: the delivered-stack published hard
+number (14/30 = 46.7%, CP95 [28.3%, 65.6%]) is untouched until the
+reviewer's sign-off; no README label change follows automatically. The
+B13 save texts are the mechanical transcription CEILING (W1 framing
+carried verbatim; agent-side evidence that the rule is honored by a
+real model = B12-R PART 2). Labels: hard slice only; single run per
+leg; MiniLM int8 + committed projection lineage; store of 200; no LLM
+in the loop; no notes-file comparison; no cross-model claim; point
+estimate at the 70% bar with CP reported. L3d/B12-R context for cited
+chains: engine-alone record hard 2/30; B12-R D-arm (agent texts, store
+of 30) pool rank 0 in 30/30; B13 is the same rule at store 200,
+templated.

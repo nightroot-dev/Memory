@@ -45,9 +45,10 @@ projections_dir = "data/projections"
 retrieval_max_depth = 3
 # B13: maximum candidates kept after dense+BM25 fusion (the fused shortlist
 # cap handed to ranking/callers). Higher = wider shortlist: beyond-cap gold
-# becomes visible, at the cost of more caller tokens per retrieve. Default 20
-# matches every recorded bench.
-retrieval_fusion_cap = 20
+# becomes visible, at the cost of more caller tokens per retrieve. Default 40
+# is the pre-registered B13 6c flip verdict (20 matched every recorded bench
+# before it).
+retrieval_fusion_cap = 40
 
 # ── Context Runtime ────────────────────────────────────────────────────────────
 # Maximum number of contexts loaded in RAM simultaneously.

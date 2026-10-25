@@ -271,3 +271,90 @@ CEILING (template by construction, not agent behavior); store of 200;
 no LLM in the loop; no notes-file comparison; no cross-model claim;
 point estimate with the standing CP discipline; fusion cap measured at
 20/40.
+
+---
+
+# PART 2 — B13 result (2026-10-25)
+
+Single run; four legs in one instrument, 32.78 s; no deviations; no LLM
+session opened anywhere; no mid-run engine edits.
+
+**Gate F (instrument fidelity):** `b13_control_cap20` reproduces the
+MiniLM record exactly — hard seedP@1 **2/30**, pool **164/200**, R@1
+**114/200**, lexical **1.00**. The instrument is record-faithful.
+
+## Gate table (WITH-fused, raw output tools/eval_b13/b13_run1.txt)
+
+| leg                | A lexical | B hard | C pool   | D R@1    | E pool   | outcome                     |
+|--------------------|-----------|--------|----------|----------|----------|------------------------------|
+| control cap20      | 1.00      | 2/30   | 164/200  | 114/200  | 164/200  | F reference (record exact)   |
+| control cap40      | 1.00      | 2/30   | 166/200  | 114/200  | 166/200  | §6c conditionals PASS        |
+| discipline cap20   | 1.00      | 29/30  | 200/200  | 198/200  | 200/200  | **PASS** (ship @ cap20)      |
+| discipline cap40   | 1.00      | 29/30  | 200/200  | 198/200  | 200/200  | **PASS** (ship @ cap40)      |
+
+**B13 verdict: PASS the standing ship bar.** Hard WITH-fused
+retrieval@1 = **29/30** (96.7%, CP 95 **[82.78%, 99.92%]**, helper
+`tools/eval_l3/score_repl.py::cp_ci` via `tools/eval_b13/cp_29_30.py`;
+the helper's 30/30 reference reproduces the B12-R entry [88.43%,
+100.00%] exactly) with pool 200/200 and overall R@1 198/200.
+
+## Mechanism (read before citing)
+
+- The template form converted the W1a rank failure. W1a's keyword
+  SUFFIX restored pools 164→200 but converted **zero** top-1 (hard
+  stayed 2/30, lost_rank 28); the discipline FORM ("For '<query>', what
+  was learned: <situation>", symptom quoted verbatim as the D-arm does,
+  embedded as the full state text) converts **28 of the 28** hard
+  rank-misses at 200-node scale.
+- Attribution in discipline legs: lost_candidate 12 → **0** and
+  lost_rank 16 → **1** on para-hard; zero lost_safety in every leg —
+  exactly the pre-registered channel shape (BM25 bridge restores the
+  candidates AND the top-1 converts). The two remaining misses (one
+  para-easy, one para-hard) are both lost_rank and are stable across
+  both cap settings (cap did not alter the miss set); item identity is
+  not printed by the instrument (W1 print shape W1 kept).
+- Cap isolation (record texts): cap 40 gains 2/200 pool (164 → 166) —
+  most beyond-cap golds never reach the bm25 top-50 intake, so the cap
+  knob is real but narrow at this store shape; R@1/hard unchanged.
+- Committed-chain context: engine-alone record hard 2/30; B12-R D-arm
+  (LLM-authored texts, store of 30) pool rank 0 in 30/30; this run is
+  the mechanical ceiling of the same rule at store 200.
+
+## Cap-40 flip applied (per §6c, conditionals measured PASS)
+
+pool40 166 ≥ pool20 164; R@1 114 ≥ 113; hard seed 2 ≥ 1; lost_safety
+0 = 0 → shipped `retrieval_fusion_cap` default **20 → 40** applied in
+the post-verdict commit together with this PART 2 (cost note: wider
+fused shortlist costs more tokens per retrieve; config.toml documents
+the knob).
+
+## Deviations
+
+None.
+
+## What this does and does not change
+
+- Supported claim: "With the save-side discipline applied at learn
+  time (mechanical template rule, no LLM at retrieval or in the
+  engine), hard WITH-fused retrieval@1 = 29/30 (single run, one
+  embedder lineage, hard slice of 30, n=200 store)." Point estimate at
+  n=30; CP reported; no lower-bound-at-70% claim.
+- The delivered stack's published hard number (**14/30 = 46.7%**, CP
+  95 [28.3%, 65.6%]) is untouched until the reviewer's sign-off; no
+  README change follows automatically.
+- The save texts are a mechanical transcription CEILING (W1 framing
+  carried); production-side evidence that a real agent produces such
+  text under the rule is B12-R PART 2 (query-token recall 0.9889,
+  forced save). The §6b learn-path nudge is the shipped delivery
+  surface for the rule.
+- No notes-file comparison; no cross-model claim; no claim that the
+  engine semantically recalls (the measured mechanism is the BM25
+  bridge + top-1 conversion under verbatim caller phrasing).
+
+## Labels for any citation
+
+Hard slice only; single run per leg; MiniLM int8 + committed
+projection lineage; mechanical transcription ceiling; store of 200; no
+LLM in the loop; no notes-file comparison; no cross-model claim; point
+estimate with the standing CP discipline; fusion cap measured at
+20/40.
