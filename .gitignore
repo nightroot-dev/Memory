@@ -31,3 +31,8 @@ tools/eval_b8/tasks/t3-openbot-shortcut/fixtures/
 # B8 eval: per-arm run reports (working files, not committed).
 tools/eval_b8/runs/
 
+# Scratch OCR images: one-off diagram-reading tooling outputs (venn_*, char_*).
+# Kept on disk, not tracked since commit 84c1e69 onward.
+/venn_*.png
+/char_*.png
+
