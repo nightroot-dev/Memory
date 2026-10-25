@@ -1,199 +1,115 @@
-﻿# L3 raw run - lever 3 (bigger embedder / LLM rerank), 2026-10-21
-# Pre-reg commit: 81217f5. Instrument: cmhm_core/tests/ops_bench_l3_rerank.rs (MSVC+onnx).
-# Runs single, flagged (rerank LLM non-determinism: one rerank session per leg).
-# Frame: MiniLM record for dumps/rerank legs; bge-base-en-v1.5 for L3a (own frame).
-# Uninvolved rerank LLM: a stand-in client LLM (name withheld) via three fresh subagent
-#   sessions (no repo access; committed prompt batches only):
-#   l3b ses_ea22ba72dffezAJ0KTG94G1qFz | l3c ses_ea228db38ffeuouXv5plmA2Ghj | l3d ses_ea223129fffeywkRkPizb6KCP4
-# Fixtures: pools_*.json (dumps), batches/ + batch_manifest.json, rerank_*.raw (verbatim)
-#   parsed by parse_rerank.py into rerank_*.json (validation: 30/30, 100/100, 100/100 OK).
-cargo : warning: variable does not need to be mutable
-At line:1 char:94
-+ ... | Out-Null; cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core -- ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-   --> cmhm_core\src\migration.rs:276:9
-    |
-276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
-    |         ----^^^^^^
-    |         |
-    |         help: remove this `mut`
-    |
-    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+# B12 design note: two-session accumulation eval (locked pre-registration)
 
-warning: unused variable: `n`
-   --> cmhm_core\src\backup.rs:119:9
-    |
-119 |     let n = verify_backup(bundle)?;
-    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
-    |
-    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+**Status:** design locked BEFORE any arm runs. Owner gate: checked against
+the three definitions below before launch. No code changes; eval only.
+**Question:** does CMHM's actual product claim — automatic accumulation of
+facts across sessions — beat the realistic baseline (an agent writing its
+own notes), given that B8/B8r/B10 measured it only against an ideal
+hand-authored file?
 
-warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.98s
-     Running tests\ops_bench_l3_rerank.rs 
-(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_l3_rerank-f2fdd0104c4afc4a.exe)
+## 1. Win rule (IDENTICAL to B10 — not redefined)
 
-running 1 test
-test l3a_bge_embedder_leg has been running for over 60 seconds
+A task counts as a **cmhm outright win** only if ALL of:
+1. cmhm session-2 rubric PASSES;
+2. cmhm total tool calls < none AND < self-notes (ties favor baselines);
+3. cmhm total wall time < none AND < self-notes (ties favor baselines).
 
-## ops_bench_l3_rerank l3a_bge_embedder_leg (L1, bge-base-en-v1.5, n=200)
-| group          | seedP@1 | poolRec | chainAcc | MRR    | n    |
-|----------------|---------|---------|----------|--------|------|
-| lexical        | 0.0700 | 0.4400 | 0.0000 | 0.1736 |  100 |  WITHOUT-native
-| lexical        | 0.0400 | 0.1500 | 0.0000 | 0.0765 |  100 |  WITHOUT-proj
-| lexical        | 0.0700 | 0.3900 | 0.0200 | 0.1240 |  100 |  WITH-dense
-| lexical        | 1.0000 | 1.0000 | 0.0800 | 1.0000 |  100 |  WITH-fused
-| para-easy      | 0.1379 | 0.4483 | 0.0000 | 0.2325 |   29 |  WITHOUT-native
-| para-easy      | 0.1379 | 0.4138 | 0.0000 | 0.2067 |   29 |  WITHOUT-proj
-| para-easy      | 0.1379 | 0.6552 | 0.0000 | 0.2250 |   29 |  WITH-dense
-| para-easy      | 0.1379 | 0.6207 | 0.0000 | 0.2227 |   29 |  WITH-fused
-| para-medium    | 0.1707 | 0.5610 | 0.0000 | 0.2972 |   41 |  WITHOUT-native
-| para-medium    | 0.1951 | 0.5122 | 0.0000 | 0.2870 |   41 |  WITHOUT-proj
-| para-medium    | 0.1220 | 0.7561 | 0.0244 | 0.2662 |   41 |  WITH-dense
-| para-medium    | 0.1220 | 0.7317 | 0.0488 | 0.2640 |   41 |  WITH-fused
-| para-hard      | 0.1000 | 0.3333 | 0.0000 | 0.1531 |   30 |  WITHOUT-native
-| para-hard      | 0.1333 | 0.3000 | 0.0000 | 0.1817 |   30 |  WITHOUT-proj
-| para-hard      | 0.1000 | 0.5000 | 0.0333 | 0.1762 |   30 |  WITH-dense
-| para-hard      | 0.1000 | 0.5000 | 0.0000 | 0.1762 |   30 |  WITH-fused
+Wall/calls measured exactly as B8/B10: tool-call rows + nested execute
+subcalls from `session_message` payloads; wall = last − first message
+timestamp per session, summed over the two sessions of the arm.
+Reported but NOT gating: a calls-only tally (B10 showed wall noise from
+LLM latency can dominate; the calls-only tally guards interpretation).
 
-GATES l3a (bge frame, standing bar): A lexical_guard=100 (need ==1.00 -> 100/100), B hard_seed=3 (need >=15/30), C pool=163 (need >=170/200), D overall_R1=112 (need >=140/200), E not_a_swap_worse (pool >=164/200)
-MiniLM record anchors (informational only, no mixing): hard 2/30, pool 164/200, R@1 114/200
-test l3a_bge_embedder_leg ... ok
+## 2. Sample size and inconclusive band (locked now)
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 265.13s
+- **n = 10 tasks** (b12-t1 … b12-t10), all run regardless of interim
+  results — no early stopping.
+- Let W = number of cmhm outright wins.
+- **W ≥ 6 → B12 win:** the ideal-file baseline was the artifact; the
+  product conversation reopens on honest evidence.
+- **W ≤ 4 → loss:** the memory-quality track STANDS DOWN permanently.
+  Remaining paths: narrow to what measurably works (lexical/identifier
+  recall 1.00) or archive.
+- **W = 5 → INCONCLUSIVE:** not a win. Raw table goes to the owner; no
+  claim either way.
 
+## 3. Self-notes arm fairness (instruction pre-registered verbatim)
 
-==== STAGE 2: pool dumps (l3b/l3c/l3d) ====
+Same agent type (general), same model (bench-agent-m xhigh), same task
+prompts as the other arms. The ONLY difference is the notes instruction,
+given identically in both sessions, verbatim:
 
-cargo : warning: variable does not need to be mutable
-At line:1 char:1
-+ cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_6 ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-   --> cmhm_core\src\migration.rs:276:9
-    |
-276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
-    |         ----^^^^^^
-    |         |
-    |         help: remove this `mut`
-    |
-    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+> "As you work, maintain a file named NOTES.md in your work directory.
+> Write down every fact you learn that would be needed to resume or redo
+> this task later: root causes, file locations, commands, pitfalls,
+> decisions. Keep it concise but complete. Do not write anything outside
+> your work directory."
 
-warning: unused variable: `n`
-   --> cmhm_core\src\backup.rs:119:9
-    |
-119 |     let n = verify_backup(bundle)?;
-    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
-    |
-    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+Session-2 prompt addition (verbatim): "A previous session worked on this
+same task and may have left NOTES.md in the work directory. Read it first
+if present."
 
-warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.88s
-     Running tests\ops_bench_l3_rerank.rs 
-(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_l3_rerank-f2fdd0104c4afc4a.exe)
+No hand-authored seed content is given to self-notes — the arm writes its
+own. The none arm gets no notes instruction and no memory access.
 
-running 3 tests
-written: pools_record_hard.json (30 items)
-test l3b_dump_record_hard ... ok
-written: pools_d2expanded_para.json (100 items)
-test l3c_dump_d2expanded_para ... ok
-written: pools_w1bridge_all.json (100 items)
-test l3d_dump_w1bridge_all ... ok
+## 4. cmhm arm protocol (honest product shape — no hand-feeding)
 
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 30.21s
+- **No pre-seeded contexts.** Memory must accumulate from session 1 work.
+  (B8's seeded contexts were the same ideal-file bias in different
+  clothing; B12 removes it.)
+- Session 1: learns unrestricted (agent follows the server instructions:
+  learn outcome-changing events); retrieves ≤ 2.
+- Session 2: retrieves ≤ 2; learns unrestricted.
+- Compliance verified from opencode.db per arm (retrieve/learn counts).
 
+## 5. Task family (10 two-session tasks)
 
-==== STAGE 3: scored rerank legs (l3b/l3c/l3d) ====
+Each task: session 1 = explore/diagnose a fixture and discover facts;
+session 2 = a task that REQUIRES those facts (resume, extend, or fix a
+related fault). Fixtures are new, small, deterministic, local (no
+network); built and rubrics written BEFORE any arm runs, one
+`task.md` + rubric per task under `tools/eval_b12/tasks/`. Rubric style:
+file-state checks or keyword groups, deterministic, same as B8. The
+session-2 rubrics are fixed before the first arm; nothing is tuned after
+seeing results.
 
-cargo : warning: variable does not need to be mutable
-At line:1 char:1
-+ cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_6 ...
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (warning: variab...d to be mutable:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
-   --> cmhm_core\src\migration.rs:276:9
-    |
-276 |     let mut ledger = LearnLedger::from_episodes_retaining_seqs(
-    |         ----^^^^^^
-    |         |
-    |         help: remove this `mut`
-    |
-    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+## 6. B11 condition (the trap, named and controlled)
 
-warning: unused variable: `n`
-   --> cmhm_core\src\backup.rs:119:9
-    |
-119 |     let n = verify_backup(bundle)?;
-    |         ^ help: if this is intentional, prefix it with an underscore: `_n`
-    |
-    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+**UPDATE 2026-10-17: B11 is FIXED** (commit `c48ee4a`: exclusive sidecar
+lock + reload-merge save; acceptance repro green on the serving binary,
+`docs/eval_b8` record 7a491b1). The original mitigation plan is downgraded
+as follows:
 
-warning: `cmhm_core` (lib) generated 2 warnings (run `cargo fix --lib -p cmhm_core` to apply 2 suggestions)
-   Compiling cmhm_core v0.2.0 (C:\Games\Projects\Memory\cmhm_core)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.83s
-     Running tests\ops_bench_l3_rerank.rs 
-(target\x86_64-pc-windows-msvc\debug\deps\ops_bench_l3_rerank-f2fdd0104c4afc4a.exe)
+- Arms still run strictly SEQUENTIALLY — one arm at a time, no parallel
+  subagents running concurrently. **Exactly ONE cmhm_mcp server instance
+  serves the whole eval** (B11's multi-writer clobber needs >=2 writers;
+  single instance + sequential arms removes that class entirely).
+- **Pilot (t1 × 3 arms × 2 sessions) is labelled a HARNESS CHECK, not a
+  verdict.** It validates: runner mechanics, fixture copying, prompt
+  verbatim-ness, registry tripwire, verify.py behaviour, DB metric
+  extraction. It contributes no win/loss to W and carries no B12
+  conclusion; its report is reviewed before the remaining 9 tasks run.
+- **Model parity guard (pre-registered):** every arm session spawns with
+  exactly `opencode/BENCH-MODEL-WITHHELD#xhigh` and this is
+  verified from `session_v2.model` in opencode.db after each session.
+  If that model cannot be spawned, the runner STOPS B12 and reports;
+  no fallback model is authorised (B10 record's parity is bench-agent-m; no silent
+  substitution).
+- **Registry integrity check around every arm** becomes pure regression
+  insurance (B11 reopened = any run's data void, re-run once): before and
+  after each arm, record `registry.toml` entry set. Any unexplained
+  disappearance = clobber = that arm VOID; second occurrence aborts B12.
+- Statement for the record: **B12 runs with B11 FIXED** (`c48ee4a`). A
+  cmhm loss in B12 is attributable to memory quality, not registry races.
 
-running 3 tests
+## 7. What this note does not authorise
 
-## l3b_record_hard score (rerank seed = LLM pick; lexical bypassed at 100/100)
-| group          |  n | gold_in_pool | gold_presented | rerank_hits | acc_on_presented |
-|----------------|----|--------------|----------------|-------------|------------------|
-| para-hard      | 30 |           18 |             18 |          14 |           0.7778 |
+No engine or registry code changes; no reranker; no embedder work; no
+changes to the B8/B10 records; no touching `docs/master_bug_list.md`
+(B11 transplant remains the reviewer's).
 
-## attribution
-| group          | lost_candidate | lost_rerank_visibility | lost_rank_rerank |
-|----------------|----------------|------------------------|------------------|
-| para-hard      |             12 |                      0 |               16 |
+## 8. Reporting
 
-pick distribution (index: count): [(1, 8), (2, 5), (3, 5), (4, 2), (6, 4), (11, 1), (14, 1), (15, 1), (16, 1), (17, 1), (18, 1)]
-invalid/missing picks (counted as lost_rank_rerank): 0
-test l3b_score_record_hard ... ok
-
-## l3d_w1bridge score (rerank seed = LLM pick; lexical bypassed at 100/100)
-| group          |  n | gold_in_pool | gold_presented | rerank_hits | acc_on_presented |
-|----------------|----|--------------|----------------|-------------|------------------|
-| para-easy      | 29 |           29 |             29 |          29 |           1.0000 |
-| para-hard      | 30 |           30 |             30 |          30 |           1.0000 |
-| para-medium    | 41 |           41 |             41 |          41 |           1.0000 |
-
-## attribution
-| group          | lost_candidate | lost_rerank_visibility | lost_rank_rerank |
-|----------------|----------------|------------------------|------------------|
-| para-easy      |              0 |                      0 |                0 |
-| para-hard      |              0 |                      0 |                0 |
-| para-medium    |              0 |                      0 |                0 |
-
-pick distribution (index: count): [(1, 14), (2, 6), (3, 2), (4, 4), (5, 4), (6, 7), (7, 4), (8, 3), (9, 7), (11, 2), (12, 5), (13, 2), (14, 3), (15, 5), (16, 3), (17, 5), (18, 3), (19, 11), (20, 10)]
-invalid/missing picks (counted as lost_rank_rerank): 0
-GATES l3d_w1bridge: A lexical_bypass=100/100 (==1.00 by construction), B hard_seed=30/30 (need >=15): OK, C pool=200/200 (need >=170): OK, D overall_R1=200/200 (need >=140): OK, E pool>=164/200: OK
-test l3d_score_w1bridge ... ok
-
-## l3c_d2expanded score (rerank seed = LLM pick; lexical bypassed at 100/100)
-| group          |  n | gold_in_pool | gold_presented | rerank_hits | acc_on_presented |
-|----------------|----|--------------|----------------|-------------|------------------|
-| para-easy      | 29 |           18 |             18 |          14 |           0.7778 |
-| para-hard      | 30 |           26 |             18 |          14 |           0.7778 |
-| para-medium    | 41 |           28 |             28 |          24 |           0.8571 |
-
-## attribution
-| group          | lost_candidate | lost_rerank_visibility | lost_rank_rerank |
-|----------------|----------------|------------------------|------------------|
-| para-easy      |             11 |                      0 |               15 |
-| para-hard      |              4 |                      8 |               16 |
-| para-medium    |             13 |                      0 |               17 |
-
-pick distribution (index: count): [(1, 27), (2, 12), (3, 10), (4, 5), (5, 4), (6, 11), (7, 3), (8, 3), (9, 6), (11, 3), (12, 2), (13, 3), (14, 3), (15, 3), (16, 2), (17, 2), (18, 1)]
-invalid/missing picks (counted as lost_rank_rerank): 0
-GATES l3c_d2expanded: A lexical_bypass=100/100 (==1.00 by construction), B hard_seed=14/30 (need >=15): FAIL, C pool=172/200 (need >=170): OK, D overall_R1=152/200 (need >=140): OK, E pool>=164/200: OK
-test l3c_score_d2expanded ... ok
-
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.04s
-
-
+Raw table → measured vs assumed → not done, project standard. Registry
+integrity log included. All reports, rubrics, and the registry log
+committed before the verdict commit.

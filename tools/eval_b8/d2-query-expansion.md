@@ -1,139 +1,115 @@
-# D2 RUN RECORD — PART 1 (2026-10-21; prepended above the pre-reg, appended-only)
+# B12 design note: two-session accumulation eval (locked pre-registration)
 
-Pre-reg commit: **924e9af**. Raw run: `tools/eval_d2/d2_run1.txt` (both
-legs, verbatim). Instrument: `cmhm_core/tests/ops_bench_d2_expansion.rs`
-(MSVC+onnx). Runs single, flagged.
+**Status:** design locked BEFORE any arm runs. Owner gate: checked against
+the three definitions below before launch. No code changes; eval only.
+**Question:** does CMHM's actual product claim — automatic accumulation of
+facts across sessions — beat the realistic baseline (an agent writing its
+own notes), given that B8/B8r/B10 measured it only against an ideal
+hand-authored file?
 
-Drift control: **d2_control_leg == MiniLM record BIT-EXACT** (lexical
-100/100, hard fused seed 2/30 pool 18/30, overall pool 164/200, overall
-R@1 114/200, hard attribution 12 cand / 16 rank of 28). Instrument clean.
+## 1. Win rule (IDENTICAL to B10 — not redefined)
 
-Measurement (expanded leg, hard items, MERGED over 4 self-contained fused
-runs per item: original query + 3 uninvolved-LLM cause rewrites):
+A task counts as a **cmhm outright win** only if ALL of:
+1. cmhm session-2 rubric PASSES;
+2. cmhm total tool calls < none AND < self-notes (ties favor baselines);
+3. cmhm total wall time < none AND < self-notes (ties favor baselines).
 
-| slice                    | seedP@1 (gate) | poolRec | MRR    | misses: cand/rank/safety |
-|--------------------------|----------------|---------|--------|--------------------------|
-| record (single orig run) | 2/30           | 18/30   | 0.1298 | 12 / 16 / 0              |
-| D2 merged (4 runs)       | **15/30**      | 26/30   | 0.5981 | 4 / 11 / 0               |
+Wall/calls measured exactly as B8/B10: tool-call rows + nested execute
+subcalls from `session_message` payloads; wall = last − first message
+timestamp per session, summed over the two sessions of the arm.
+Reported but NOT gating: a calls-only tally (B10 showed wall noise from
+LLM latency can dominate; the calls-only tally guards interpretation).
 
-VERDICT: **D2 FAILS the registered gate — hard merged WITH-fused seedP@1
-15/30 < 21/30 (the ONLY pass; 70% owner bar, not relaxable).**
-Secondary clause: merged poolRec = 26/30 ≥ 21/30, so the registered
-"expansion fails without further rank work" short-circuit does NOT apply —
-the failure decomposes cleanly: 11 of 15 remaining misses are lost_rank,
-4 lost_candidate, 0 lost_safety.
+## 2. Sample size and inconclusive band (locked now)
 
-Measured conclusions:
+- **n = 10 tasks** (b12-t1 … b12-t10), all run regardless of interim
+  results — no early stopping.
+- Let W = number of cmhm outright wins.
+- **W ≥ 6 → B12 win:** the ideal-file baseline was the artifact; the
+  product conversation reopens on honest evidence.
+- **W ≤ 4 → loss:** the memory-quality track STANDS DOWN permanently.
+  Remaining paths: narrow to what measurably works (lexical/identifier
+  recall 1.00) or archive.
+- **W = 5 → INCONCLUSIVE:** not a win. Raw table goes to the owner; no
+  claim either way.
 
-1. Uninvolved-LLM symptom→cause rewriting (zero corpus visibility) is the
-   single strongest recall lever measured on this corpus so far: hard pool
-   18→26/30, hard seed 2→15/30 (7.5×), merged MRR 0.13→0.60 — and still
-   6 items short of the owner's 21/30 bar.
-2. The W1/D2 pair sharpens the wall picture. W1's write-time keywords
-   restored the pool (30/30) and converted NOTHING — pure rank wall. D2's
-   cause rewrites move the QUERY's own dense+lexical anchor and convert
-   13 new items. So the wall is specifically: "a vague symptom query
-   cannot rank a pooled gold" — a semantically anchored rewrite partially
-   breaks it (15/30); the exact-lookup ranker alone does not.
-3. Lever 3 (bigger embedder / LLM rerank) targets the remaining 11
-   rank-stage misses directly. Two half-proven pairings now exist:
-   (W1 bridge + working reranker) with pool 30/30, and (D2 expansion +
-   working reranker) with pool 26/30. The reranker half is owner lever 3.
-4. Mechanism honesty (pre-run disclosure, `fixture_disclosure.txt`): many
-   cause rewrites share ZERO tokens with the store text (e.g. para-057,
-   -075, -081, -084, -085, -088, -090 all-causes 0) — those rides are
-   dense-only; the converts ride partially on BM25 anchors where overlap
-   exists (para-006 c1: 3 shared tokens; para-032 c1: 4; para-059 c2: 3).
+## 3. Self-notes arm fairness (instruction pre-registered verbatim)
 
-Deviation summary: none (gate honored as registered; both runs single,
-flagged; subagent model documented in the pre-reg; B12 sequencing waiver
-documented pre-run per owner directive 2026-10-21). Lever hand-back to
-the owner before lever 3.
+Same agent type (general), same model (bench-agent-m xhigh), same task
+prompts as the other arms. The ONLY difference is the notes instruction,
+given identically in both sessions, verbatim:
 
----
+> "As you work, maintain a file named NOTES.md in your work directory.
+> Write down every fact you learn that would be needed to resume or redo
+> this task later: root causes, file locations, commands, pitfalls,
+> decisions. Keep it concise but complete. Do not write anything outside
+> your work directory."
 
-# D2 pre-registration addendum — protocol mechanics (lever 2/3, owner GO 2026-10-21)
+Session-2 prompt addition (verbatim): "A previous session worked on this
+same task and may have left NOTES.md in the work directory. Read it first
+if present."
 
-The registered D2 protocol (results.md reviewer-deltas section, commit
-b3151db) is honored verbatim. This addendum only fixes the mechanics the
-registration left open, BEFORE any run (pre-registration rule).
+No hand-authored seed content is given to self-notes — the arm writes its
+own. The none arm gets no notes instruction and no memory access.
 
-## Registered terms (verbatim from results.md, unchanged)
+## 4. cmhm arm protocol (honest product shape — no hand-feeding)
 
-- "An uninvolved LLM proposes 3 likely causes per hard query (agent-side
-  symptom→cause rewriting); each expansion retrieves separately; pools are
-  merged for pool metrics and the expanded-query set runs the SAME fused
-  path (BM25 regains lexical anchor on expanded queries)."
-- Gates: "hard WITH-fused seedP@1 >= 21/30 (70%, direct owner bar) = the
-  ONLY pass; anything below is a failure of D2, not a reason to relax the
-  target. If hard poolRec with merged pools < 21/30, expansion fails
-  without further rank work."
-- Scope: bench-only, no engine build. Hard queries only (30 items).
+- **No pre-seeded contexts.** Memory must accumulate from session 1 work.
+  (B8's seeded contexts were the same ideal-file bias in different
+  clothing; B12 removes it.)
+- Session 1: learns unrestricted (agent follows the server instructions:
+  learn outcome-changing events); retrieves ≤ 2.
+- Session 2: retrieves ≤ 2; learns unrestricted.
+- Compliance verified from opencode.db per arm (retrieve/learn counts).
 
-## Condition change (documented, not a deviation)
+## 5. Task family (10 two-session tasks)
 
-The registration says D2 "runs ONLY after B12 and only if the recall track
-is still alive". B12 is recorded NO-GO (parity-guard fired, model
-unavailable). The owner's 2026-10-21 lever directive ("one by one: 1) write
-keywords, 2) query expansion, 3) bigger embedder/LLM rerank") supersedes
-the sequencing condition; B12 remains NO-GO.
+Each task: session 1 = explore/diagnose a fixture and discover facts;
+session 2 = a task that REQUIRES those facts (resume, extend, or fix a
+related fault). Fixtures are new, small, deterministic, local (no
+network); built and rubrics written BEFORE any arm runs, one
+`task.md` + rubric per task under `tools/eval_b12/tasks/`. Rubric style:
+file-state checks or keyword groups, deterministic, same as B8. The
+session-2 rubrics are fixed before the first arm; nothing is tuned after
+seeing results.
 
-## Mechanics registered here (before the run)
+## 6. B11 condition (the trap, named and controlled)
 
-- **Expansion source (uninvolved LLM, documented)**: one fresh subagent
-  session (no repo access; instructed to work only from the query strings
-  and general IT knowledge). Model: `a stand-in client LLM (name withheld)`
-  (provider catalog 2026-10-21). Raw output committed verbatim as
-  `tools/eval_d2/subagent_output.json`; an in-run generation attempt by the
-  builder-as-LLM was REJECTED (builder has corpus visibility from W1 work
-  — the uninvolved-LLM ring-fence requires a session without it).
-- **Rule honored**: EXACTLY 3 causes per hard query; each ≤ 12 words;
-  technical SRE/wiki style.
-- **Merged metrics semantics (registered)**: for each hard item the fused
-  path runs 4 retrievals — the original query text plus the 3 cause
-  texts (each the SAME `retrieve()` fused call as the record). Each run
-  is SELF-CONTAINED: its dense embedding and its BM25 text are the same
-  string (original run pairs the original query's embedding with the
-  original query text; each cause run embeds its own cause text for both
-  the dense and the fused-BM25 part — an agent's rewrite is a complete
-  new query, not a re-skinned original). Post-run merge per item:
-  - merged poolRec = gold state node present in ANY run's
-    `post_filter_candidates` (union of slots);
-  - merged seedP@1 (the gate) = gold hit as SEED in ANY of the 4 fused
-    runs (best-of-runs; agent-realistic expand-and-combine);
-  - merged MRR = best 1/(rank+1) across runs;
-  - merged stage attribution: candidate loss if gold ∉ union of
-    `raw_nn_candidates` across runs; safety loss if in raw-union but ∉
-    post-filter-union; rank loss otherwise (never a seed).
-- **Control leg registered**: the SAME instrument also runs the plain
-  record baseline (no expansion, all groups fused as the record) — a
-  drift control for the harness clone; expected to match the MiniLM
-  record numbers bit-stable (as W1b did).
-- **Corpus**: original `tools/corpus_l1.json` (NO keyword fields — query
-  side only). Fixture `tools/eval_d2/corpus_l1_d2.json` couples each hard
-  item with its 3 causes; generated mechanically by
-  `tools/eval_d2/make_expansions.py` from the two source files; committed
-  BEFORE the run; no manual edits afterward.
-- **Instrument**: `cmhm_core/tests/ops_bench_d2_expansion.rs` (clone of
-  the W1/record harness body; learn calls byte-identical to the record's
-  learn calls — no keyword insertion). Two `#[ignore]` tests (control,
-  expanded). Retrieval path untouched; no engine changes.
-- **Disclosure printed pre-verdict**: per hard item, cause-text token
-  overlap with (a) the item's store text and (b) the query — counts only,
-  no gate attached.
+**UPDATE 2026-10-17: B11 is FIXED** (commit `c48ee4a`: exclusive sidecar
+lock + reload-merge save; acceptance repro green on the serving binary,
+`docs/eval_b8` record 7a491b1). The original mitigation plan is downgraded
+as follows:
 
-## W1 relationship (informational, no gate change)
+- Arms still run strictly SEQUENTIALLY — one arm at a time, no parallel
+  subagents running concurrently. **Exactly ONE cmhm_mcp server instance
+  serves the whole eval** (B11's multi-writer clobber needs >=2 writers;
+  single instance + sequential arms removes that class entirely).
+- **Pilot (t1 × 3 arms × 2 sessions) is labelled a HARNESS CHECK, not a
+  verdict.** It validates: runner mechanics, fixture copying, prompt
+  verbatim-ness, registry tripwire, verify.py behaviour, DB metric
+  extraction. It contributes no win/loss to W and carries no B12
+  conclusion; its report is reviewed before the remaining 9 tasks run.
+- **Model parity guard (pre-registered):** every arm session spawns with
+  exactly `opencode/BENCH-MODEL-WITHHELD#xhigh` and this is
+  verified from `session_v2.model` in opencode.db after each session.
+  If that model cannot be spawned, the runner STOPS B12 and reports;
+  no fallback model is authorised (B10 record's parity is bench-agent-m; no silent
+  substitution).
+- **Registry integrity check around every arm** becomes pure regression
+  insurance (B11 reopened = any run's data void, re-run once): before and
+  after each arm, record `registry.toml` entry set. Any unexplained
+  disappearance = clobber = that arm VOID; second occurrence aborts B12.
+- Statement for the record: **B12 runs with B11 FIXED** (`c48ee4a`). A
+  cmhm loss in B12 is attributable to memory quality, not registry races.
 
-W1 (lever 1) measured that a restored pool does not convert under the
-final ranker (hard seed unchanged at 2/30 with pool 30/30). D2's merged
-seed metric measures best-of-runs: a cause statement that lands the gold
-item at seed#1 in its own fused run counts as a hit. This is the one new
-conversion channel D2 adds on top of pooling (seed re-decision, not
-just pool growth).
+## 7. What this note does not authorise
 
-## Verdict rule (from registration)
+No engine or registry code changes; no reranker; no embedder work; no
+changes to the B8/B10 records; no touching `docs/master_bug_list.md`
+(B11 transplant remains the reviewer's).
 
-- PASS iff merged hard WITH-fused seedP@1 >= 21/30.
-- If merged hard poolRec < 21/30 → expansion fails, no rank work may follow.
-- Anything else recorded as measured deltas; hand-back to owner BEFORE
-  lever 3.
+## 8. Reporting
+
+Raw table → measured vs assumed → not done, project standard. Registry
+integrity log included. All reports, rubrics, and the registry log
+committed before the verdict commit.

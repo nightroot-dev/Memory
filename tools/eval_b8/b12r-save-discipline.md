@@ -1,306 +1,646 @@
-# B12-R — save-discipline -> end-to-end hard recall (agent-written memories)
+/// BM25 (Okapi BM25) inverted index for lexical retrieval over memory text.
+///
+/// ## Why BM25 alongside dense retrieval?
+/// Dense cosine similarity fails for code identifiers: `cos("Arc", "Arc<Mutex<T>>") ≈ 0`
+/// in hash-projection space. BM25 uses exact term matching and always finds
+/// `Arc<Mutex<T>>` if it was stored. Hybrid retrieval (BM25 + dense) dominates
+/// either approach alone on real agent workloads.
+///
+/// ## Formula
+/// ```text
+/// score(q, d) = Σ_t IDF(t) · f(t,d)·(k₁+1) / [f(t,d) + k₁·(1 − b + b·|d|/avgdl)]
+/// IDF(t) = ln(1 + (N − n_t + 0.5) / (n_t + 0.5))
+/// ```
+/// Constants: k₁ = 1.5, b = 0.75 (middle of recommended ranges).
+///
+/// ## Design
+/// - Index is append-only: new terms merged on `insert()`.
+/// - avgdl updated incrementally — no full re-scan on each insert.
+/// - Tokenization: lowercase, split on non-alphanumeric, filter stopwords.
+///   This keeps the index small and avoids noise from punctuation.
+/// - Storage: `HashMap<String, PostingList>` where each posting is (node_id, tf).
+///   Compact: most real workloads have < 50k unique terms.
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
-**Status: PRE-REGISTERED BEFORE ANY RUN (2026-10-25).** Owner GO given
-2026-10-25 for the save-discipline product test. No save text, pool dump,
-pick, or score exists at the time of this commit.
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-## 0. Question
+/// BM25 term-frequency saturation. Higher = less saturation. Range 1.2–2.0.
+/// 1.5 is the middle of the recommended range for short technical text.
+const K1: f32 = 1.5;
 
-If an agent writes the memory text for each hard incident (the user's symptom
-plus what was learned), does the documented save discipline — **include the
-user's own words for the symptom in the memory text** — lift end-to-end hard
-rank-1 to the owner's 70% bar (**21/30**), compared with a neutral "write the
-memory you would save" instruction?
+/// BM25 document-length normalization. 0 = no normalization, 1 = full.
+/// 0.75 is standard for mixed prose+code.
+const B: f32 = 0.75;
 
-This is the missing link between the measured same-words ceiling (L3d: 30/30
-when keywords were fixture-written) and the delivered stack (L3b: 14/30 on
-the shipped record pools, agent-assisted). The engine and picker are held
-fixed; only the **save wording** changes.
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-## 1. Relationship to B12 and the 2026-10-17 re-target policy
+/// (node_id, within-document term frequency)
+type Posting = (u64, f32);
 
-- The locked B12 design (`tools/eval_b8/b12-design.md`, `da442bf`) is
-  **untouched**. Its 10-task, three-arm notes-file experiment remains NO-GO
-  on its original model (bench-agent-m unavailable, 2026-10-17). This note is **not**
-  that experiment and does not produce its W/win rule.
-- The 2026-10-17 re-target policy requires any re-target to (a) derive from
-  the product need, (b) reference the task-level B12 result as the primary
-  product gate, and (c) be registered before its first measurement. The
-  task-level B12 result was **never measured** (NO-GO), so this note does not
-  claim one and does not replace the 70% target with an easier one. It keeps
-  the same **21/30** bar and tests the save-side mechanism the L3d ceiling
-  assumed but no agent has ever produced. The owner's GO is the authority
-  for this new measurement; no B12 result is asserted.
-- This is a **new registration**, not an edit to `b12-design.md`, the B12
-  README, `results.md`, or the README draft.
+/// Per-term posting list.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct PostingList {
+    /// Sorted by node_id for cache efficiency on intersection.
+    postings: Vec<Posting>,
+    /// Number of documents that contain this term (n_t).
+    doc_freq: u32,
+}
 
-## 2. What this measures — and what it does not
+impl PostingList {
+    fn insert(&mut self, node_id: u64, tf: f32) {
+        // Keep sorted by node_id for binary search
+        match self.postings.binary_search_by_key(&node_id, |&(id, _)| id) {
+            Ok(i)  => self.postings[i] = (node_id, tf),   // update existing
+            Err(i) => {
+                self.postings.insert(i, (node_id, tf));
+                self.doc_freq += 1;
+            }
+        }
+    }
 
-**Measures:**
+    fn remove(&mut self, node_id: u64) {
+        if let Ok(i) = self.postings.binary_search_by_key(&node_id, |&(id, _)| id) {
+            self.postings.remove(i);
+            self.doc_freq = self.doc_freq.saturating_sub(1);
+        }
+    }
 
-- Save-wording behavior of one live model, conditional on a forced save.
-- Whether the engine's fused retrieve (MiniLM int8, cap 20) surfaces the
-  agent-written gold memory under the hard query.
-- Whether the same-family picker reads the shortlist and chooses the gold.
-- End-to-end hard rank-1 (the product number).
+    #[allow(dead_code)] // L-05: part of PostingList API; query path accesses postings directly
+    fn tf(&self, node_id: u64) -> Option<f32> {
+        self.postings.binary_search_by_key(&node_id, |&(id, _)| id)
+            .ok()
+            .map(|i| self.postings[i].1)
+    }
+}
 
-**Does NOT measure:**
+// ─── BM25 Index ──────────────────────────────────────────────────────────────
 
-- Whether agents save **spontaneously**. B8 measured zero on-task learns;
-  that finding stands. This test forces the save per incident and measures
-  the conditional wording ceiling.
-- Cross-model generality (one model family).
-- A notes-file comparison at any scale; no notes-file arm. The README's
-  "no better than a notes file" line stays true.
-- Easy/medium slices, or an overall recall number.
-- A 95% lower-bound 70% claim. The claim is the **point estimate** at the
-  70% bar (21/30), with the CP interval reported; n=30 cannot support a
-  lower-bound claim. This is stated up front.
+/// Incrementally maintained BM25 inverted index.
+///
+/// All operations are O(|text|) for insert and O(|query|·|posting|) for score.
+/// For typical workloads (< 100k nodes, < 50k unique terms), this fits in < 20 MB.
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Bm25Index {
+    /// Inverted index: term → posting list
+    index: HashMap<String, PostingList>,
+    /// Per-document length (number of tokens after tokenization)
+    doc_lengths: HashMap<u64, u32>,
+    /// H-10 fix: reverse index node_id → distinct terms for O(terms/doc) removal.
+    /// Without this, remove() scans all posting lists — O(unique_terms_in_index).
+    #[serde(default)]
+    node_terms: HashMap<u64, Vec<String>>,
+    /// Running sum of all document lengths (for avgdl)
+    total_length: u64,
+    /// Number of indexed documents
+    num_docs: u64,
+}
 
-## 3. Fixtures and store
+impl Bm25Index {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-- Corpus: `tools/corpus_l1.json` (committed), the 30 items with
-  `difficulty == "hard"` — the same items as the L3b pools. For each item:
-  `query` = USER SYMPTOM; `situation` = WHAT WAS LEARNED. No hand-authored
-  keyword text, no gold-node injection into the prompt.
-- Store size: **30 memories** (notes-file scale). No notes-file arm; the
-  store is the object of study.
-- Batches: three batches of 10 hard items in corpus order (the same order
-  as L3b `b01`–`b03`), generated deterministically by the committed script.
-- Incident block (verbatim, both arms):
+    /// Index a node's text. If the node was previously indexed, the old entry is replaced.
+    pub fn insert(&mut self, node_id: u64, text: &str) {
+        // Remove old entry if re-indexing.
+        // remove() already decrements total_length and num_docs — do not subtract again.
+        if self.doc_lengths.contains_key(&node_id) {
+            self.remove(node_id);
+        }
 
-      INCIDENT <id>
-      USER SYMPTOM: <query>
-      WHAT WAS LEARNED: <situation>
+        let tokens = tokenize(text);
+        let doc_len = tokens.len() as u32;
 
-  ("What was learned" is used instead of "root cause" because some hard
-  corpus items carry a vague learned outcome, not a causal root; the prompt
-  must not force a causal frame the corpus does not have.)
+        // Count term frequencies
+        let mut tf_map: HashMap<&str, u32> = HashMap::new();
+        for tok in &tokens {
+            *tf_map.entry(tok.as_str()).or_insert(0) += 1;
+        }
 
-## 4. Arms and save prompts
+        // Insert into posting lists; collect distinct terms for reverse index.
+        let mut term_set: Vec<String> = Vec::with_capacity(tf_map.len());
+        for (term, raw_tf) in &tf_map {
+            let tf = *raw_tf as f32;
+            self.index
+                .entry((*term).to_string())
+                .or_default()
+                .insert(node_id, tf);
+            term_set.push((*term).to_string());
+        }
 
-Two arms, identical except for one verbatim discipline line.
+        // H-10: store reverse mapping for O(terms/doc) removal.
+        self.node_terms.insert(node_id, term_set);
+        self.doc_lengths.insert(node_id, doc_len);
+        self.total_length += doc_len as u64;
+        self.num_docs += 1;
+    }
 
-**Header (both arms, verbatim):**
+    /// Remove a node from the index.
+    ///
+    /// H-10 fix: uses `node_terms` reverse index for O(terms/doc) removal instead of
+    /// scanning all posting lists O(unique_terms_in_index). During consolidation when
+    /// many nodes are pruned simultaneously, this prevents O(dead_nodes × vocabulary) spikes.
+    pub fn remove(&mut self, node_id: u64) {
+        if let Some(&doc_len) = self.doc_lengths.get(&node_id) {
+            // Use reverse index to remove only the posting lists this node appears in.
+            if let Some(terms) = self.node_terms.remove(&node_id) {
+                for term in &terms {
+                    if let Some(list) = self.index.get_mut(term) {
+                        list.remove(node_id);
+                        // Prune empty posting lists to keep memory bounded.
+                        // (HashMap entry removal not done here to avoid borrow issues;
+                        //  empty lists are filtered at query time.)
+                    }
+                }
+            } else {
+                // Fallback for nodes indexed before H-10 (no node_terms entry).
+                // This path runs at most once per pre-existing node.
+                for list in self.index.values_mut() {
+                    list.remove(node_id);
+                }
+            }
+            self.doc_lengths.remove(&node_id);
+            self.total_length = self.total_length.saturating_sub(doc_len as u64);
+            self.num_docs = self.num_docs.saturating_sub(1);
+        }
+    }
 
-    You are recording troubleshooting memories for later reuse.
-    For EACH incident in this file: write the ONE memory text you would save so
-    a future session can find and reuse what was learned. Answer with STRICT
-    JSON mapping every incident id (e.g. "para-006") to its memory text
-    (string). Rules: exactly one entry per incident; keep each memory text to
-    1-2 sentences; do not read any other files; derive the text only from the
-    incident below; no commentary outside the JSON.
+    /// Score all documents for a query. Returns `(node_id, score)` sorted descending.
+    ///
+    /// Returns at most `top_k` results. Only documents containing at least one query term
+    /// are returned (BM25 is sparse — non-matching docs score 0 and are excluded).
+    pub fn query(&self, query_text: &str, top_k: usize) -> Vec<(u64, f32)> {
+        if self.num_docs == 0 {
+            return vec![];
+        }
 
-**Arm W (neutral / wild wording):** header + incident blocks only.
+        let avgdl = self.total_length as f32 / self.num_docs as f32;
+        let query_tokens = tokenize(query_text);
 
-**Arm D (documented discipline):** header + this line + incident blocks:
+        // Deduplicate query terms (IDF is per-term, not per-occurrence)
+        let mut seen = std::collections::HashSet::new();
+        let unique_terms: Vec<String> = query_tokens.into_iter().filter(|t| seen.insert(t.clone())).collect();
 
-    SAVE DISCIPLINE: In each memory text, include the user's own words for the
-    symptom (the USER SYMPTOM line) alongside what was learned.
+        // Accumulate BM25 scores across candidates
+        let mut scores: HashMap<u64, f32> = HashMap::new();
 
-- The six prompt files are generated by
-  `tools/eval_b12r/make_save_prompts.py`, committed **before** the save run.
-  The files sent to the model are byte-identical to the committed files.
-- Model: `a stand-in client LLM (name withheld)` (same family as the L3 picker;
-  verified live/active in the catalog on 2026-10-25, before the run).
-- One fresh uninvolved session per arm; three messages, one per batch.
-  Session ids recorded in PART 2. No tools/files are needed; the prompt
-  contains all incident text. The model is told not to read other files.
-- Output contract: strict JSON object {item id: memory text}. A single
-  markdown code fence around the object may be stripped by the parser;
-  nothing else is repaired. Missing, empty, non-string, or unparseable
-  entries become **placeholders** for those items and are guaranteed misses
-  (no re-ask, no retry, no manual fill).
+        for term in &unique_terms {
+            let list = match self.index.get(term) {
+                Some(l) if l.doc_freq > 0 => l,
+                _ => continue,
+            };
 
-## 5. Store construction (eval instrument; no engine change)
+            let n_t = list.doc_freq as f32;
+            let n   = self.num_docs as f32;
+            let idf = ((1.0 + (n - n_t + 0.5) / (n_t + 0.5)).ln()).max(0.0);
 
-- Parser: `tools/eval_b12r/parse_save.py` writes `saved_<arm>.json`
-  (present texts only) and `missing_<arm>.json`.
-- New ignored test `b12r_dump_agent_texts` in
-  `cmhm_core/tests/ops_bench_l3_rerank.rs`; no engine code changes.
-  - Learns each agent-written text as the State node for its item
-    (`learn_with_text_context`: dense embedding of the agent text; text
-    context = the agent text; action/outcome from the corpus item, exactly
-    as the L3b record treatment does).
-  - MiniLM-L6-v2 int8 + the committed projection; same engine start path.
-  - Missing item -> placeholder text `(no memory saved for this incident)`,
-    still a guaranteed miss in scoring.
-  - One fused `retrieve` per hard query (`NodeType::State`, query string
-    supplied for BM25), cap 20; dumps `pools_b12r_w.json` /
-    `pools_b12r_d.json` in the committed `DumpFile` format.
-  - Asserts 30 items per arm and cap 20.
-- Run command (standing MSVC + onnx family, repo root):
+            for &(node_id, tf) in &list.postings {
+                let doc_len = *self.doc_lengths.get(&node_id).unwrap_or(&1) as f32;
+                let norm    = 1.0 - B + B * doc_len / avgdl;
+                let tf_norm = tf * (K1 + 1.0) / (tf + K1 * norm);
+                let delta   = idf * tf_norm;
+                *scores.entry(node_id).or_insert(0.0) += delta;
+            }
+        }
 
-      cargo +stable-x86_64-pc-windows-msvc test -p cmhm_core --target x86_64-pc-windows-msvc --features onnx --test ops_bench_l3_rerank b12r_dump_agent_texts -- --ignored --nocapture
+        // Sort and return top_k
+        let mut results: Vec<(u64, f32)> = scores.into_iter().collect();
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(top_k);
+        results
+    }
 
-## 6. Pick stage
+    /// Minimum document frequency among query terms present in the index.
+    ///
+    /// Returns None if no query term appears in the index at all.
+    /// Used by the retrieval fusion gate: a query whose every matching
+    /// term is common (high df) gets no discriminative signal from BM25
+    /// and should stay dense-only. A query with at least one rare
+    /// (low-df) matching term carries genuine lexical evidence.
+    pub fn rarest_query_df(&self, query_text: &str) -> Option<u32> {
+        let mut seen = std::collections::HashSet::new();
+        let mut best: Option<u32> = None;
+        for t in tokenize(query_text) {
+            if !seen.insert(t.clone()) {
+                continue;
+            }
+            if let Some(list) = self.index.get(&t) {
+                if list.doc_freq > 0 {
+                    best = Some(best.map_or(list.doc_freq, |b| b.min(list.doc_freq)));
+                }
+            }
+        }
+        best
+    }
 
-- Prompt: `tools/eval_b12r/make_pick_batches.py`, **byte-identical header
-  to L3b**, candidate texts only (gold fields stripped), three batches of
-  10 per arm. Committed before the pick run.
-- Model: `a stand-in client LLM (name withheld)`; one fresh uninvolved session per
-  arm; three messages. No re-rolls.
-- Pick rule (identical to L3): for item `i`, pick `N` is correct iff
-  `presented[N-1].node_id == gold_node_id`.
-- Missing, malformed, or out-of-range picks are misses; no repair, no
-  re-ask.
+    /// Number of indexed documents.
+    pub fn len(&self) -> u64 {
+        self.num_docs
+    }
 
-## 7. Scoring and claim rule
+    pub fn is_empty(&self) -> bool {
+        self.num_docs == 0
+    }
+}
 
-- Primary: **D arm correct/30**. Claim supported iff **D >= 21/30 (70.0%)**:
-  "With the documented save discipline, agent-written memories reached the
-  70% point-estimate bar on the hard slice (single run, one model, forced
-  save)." Below 21 -> no 70% claim; the result is reported as the measured
-  conditional ceiling and the README label stays "agent-assisted
-  best-effort."
-- W arm: descriptive manipulation check; **not** the claim arm. No
-  post-hoc switching to W if D fails.
-- Also reported: CP 95% CI (corrected helper from `score_repl.py`), gold
-  presented per arm (over non-placeholder items), placeholder count,
-  per-item table, and query-token recall of the saved texts.
-- **Query-token recall (descriptive, pre-registered):** lowercase, split
-  on non-alphanumeric, unique tokens of length >= 3, exclude this fixed
-  stoplist: `the and for with from after before into over under while when
-  this that these those have has had was were are is been being they them
-  their there here what which who why how all any both each few more most
-  other some such only own same than too very can will just should now not
-  but its you your we our us`. Recall = |query tokens present in saved
-  text| / |query tokens|. Report mean over items with a saved text.
-- No formal D-vs-W test; the difference is descriptive.
+// ─── Tokenizer ────────────────────────────────────────────────────────────────
 
-## 8. Abort / deviation rules
+/// Tokenize text for BM25 indexing.
+///
+/// Strategy: lowercase → split on non-alphanumeric boundaries → filter stopwords + short tokens.
+/// Preserves identifiers like `Arc`, `Mutex`, `unwrap` as full tokens.
+/// Strips common English stopwords to reduce index noise.
+fn tokenize(text: &str) -> Vec<String> {
+    let lower = text.to_lowercase();
+    let mut tokens = Vec::new();
+    let mut current = String::new();
 
-- Model unavailable or refuses -> **ABORT**, record, no fallback model
-  without a new registration.
-- A malformed save batch -> that batch's 10 items are placeholders; the run
-  continues (single run; no re-ask).
-- A malformed pick batch -> those picks are misses; continue.
-- Instrument compile/logic defect discovered before picks -> stop, fix the
-  instrument, disclose; no data collected before the fix is used.
-- No live MCP server, no contexts, no `registry.toml` interaction in this
-  test: the save stage writes text only and the bench builds the store in a
-  tempdir. B11 registry risk does not apply; state this in PART 2.
-- Single run; no early stopping; no re-rolls; no goalpost changes.
+    for ch in lower.chars() {
+        if ch.is_alphanumeric() || ch == '_' {
+            current.push(ch);
+        } else {
+            if current.len() >= 2 && !is_stopword(&current) {
+                tokens.push(current.clone());
+            }
+            current.clear();
+        }
+    }
+    if current.len() >= 2 && !is_stopword(&current) {
+        tokens.push(current);
+    }
 
-## 9. Labels for any citation
+    tokens
+}
 
-Hard slice only; single run; one model family
-(`a stand-in client LLM (name withheld)`); agent-written memories under a
-**forced-save** protocol (not spontaneous compliance); store of 30;
-no notes-file comparison; no cross-model claim; point estimate at the 70%
-bar with CP CI reported; no engine change; eval data only.
+/// Common English stopwords to filter from BM25 index.
+/// Kept minimal — we want to keep technical words like "from", "to", "use" in code contexts.
+fn is_stopword(word: &str) -> bool {
+    matches!(word,
+        "the" | "and" | "for" | "was" | "but" | "are" | "has" | "had"
+        | "not" | "with" | "this" | "that" | "have" | "from" | "they"
+        | "been" | "its" | "into" | "than" | "when" | "who" | "will"
+    )
+}
 
-## 10. Artifacts and reporting
+// ─── RRF Fusion ──────────────────────────────────────────────────────────────
 
-Committed **before** the run: this note, the four scripts, the six save
-prompts, and the bench test. Committed **after** the run, before the
-verdict: raw per-batch save outputs, `saved_*.json`, `missing_*.json`, pool
-dumps, pick prompts, raw per-batch pick outputs, `picks_*.json`, score
-output. PART 2 is appended to this file with the W/D table, CP CIs,
-presented/30, keyword recall, deviations (if any), and the labels above.
+/// Reciprocal Rank Fusion — combine dense and BM25 ranked lists without score calibration.
+///
+/// Formula: `RRF(d) = Σ_r  1 / (k + rank_r(d))`
+/// k = 60 is the standard value. It smooths out rank differences at the top.
+///
+/// ## Why RRF first, learned reranker later?
+/// RRF is parameter-free — it requires zero training data and is provably competitive.
+/// A learned reranker only surpasses RRF after ~1k labeled examples. Ship RRF now,
+/// switch to learned reranker when you have evidence it's worth the complexity.
+pub const RRF_K: f32 = 60.0;
 
-No README or recorded-number change follows from this run without the
-reviewer's sign-off.
+/// Fuse two ranked lists using RRF.
+///
+/// `dense_ranked`: list of (node_id, dense_score) already sorted descending.
+/// `bm25_ranked`:  list of (node_id, bm25_score) already sorted descending.
+/// Returns fused (node_id, rrf_score) sorted descending, capped at `top_k`.
+pub fn rrf_fuse(
+    dense_ranked: &[(u64, f32)],
+    bm25_ranked:  &[(u64, f32)],
+    top_k: usize,
+) -> Vec<(u64, f32)> {
+    let mut scores: HashMap<u64, f32> = HashMap::new();
 
----
+    for (rank, &(node_id, _)) in dense_ranked.iter().enumerate() {
+        *scores.entry(node_id).or_insert(0.0) += 1.0 / (RRF_K + rank as f32 + 1.0);
+    }
+    for (rank, &(node_id, _)) in bm25_ranked.iter().enumerate() {
+        *scores.entry(node_id).or_insert(0.0) += 1.0 / (RRF_K + rank as f32 + 1.0);
+    }
 
-# PART 2 - B12-R result (2026-10-25)
+    let mut fused: Vec<(u64, f32)> = scores.into_iter().collect();
+    fused.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    fused.truncate(top_k);
+    fused
+}
 
-Single run; no re-rolls; no prompt edits; no early stopping. Save stage: both
-arms **30/30 saved, 0 missing / 0 placeholders**. Pick stage: one fresh
-uninvolved session per arm, three batches per arm.
+/// Max additive bonus (cosine scale) for a node that contains an explicit identifier from
+/// the query. Split evenly when a few nodes of the wanted type contain the same identifier.
+pub const LEX_BOOST_MAX: f32 = 0.7;
+/// An identifier present in more wanted-type nodes than this is not specific enough to boost.
+const IDENT_MAX_DOCS: usize = 3;
 
-Sessions:
+/// Identifier-like raw token: length >= 4 and containing a digit, an underscore, or an
+/// interior uppercase letter (camelCase / PascalCase / mixed). IDs, error codes, symbols.
+fn is_identifier_like(tok: &str) -> bool {
+    tok.chars().count() >= 4
+        && (tok.chars().any(|c| c.is_ascii_digit() || c == '_')
+            || tok.chars().skip(1).any(|c| c.is_uppercase()))
+}
 
-- Save W `ses_e8d09a1f9ffebjviX80mD5AesO`; save D `ses_e8d09a1f7ffemP98PzzaOw1uhn`.
-- Pick W `ses_e8d02c5ddffevqtYCZALW8bE2w`; pick D `ses_e8d04e60dffeYIiIfSsqp9neBp`.
-- Model both stages: `a stand-in client LLM (name withheld)`.
+/// True if the raw query contains at least one identifier-like token.
+pub fn has_identifier_token(text: &str) -> bool {
+    text.split(|c: char| !(c.is_alphanumeric() || c == '_')).any(is_identifier_like)
+}
 
-## Result table
+impl Bm25Index {
+    /// Node ids whose indexed text contains `term` (a term already in index form).
+    fn posting_ids(&self, term: &str) -> Vec<u64> {
+        self.index
+            .get(term)
+            .map(|l| l.postings.iter().map(|&(id, _)| id).collect())
+            .unwrap_or_default()
+    }
 
-| arm | correct / 30 | point estimate | CP 95% | gold presented | placeholders | query-token recall (mean) |
-|---|---|---|---|---|---|---|
-| W - neutral save prompt | 20/30 | 66.7% | [47.19%, 82.71%] | 30/30 | 0 | 0.6822 |
-| D - documented discipline | 30/30 | 100.0% | [88.43%, 100.00%] | 30/30 | 0 | 0.9889 |
+    /// Identifier evidence channel. For every identifier-like token in the query, find the
+    /// nodes whose text contains it (exact term, via the SAME tokenizer the index was built
+    /// with) and that satisfy `is_wanted` (the requested node type). If only a few qualify
+    /// (<= IDENT_MAX_DOCS) each gets `LEX_BOOST_MAX / count`. Independent of BM25's overall
+    /// ranking, so ordinary query words can never outvote an explicit identifier, and
+    /// action/outcome nodes repeating the identifier cannot dilute the state node.
+    pub fn identifier_boost(&self, query_text: &str, is_wanted: impl Fn(u64) -> bool) -> HashMap<u64, f32> {
+        let mut out: HashMap<u64, f32> = HashMap::new();
+        for raw in query_text.split(|c: char| !(c.is_alphanumeric() || c == '_')) {
+            if !is_identifier_like(raw) {
+                continue;
+            }
+            let terms = tokenize(raw);
+            if terms.is_empty() {
+                continue;
+            }
+            let mut ids: Option<Vec<u64>> = None;
+            for t in &terms {
+                let p = self.posting_ids(t);
+                ids = Some(match ids {
+                    None => p,
+                    Some(prev) => prev.into_iter().filter(|id| p.contains(id)).collect(),
+                });
+            }
+            let wanted: Vec<u64> = ids.unwrap_or_default().into_iter().filter(|&id| is_wanted(id)).collect();
+            if wanted.is_empty() || wanted.len() > IDENT_MAX_DOCS {
+                continue;
+            }
+            let b = LEX_BOOST_MAX / wanted.len() as f32;
+            for id in wanted {
+                let e = out.entry(id).or_insert(0.0);
+                if b > *e {
+                    *e = b;
+                }
+            }
+        }
+        out
+    }
+}
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
-**D verdict: PASS the pre-registered bar (D >= 21/30).** The claim supported
-by this run is exactly: "With the documented save discipline, agent-written
-memories reached the 70% point-estimate bar on the hard slice (single run, one
-model family `a stand-in client LLM (name withheld)`, forced save)." D = 30/30, point
-estimate 100.0%, CP 95% [88.43%, 100.00%]. This is a point-estimate claim at
-n=30, not a lower-bound-at-70% claim; the pre-registered test is the point
-estimate.
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-## Mechanism (read before citing)
+    // --- Tokenizer ------------------------------------------------------------
 
-- **D made the saved memory the first retrieved candidate in 30/30 pools**
-  (gold pool rank 0 in 30/30; presented rank 1 in 30/30). The D picker answered
-  "1" on all 30 items. The pick stage therefore did not discriminate in D:
-  the end-to-end score equals retrieval@1. This is a statement about the
-  save/retrieval effect, not about reranking skill.
-- D texts quote the user's symptom verbatim. Example, para-006: "For 'clients
-  reaching the wrong server address', the cause was DNS resolver returning
-  stale records — check resolver cache/TTL staleness before inspecting server
-  config." W texts paraphrase the symptom instead. Query-token recall: D
-  0.9889 vs W 0.6822. The D texts are formulaic; readability and usefulness
-  beyond retrieval were not measured.
-- **W's 20/30 is not a clean discipline contrast.** Its b01 batch was
-  malformed: the raw reply contained the JSON object followed by "Selection
-  notes per item", so the registered parser rejected the whole batch
-  (`JSON ERROR (Extra data: line 13 column 1 (char 173))`) and those 10 picks
-  are misses under section 8. No repair, no re-score. W b02 and b03 were valid
-  and scored 20/20. The visible b01 picks were 10/10 correct (para-006:1,
-  para-014:2, para-025:1, para-032:1, para-038:1, para-039:1, para-049:1,
-  para-054:1, para-057:1, para-059:2), but they are **not scored**. The clean
-  descriptive W signals are the pool ranks and query-token recall, not the
-  20/30 total.
-- W pool ranks: presented {1:24, 2:2, 4:2, 8:1, 18:1}; pool {0:24, 1:2, 3:2,
-  7:1, 17:1}. The six non-first W items were para-014 (2), para-059 (2),
-  para-083 (4), para-086 (18), para-087 (8), para-098 (4). The valid b03 picks
-  chose the correct non-first rank for para-083 (4), para-086 (18), para-087
-  (8), and para-098 (4); the visible b01 picks chose rank 2 for para-014 and
-  para-059. W is descriptive only and is not the claim arm.
+    #[test]
+    fn tokenize_preserves_identifiers() {
+        let tokens = tokenize("Arc<Mutex<T>> unwrap_or context_route");
+        // These identifiers must survive tokenization intact
+        assert!(tokens.contains(&"arc".to_string()),      "arc missing");
+        assert!(tokens.contains(&"mutex".to_string()),    "mutex missing");
+        assert!(tokens.contains(&"unwrap_or".to_string()),"unwrap_or missing");
+        assert!(tokens.contains(&"context_route".to_string()), "context_route missing");
+    }
 
-## Deviations and transport notes
+    #[test]
+    fn tokenize_strips_stopwords() {
+        let tokens = tokenize("the quick brown fox and the lazy dog");
+        assert!(!tokens.contains(&"the".to_string()), "stopword 'the' should be removed");
+        assert!(!tokens.contains(&"and".to_string()), "stopword 'and' should be removed");
+        assert!(tokens.contains(&"quick".to_string()));
+        assert!(tokens.contains(&"brown".to_string()));
+    }
 
-- W b01 malformed pick batch: 10 registered misses, disclosed above. This is
-  the only pick-protocol deviation.
-- Prompt delivery was verified, not assumed. All six admitted prompt bodies
-  were compared against the committed/generated files: each matches
-  byte-for-byte after removing the session transport's single trailing
-  newline. The first message of each session additionally carries the harness
-  line "You are a subagent spawned by another session." (both arms, same
-  transport). W b02/b03 were admitted through the local `session.prompt` API
-  to the same W session (same model, agent, and message bytes; admitted bytes
-  verified) rather than retyped; D b02/b03 were subagent follow-ups. No prompt
-  content was edited and no extra model turn was added.
-- No live MCP server, no contexts, no `registry.toml` interaction: the save
-  stage wrote text only and the bench built the stores in tempdirs. B11
-  registry risk does not apply.
-- No engine change; eval data only. Corrected CP helper from
-  `tools/eval_l3/score_repl.py`. Mechanical per-item score:
-  `tools/eval_b12r/score_b12r.txt`. Parsed picks: `picks_w.json` (20 entries;
-  b01 absent by rule) and `picks_d.json` (30 entries).
+    #[test]
+    fn tokenize_lowercases() {
+        let tokens = tokenize("Rust CMHM ContextRuntime");
+        assert!(tokens.contains(&"rust".to_string()));
+        assert!(tokens.contains(&"cmhm".to_string()));
+        assert!(tokens.contains(&"contextruntime".to_string()));
+    }
 
-## What this does and does not change
+    // --- BM25 basic -----------------------------------------------------------
 
-- It supports the pre-registered 70% point-estimate claim **only** in the
-  forced-save regime above. It is not a spontaneous-compliance result; B8's
-  zero-learns finding stands.
-- It does not replace or raise the published L3b hard-slice number, which
-  remains **14/30 (46.7%, CP 95% [28.3%, 65.6%])**. The L3b replication
-  (13/30, 43.3%, CP 95% [25.5%, 62.6%]) remains a second sample, not a
-  replacement.
-- No cross-model claim; no notes-file comparison; no claim that the engine
-  "semantically recalls"; no general 100% recall claim. The one model family
-  and the forced-save protocol are part of the result, not incidental labels.
-- No README or recorded-number change follows from this run without the
-  reviewer's sign-off.
+    #[test]
+    fn bm25_reindex_preserves_total_length_and_num_docs() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "alpha beta gamma delta");
+        idx.insert(2, "epsilon zeta");
+        assert_eq!(idx.num_docs, 2);
+        let baseline_total = idx.total_length;
 
-## Labels for any citation
+        // Re-index node 1 with different-length text: total_length must be
+        // recomputed exactly (remove + re-add), never double-subtracted.
+        idx.insert(1, "alpha beta gamma delta epsilon zeta eta theta");
+        assert_eq!(idx.num_docs, 2, "num_docs must stay exact after re-index");
+        assert_eq!(
+            idx.total_length,
+            (tokenize("alpha beta gamma delta epsilon zeta eta theta").len()
+                + tokenize("epsilon zeta").len()) as u64,
+            "total_length must equal sum of current doc lengths"
+        );
 
-Hard slice only; single run; one model family
-(`a stand-in client LLM (name withheld)`); agent-written memories under a **forced-save**
-protocol (not spontaneous compliance); store of 30; no notes-file comparison;
-no cross-model claim; point estimate at the 70% bar with CP CI reported; no
-engine change; eval data only.
+        // Sanity: re-indexing many times never drives total_length to 0.
+        for _ in 0..10 {
+            idx.insert(1, "alpha beta gamma delta");
+        }
+        assert_eq!(idx.num_docs, 2);
+        assert!(idx.total_length > 0, "avgdl corruption would zero this out");
+        assert_eq!(
+            idx.total_length,
+            (tokenize("alpha beta gamma delta").len() + tokenize("epsilon zeta").len()) as u64
+        );
+        let _ = baseline_total;
+    }
+
+    #[test]
+    fn bm25_empty_query_returns_nothing() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed linker error");
+        let results = idx.query("", 10);
+        assert!(results.is_empty(), "empty query must return nothing");
+    }
+
+    #[test]
+    fn bm25_no_match_returns_nothing() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed linker error");
+        let results = idx.query("nvidia provider modelx", 10);
+        assert!(results.is_empty(), "query with no matching terms must return nothing");
+    }
+
+    #[test]
+    fn bm25_exact_match_top_ranked() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed linker error missing symbol");
+        idx.insert(2, "nvidia provider model config modelx");
+        idx.insert(3, "opencode config toml provider nvidia");
+
+        let results = idx.query("cargo build failed", 5);
+        assert!(!results.is_empty(), "must return at least one result");
+        assert_eq!(results[0].0, 1, "exact match doc must be ranked first");
+    }
+
+    #[test]
+    fn bm25_partial_match_ranked_by_overlap() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "nvidia provider modelx k2 config model active");
+        idx.insert(2, "nvidia provider opencode config"); // 2 matching terms
+        idx.insert(3, "cargo test failed compilation error"); // 0 matching terms
+
+        let results = idx.query("nvidia provider", 5);
+        assert!(results.len() >= 2);
+        // Both doc 1 and doc 2 should appear; doc 3 should not
+        let ids: Vec<u64> = results.iter().map(|r| r.0).collect();
+        assert!(ids.contains(&1), "doc with nvidia+provider should be in results");
+        assert!(ids.contains(&2), "doc with nvidia+provider should be in results");
+        assert!(!ids.contains(&3), "doc with no matching terms should be absent");
+    }
+
+    #[test]
+    fn bm25_remove_works() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed linker error");
+        idx.insert(2, "cargo test passed");
+        idx.remove(1);
+
+        let results = idx.query("cargo build failed", 5);
+        let ids: Vec<u64> = results.iter().map(|r| r.0).collect();
+        assert!(!ids.contains(&1), "removed doc must not appear in results");
+    }
+
+    #[test]
+    fn bm25_reinsertion_updates_not_duplicates() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed");
+        idx.insert(1, "cargo build succeeded"); // re-index same node
+        assert_eq!(idx.len(), 1, "re-indexing same node must not increase doc count");
+
+        let results = idx.query("cargo build", 5);
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn bm25_idf_penalizes_common_terms() {
+        let mut idx = Bm25Index::new();
+        // "cargo" appears in all 3 docs; "linker" only in doc 1
+        idx.insert(1, "cargo build failed linker error missing symbol");
+        idx.insert(2, "cargo test passed integration");
+        idx.insert(3, "cargo check warnings unused imports");
+
+        let results = idx.query("cargo linker", 5);
+        // Doc 1 has the rare term "linker" → should rank highest
+        assert_eq!(results[0].0, 1, "doc with rare term 'linker' must rank highest");
+    }
+
+    // --- RRF fusion -----------------------------------------------------------
+
+    #[test]
+    fn rrf_combines_disjoint_lists() {
+        // Dense found doc 1 only; BM25 found doc 2 only
+        let dense = vec![(1u64, 0.9f32)];
+        let bm25  = vec![(2u64, 10.0f32)];
+        let fused = rrf_fuse(&dense, &bm25, 5);
+        assert_eq!(fused.len(), 2, "both docs must appear in fused list");
+    }
+
+    #[test]
+    fn rrf_boosts_consensus_candidate() {
+        // Doc 1 is top-ranked in both dense and BM25 → should win after fusion
+        let dense = vec![(1u64, 0.95f32), (2u64, 0.70f32), (3u64, 0.50f32)];
+        let bm25  = vec![(1u64, 15.0f32), (3u64, 8.0f32),  (2u64, 5.0f32)];
+        let fused = rrf_fuse(&dense, &bm25, 3);
+        assert_eq!(fused[0].0, 1, "doc ranked #1 in both sources must win after RRF");
+    }
+
+    #[test]
+    fn rrf_top_k_respected() {
+        let dense: Vec<(u64, f32)> = (1..=20).map(|i| (i, 1.0 / i as f32)).collect();
+        let bm25:  Vec<(u64, f32)> = (1..=20).map(|i| (i, 1.0 / i as f32)).collect();
+        let fused = rrf_fuse(&dense, &bm25, 5);
+        assert_eq!(fused.len(), 5, "fused result must respect top_k cap");
+    }
+
+    #[test]
+    fn rrf_empty_lists_handled() {
+        let fused = rrf_fuse(&[], &[], 10);
+        assert!(fused.is_empty());
+    }
+
+    #[test]
+    fn identifier_token_detection() {
+        assert!(has_identifier_token("what caused zqxrare0007"));
+        assert!(has_identifier_token("unwrap_or panics"));
+        assert!(has_identifier_token("ContextRuntime init"));
+        assert!(!has_identifier_token("users see outdated assets"));
+        assert!(!has_identifier_token("CI fails without real cause"));
+    }
+
+    fn idx(docs: &[(u64, &str)]) -> Bm25Index {
+        let mut b = Bm25Index::new();
+        for (id, t) in docs {
+            b.insert(*id, t);
+        }
+        b
+    }
+
+    #[test]
+    fn identifier_boost_goes_to_node_containing_token_not_bm25_top() {
+        // Doc 2 matches the ordinary query word; doc 1 holds the identifier. Only doc 1 is boosted.
+        let b = idx(&[(1, "l1rare042 firmware halted"), (2, "health check too strict caused flapping")]);
+        let boost = b.identifier_boost("what caused l1rare042", |_| true);
+        assert_eq!(boost.len(), 1);
+        assert!(boost[&1] > 0.5, "node containing the identifier is boosted");
+        assert!(!boost.contains_key(&2), "a node matching only ordinary words is not boosted");
+    }
+
+    #[test]
+    fn identifier_boost_uses_index_tokenizer() {
+        // Mixed case, underscores and punctuation: query and index spell the identifier differently.
+        let b = idx(&[(1, "Error_Code_E1042 raised by ContextRuntime::open"), (2, "unrelated note")]);
+        for q in ["ERROR_CODE_e1042", "why ContextRuntime fails", "error_code_e1042?"] {
+            let boost = b.identifier_boost(q, |_| true);
+            assert!(boost.contains_key(&1), "query {q:?} must hit node 1 via the shared tokenizer");
+        }
+    }
+
+    #[test]
+    fn identifier_boost_respects_wanted_type_and_specificity() {
+        let b = idx(&[(1, "l1rare7 state text"), (2, "traced l1rare7 action"), (3, "l1rare7 outcome")]);
+        // Only node 1 is the requested type: it alone is boosted, at full strength.
+        let boost = b.identifier_boost("l1rare7", |id| id == 1);
+        assert_eq!(boost.len(), 1);
+        assert!((boost[&1] - LEX_BOOST_MAX).abs() < 1e-6);
+        // Three wanted nodes share the boost evenly.
+        let all = b.identifier_boost("l1rare7", |_| true);
+        assert_eq!(all.len(), 3);
+        assert!(all.values().all(|&v| (v - LEX_BOOST_MAX / 3.0).abs() < 1e-6));
+        // Too many wanted nodes: not specific, so no boost.
+        let b4 = idx(&[(1, "l1rare7 a"), (2, "l1rare7 b"), (3, "l1rare7 c"), (4, "l1rare7 d")]);
+        assert!(b4.identifier_boost("l1rare7", |_| true).is_empty());
+        // Plain natural language: no identifier token, no boost.
+        assert!(b.identifier_boost("users see outdated assets", |_| true).is_empty());
+    }
+
+    #[test]
+    fn rarest_query_df_none_when_no_overlap() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "cargo build failed linker error");
+        assert_eq!(idx.rarest_query_df("nvidia provider modelx"), None);
+    }
+
+    #[test]
+    fn rarest_query_df_finds_rare_term() {
+        let mut idx = Bm25Index::new();
+        idx.insert(1, "zqxrare0001 firmware bootloader halted");
+        idx.insert(2, "service requests failed timeout");
+        idx.insert(3, "service requests failed retry");
+        // "zqxrare0001" appears in 1 doc; "service" in 2 docs.
+        assert_eq!(idx.rarest_query_df("what caused zqxrare0001"), Some(1));
+        assert_eq!(idx.rarest_query_df("service requests"), Some(2));
+    }
+}

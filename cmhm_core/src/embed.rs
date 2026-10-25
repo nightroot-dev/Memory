@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn hash_embedder_output_is_unit_norm() {
         let e = HashEmbedder;
-        let v = e.embed("nvidia provider bench-agent-k k2.6 opencode config").unwrap();
+        let v = e.embed("nvidia provider modelx 9.2 opencode config").unwrap();
         let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-4, "output must be L2-normalized, got norm={norm:.6}");
     }

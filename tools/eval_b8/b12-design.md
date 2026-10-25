@@ -90,7 +90,7 @@ as follows:
   extraction. It contributes no win/loss to W and carries no B12
   conclusion; its report is reviewed before the remaining 9 tasks run.
 - **Model parity guard (pre-registered):** every arm session spawns with
-  exactly `opencode/bench-agent-m-contributor-free#xhigh` and this is
+  exactly `opencode/BENCH-MODEL-WITHHELD#xhigh` and this is
   verified from `session_v2.model` in opencode.db after each session.
   If that model cannot be spawned, the runner STOPS B12 and reports;
   no fallback model is authorised (B10 record's parity is bench-agent-m; no silent

@@ -227,7 +227,7 @@ fn archive_scrub_no_secret_in_jsonl() {
     let fake_secret = "sk-proj-FAKEKEY1234567890abcdefghijklmnop";
 
     let args = json!({
-        "state":            format!("calling openai with key {fake_secret}"),
+        "state":            format!("calling provider-a with key {fake_secret}"),
         "action":           "sent POST /completions",
         "outcome":          "got 200 OK",
         "prediction_error": 0.1,

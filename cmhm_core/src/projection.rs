@@ -96,7 +96,7 @@ impl Projection {
 }
 
 /// Cross-model projection registry.
-/// Keyed by model_id string (e.g., "model-a", "claude", "openai").
+/// Keyed by model_id string (e.g., "model-a", "model-b", "model-c").
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ProjectionRegistry {
     projections: std::collections::HashMap<String, Projection>,

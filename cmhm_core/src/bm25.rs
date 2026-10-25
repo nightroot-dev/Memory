@@ -469,7 +469,7 @@ mod tests {
     fn bm25_no_match_returns_nothing() {
         let mut idx = Bm25Index::new();
         idx.insert(1, "cargo build failed linker error");
-        let results = idx.query("nvidia provider bench-agent-k", 10);
+        let results = idx.query("nvidia provider modelx", 10);
         assert!(results.is_empty(), "query with no matching terms must return nothing");
     }
 
@@ -477,7 +477,7 @@ mod tests {
     fn bm25_exact_match_top_ranked() {
         let mut idx = Bm25Index::new();
         idx.insert(1, "cargo build failed linker error missing symbol");
-        idx.insert(2, "nvidia provider model config bench-agent-k");
+        idx.insert(2, "nvidia provider model config modelx");
         idx.insert(3, "opencode config toml provider nvidia");
 
         let results = idx.query("cargo build failed", 5);
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn bm25_partial_match_ranked_by_overlap() {
         let mut idx = Bm25Index::new();
-        idx.insert(1, "nvidia provider bench-agent-k k2 config model active");
+        idx.insert(1, "nvidia provider modelx k2 config model active");
         idx.insert(2, "nvidia provider opencode config"); // 2 matching terms
         idx.insert(3, "cargo test failed compilation error"); // 0 matching terms
 
@@ -630,7 +630,7 @@ mod tests {
     fn rarest_query_df_none_when_no_overlap() {
         let mut idx = Bm25Index::new();
         idx.insert(1, "cargo build failed linker error");
-        assert_eq!(idx.rarest_query_df("nvidia provider bench-agent-k"), None);
+        assert_eq!(idx.rarest_query_df("nvidia provider modelx"), None);
     }
 
     #[test]

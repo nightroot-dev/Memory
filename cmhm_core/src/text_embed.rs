@@ -92,7 +92,7 @@ pub fn text_to_embedding(text: &str) -> [f32; EMBED_DIM] {
 /// # Example
 /// ```
 /// use cmhm_core::extract_tags;
-/// let tags = extract_tags("opencode config nvidia provider model catalog bench-agent-k", 5);
+/// let tags = extract_tags("opencode config nvidia provider model catalog modelx", 5);
 /// assert!(tags.contains(&"opencode".to_string()));
 /// assert!(!tags.contains(&"and".to_string()));
 /// ```
