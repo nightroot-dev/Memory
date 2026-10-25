@@ -36,7 +36,8 @@ frozen 2026-10-07). Full records and pre-registrations:
 |---|---|---|
 | **1. Exact lookup** | The query's words appear in the stored memory text. | Rank-1 on **100/100** lexical queries; passed every recorded bench run (standing gate A). Engine-only, zero tokens, no LLM. |
 | **2. Vague query, engine alone** | Nothing extra. | **2 of 30** rank-1 hits on the hard slice (every query word new vs. the stored text; single recorded run); hard-side pool recall 18/30. **We do not claim engine semantic recall.** |
-| **3. Vague query, agent-assisted recall** | (a) at save time the caller's own phrasing is written into the memory text, and (b) at recall time the client agent's own LLM reads the <=20-candidate shortlist and picks. | **14/30 = 46.7%** rank-1 on the hard slice, Clopper-Pearson 95% CI **[28.3%, 65.6%]**. Hard slice only; single run; one bench-stand-in picker (`a stand-in client LLM (name withheld)`). Easy/medium slices with the pick over shipped pools: **unmeasured**. |
+| **2w. Vague query, engine alone, save rule applied** | The memory text was saved under the caller-words rule (the caller's own symptom phrasing quoted in the store text — B13). | **29/30 = 96.7%** rank-1 on the hard slice, Clopper-Pearson 95% CI **[82.78%, 99.92%]**; pool 200/200; overall R@1 198/200. Single run; the **mechanical-transcription ceiling** of the rule on this corpus (the rule feeds the caller's words into the store text by construction; the agent-produced record is B12-R: 30/30 at a store of 30, forced save). No LLM ran in this measurement; a tier-3-style pick over these shortlists is **unmeasured end-to-end**. |
+| **3. Vague query, agent-assisted recall** | (a) at save time the caller's own phrasing is written into the memory text, and (b) at recall time the client agent's own LLM reads the shortlist and picks. | **14/30 = 46.7%** rank-1 on the hard slice, Clopper-Pearson 95% CI **[28.3%, 65.6%]**. Hard slice only; single run; one bench-stand-in picker (`a stand-in client LLM (name withheld)`). Easy/medium slices with the pick over shipped pools: **unmeasured**. |
 
 Label discipline we hold ourselves to:
 
@@ -49,17 +50,27 @@ Label discipline we hold ourselves to:
   this corpus, not a blind-regime claim. No drifted-phrasing full-corpus cell
   exists. We therefore publish no 100% figure and no overall recall number for
   tier 3.
+- Tier 2w is the same ceiling story measured engine-only (B13, pre-registered
+  before the run): the template rule quotes the caller's words verbatim in the
+  store text, so it measures the ceiling of "quote the caller's phrasing at
+  save time" — it is not a blind-regime guarantee and it is not a pick-included
+  number. The shipped delivery surface for the rule is the learn-path nudge
+  (the `memory_learn_text` response tells the caller the rule). The shipped
+  tier-3 record (14/30, pick included) is unchanged by it.
 - We make **no "better than a notes file" claim** at any store size; that
   comparison has not been measured.
 
 ## How tier 3 works (architecture: client-agent-as-reranker)
 
-1. **Save.** A short suffix of the caller's own words joins the memory text (in
-   the bench fixture: 20-60 characters, roughly 5-15 tokens per memory). This
-   is a store-text discipline; zero engine changes and it is what makes
-   candidates surfaceable at recall time.
+1. **Save.** The memory text carries the caller's own phrasing (the documented
+   save rule, now delivered by the learn path as a nudge in the
+   `memory_learn_text` response; bench evidence: B12-R agent texts honored the
+   rule at 0.99 query-token recall). Zero engine side effects at recall; BM25
+   indexes whatever the caller wrote.
 2. **Recall.** The engine (local embedder + BM25 fusion) fills a candidate
-   shortlist (<=20, with provenance and ranks).
+   shortlist (fusion cap, configurable via `retrieval_fusion_cap`; ships at 40
+   since the B13 verdict, was a hardcoded 20 through the L3-era records), with
+   provenance and ranks.
 3. **Pick.** Your agent's own LLM reads the shortlist and chooses. CMHM the
    process never calls any LLM; the engine alone still serves tier 1 without
    this step.
@@ -71,16 +82,24 @@ swap-worse on this workload — it is available, not recommended.
 
 ## Known limits (all measured, none resolved)
 
-1. **Save-side discipline is unmeasured with real agents.** In the recorded
-   multi-agent run, agents completed their tasks with 1-2 retrieves and
-   **zero learns on-task** — the tier-3 save rule has bench numbers but no
-   in-the-wild evidence yet.
+1. **Save-side discipline is unmeasured with real agents on-task.** In the
+   recorded multi-agent run, agents completed their tasks with 1-2 retrieves and
+   **zero learns on-task** — the tier-3 save rule still has no in-the-wild
+   spontaneous-compliance evidence. It DOES have a forced-save record (B12-R:
+   agent-written discipline texts, 30/30 hard rank-1 at a store of 30, pick
+   30/30) and a shipped delivery surface (the learn-path nudge).
 2. **Single run, single picker family.** All tier-3 numbers are one run with
    one bench stand-in (a personal-tier catalog model). No cross-model
    replication has been run; a second picker family is proposed, not executed.
-3. **Pick visibility cap.** The shortlist is capped at 20 by the shipped fuse;
-   in the gated D2-expanded runs, 8 of 26 pooled hard-side golds sat beyond the
-   cap and were never shown to the picker (`lost_rerank_visibility = 8`).
+3. **Pick visibility cap → now a knob, not a hard 20.** The fused shortlist was
+   truncated at a hardcoded 20 in the L3-era records, where 8 of 26 pooled
+   hard-side golds sat beyond the cap and were never shown to the picker
+   (`lost_rerank_visibility = 8`). As of the B13 verdict the shortlist cap is
+   configurable (`retrieval_fusion_cap`, default 40) and the B13 control leg
+   measured what the knob alone gives on record texts: pool 164 → 166 (narrow;
+   most beyond-cap golds never reach the BM25 top-50 intake), R@1 and hard
+   rank unchanged. The lever that cleared the bar was the save-side rule, not
+   the cap.
 4. **No drifted-phrasing full-corpus cell exists**, and no overall
    (easy/medium/hard) pick-over-shipped-pool number exists either.
 5. **Cross-encoder rerank measured dead on this corpus** (net <= 1 of 30 hard
@@ -156,6 +175,7 @@ Derived from the committed bench fixtures by `tools/eval_l3/cost_probe.py`
 | Engine storage & retrieval | Zero tokens. Retrieve p50 ~1.3-1.8 ms, p99 < 3 ms at a 10k-learn store (single recorded runs). ~5 KB per node on disk. |
 | Save-time keyword suffix | One-time ~5-15 tokens per memory (committed fixture mean ~29 chars). |
 | Pick over a plain shortlist (the tier-3 published regime) | ~243 input + ~4 output tokens per vague recall (per-item median; the committed real batch files for that leg total ~7,800 input tokens across its 30 items). |
+| Wider shortlist (B13 knob) | Pick input tokens scale with shortlist length; `retrieval_fusion_cap` ships at 40 (was 20). On record texts, the knob alone moved pool 164 → 166 at 200 items; the save rule is the lever that cleared the bar. |
 | Pick when the shortlist carries keyword-suffixed memory text | ~434 input tokens per vague recall (per-item median); ~44,900 input tokens across its committed 100-item leg. |
 | Embed (MiniLM) | 0 tokens, ~2 ms per text CPU-local. |
 
@@ -170,6 +190,10 @@ context. If you never steer, the engine costs no tokens, period.
   (write-time keywords, query expansion, embedder swap / LLM rerank) is in
   `tools/eval_b8/results.md` (appended-only) and its per-lever record files.
   Gates were registered before runs and were never re-targeted.
+- The B13 ship-default chain is committed end to end: pre-registration
+  `tools/eval_b8/b13-ship-default.md` (before any engine edit/run), fixture
+  script + raw four-leg run output in `tools/eval_b13/`, and the B13 entry in
+  `tools/eval_b8/results.md`.
 - Bench command family (repo root):
 
       cargo +stable-x86_64-pc-windows-gnu test --release -p cmhm_core --test ops_bench_v2 -- --ignored --nocapture
