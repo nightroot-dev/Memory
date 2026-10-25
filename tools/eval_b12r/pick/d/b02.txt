@@ -1,0 +1,247 @@
+You are an uninvolved assistant reranking stored troubleshooting memories.
+For EACH item in this file: pick the ONE candidate memory that best explains
+the user's symptom. Answer with STRICT JSON mapping every item id to its
+chosen candidate NUMBER (integer). Rules: choose only from the presented
+candidate numbers of that item; exactly one answer per item; no abstentions;
+do not read any other files; derive the answer only from the text below.
+
+
+ITEM para-060
+USER SYMPTOM: cluster shrinks for no reason
+CANDIDATES:
+1. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+2. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+3. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+4. For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.
+5. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+6. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+7. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+8. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+9. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+10. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+11. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+12. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+13. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+14. For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion.
+15. For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation.
+16. When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.
+17. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+18. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+19. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+20. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+
+ITEM para-061
+USER SYMPTOM: bandwidth savings vanished
+CANDIDATES:
+1. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+2. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+3. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+4. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+5. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+6. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+7. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+8. For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze.
+9. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+10. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+11. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+12. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+13. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+14. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+15. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+16. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+17. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+18. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+19. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+20. When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.
+
+ITEM para-072
+USER SYMPTOM: events arrive shuffled
+CANDIDATES:
+1. For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.
+2. When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.
+3. For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks.
+4. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+5. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+6. For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners.
+7. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+8. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+9. For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.
+10. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+11. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+12. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+13. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+14. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+15. For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion.
+16. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+17. For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix.
+18. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+19. For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation.
+20. For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze.
+
+ITEM para-073
+USER SYMPTOM: returning visitors handshake fully
+CANDIDATES:
+1. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+2. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+3. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+4. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+5. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+6. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+7. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+8. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+9. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+10. For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.
+11. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+12. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+13. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+14. For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections.
+15. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+16. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+17. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+18. For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration.
+19. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+20. For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.
+
+ITEM para-075
+USER SYMPTOM: capacity flaps up and down
+CANDIDATES:
+1. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+2. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+3. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+4. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+5. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+6. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+7. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+8. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+9. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+10. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+11. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+12. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+13. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+14. For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections.
+15. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+16. For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze.
+17. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+18. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+19. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+20. For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.
+
+ITEM para-076
+USER SYMPTOM: single page load fires hundreds of queries
+CANDIDATES:
+1. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+2. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+3. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+4. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+5. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+6. For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix.
+7. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+8. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+9. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+10. For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation.
+11. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+12. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+13. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+14. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+15. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+16. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+17. For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.
+18. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+19. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+20. For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.
+
+ITEM para-077
+USER SYMPTOM: origin absorbed full traffic
+CANDIDATES:
+1. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+2. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+3. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+4. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+5. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+6. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+7. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+8. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+9. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+10. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+11. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+12. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+13. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+14. For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation.
+15. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+16. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+17. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+18. For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections.
+19. For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration.
+20. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+
+ITEM para-080
+USER SYMPTOM: everything feels slow
+CANDIDATES:
+1. For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.
+2. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+3. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+4. For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.
+5. For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks.
+6. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+7. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+8. For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.
+9. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+10. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+11. When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.
+12. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+13. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+14. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+15. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+16. For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections.
+17. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+18. For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion.
+19. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+20. For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.
+
+ITEM para-081
+USER SYMPTOM: we may freeze releases
+CANDIDATES:
+1. For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze.
+2. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+3. For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry.
+4. For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging.
+5. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+6. For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.
+7. When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.
+8. For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.
+9. For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration.
+10. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+11. For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.
+12. For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.
+13. For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.
+14. For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners.
+15. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.
+16. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+17. For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.
+18. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+19. For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.
+20. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+
+ITEM para-082
+USER SYMPTOM: reports disagree
+CANDIDATES:
+1. For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion.
+2. For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.
+3. When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.
+4. For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners.
+5. For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze.
+6. For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.
+7. For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging.
+8. For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.
+9. For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.
+10. For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.
+11. For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.
+12. For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks.
+13. For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.
+14. For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration.
+15. For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections.
+16. For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation.
+17. For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.
+18. For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix.
+19. For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.
+20. For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.

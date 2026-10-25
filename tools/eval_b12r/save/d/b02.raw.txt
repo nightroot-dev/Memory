@@ -1,0 +1,14 @@
+```json
+{
+  "para-060": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures.",
+  "para-061": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic.",
+  "para-072": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances.",
+  "para-073": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts.",
+  "para-075": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions.",
+  "para-076": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups.",
+  "para-077": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment.",
+  "para-080": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation.",
+  "para-081": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze.",
+  "para-082": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+}
+```

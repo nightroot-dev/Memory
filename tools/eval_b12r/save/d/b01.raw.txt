@@ -1,0 +1,14 @@
+```json
+{
+  "para-006": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config.",
+  "para-014": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections.",
+  "para-025": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers.",
+  "para-032": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks.",
+  "para-038": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation.",
+  "para-039": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration.",
+  "para-049": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops.",
+  "para-054": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections.",
+  "para-057": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward.",
+  "para-059": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+}
+```

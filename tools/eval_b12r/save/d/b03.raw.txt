@@ -1,0 +1,14 @@
+```json
+{
+  "para-083": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro.",
+  "para-084": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm.",
+  "para-085": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal.",
+  "para-086": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging.",
+  "para-087": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix.",
+  "para-088": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys.",
+  "para-089": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation.",
+  "para-090": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health.",
+  "para-098": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes.",
+  "para-099": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+}
+```

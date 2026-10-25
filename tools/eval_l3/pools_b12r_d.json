@@ -1,0 +1,3337 @@
+{
+  "leg": "b12r_dump_agent_texts",
+  "model": "minilm-l6-v2-int8",
+  "cap": 20,
+  "items": [
+    {
+      "id": "para-006",
+      "group": "b12r-d",
+      "query": "clients reaching the wrong server address",
+      "gold_node_id": 1,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 2,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 3,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 4,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 5,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 6,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 7,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 8,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 9,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 10,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 11,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 12,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 13,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 14,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 15,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 16,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 17,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 18,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 19,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 20,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-014",
+      "group": "b12r-d",
+      "query": "sockets opening and closing constantly",
+      "gold_node_id": 4,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 2,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 3,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 4,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 5,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 6,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 7,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 8,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 9,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 10,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 11,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 12,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 13,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 14,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 15,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 16,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 17,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 18,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 19,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 20,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-025",
+      "group": "b12r-d",
+      "query": "parallel requests queueing with idle cpu",
+      "gold_node_id": 7,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 2,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 3,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 4,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 5,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 6,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 7,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 8,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 9,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 10,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 11,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 12,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 13,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 14,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 15,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 16,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 17,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 18,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 19,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 20,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-032",
+      "group": "b12r-d",
+      "query": "urgent tasks waiting behind batch work",
+      "gold_node_id": 10,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 2,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 3,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 4,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 5,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 6,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 7,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 8,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 9,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 10,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 11,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 12,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 13,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 14,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 15,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 16,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 17,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 18,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 19,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 20,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-038",
+      "group": "b12r-d",
+      "query": "duplicate identifiers appearing in traces",
+      "gold_node_id": 13,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 2,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 3,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 4,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 5,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 6,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 7,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 8,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 9,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 10,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 11,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 12,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 13,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 14,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 15,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 16,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 17,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 18,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 19,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 20,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-039",
+      "group": "b12r-d",
+      "query": "csv download shows broken characters",
+      "gold_node_id": 16,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 2,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 3,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 4,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 5,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 6,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 7,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 8,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 9,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 10,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 11,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 12,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 13,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 14,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 15,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 16,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 17,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 18,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 19,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 20,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-049",
+      "group": "b12r-d",
+      "query": "calls between systems drop briefly",
+      "gold_node_id": 19,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 2,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 3,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 4,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 5,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 6,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 7,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 8,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 9,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 10,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 11,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 12,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 13,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 14,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 15,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 16,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 17,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 18,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 19,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 20,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-054",
+      "group": "b12r-d",
+      "query": "process cannot open sockets",
+      "gold_node_id": 22,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 2,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 3,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 4,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 5,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 6,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 7,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 8,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 9,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 10,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 11,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 12,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 13,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 14,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 15,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 16,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 17,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 18,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 19,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 20,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-057",
+      "group": "b12r-d",
+      "query": "reads degrade over time",
+      "gold_node_id": 25,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 2,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 3,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 4,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 5,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 6,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 7,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 8,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 9,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 10,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 11,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 12,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 13,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 14,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 15,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 16,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 17,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 18,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 19,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 20,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-059",
+      "group": "b12r-d",
+      "query": "cache stampede overloaded origin",
+      "gold_node_id": 28,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 2,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 3,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 4,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 5,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 6,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 7,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 8,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 9,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 10,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 11,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 12,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 13,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 14,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 15,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 16,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 17,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 18,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 19,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 20,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-060",
+      "group": "b12r-d",
+      "query": "cluster shrinks for no reason",
+      "gold_node_id": 31,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 2,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 3,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 4,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 5,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 6,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 7,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 8,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 9,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 10,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 11,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 12,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 13,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 14,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 15,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 16,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 17,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 18,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 19,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 20,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-061",
+      "group": "b12r-d",
+      "query": "bandwidth savings vanished",
+      "gold_node_id": 34,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 2,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 3,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 4,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 5,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 6,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 7,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 8,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 9,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 10,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 11,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 12,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 13,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 14,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 15,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 16,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 17,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 18,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 19,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 20,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-072",
+      "group": "b12r-d",
+      "query": "events arrive shuffled",
+      "gold_node_id": 37,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 2,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 3,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 4,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 5,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 6,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 7,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 8,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 9,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 10,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 11,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 12,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 13,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 14,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 15,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 16,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 17,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 18,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 19,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 20,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-073",
+      "group": "b12r-d",
+      "query": "returning visitors handshake fully",
+      "gold_node_id": 40,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 2,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 3,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 4,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 5,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 6,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 7,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 8,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 9,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 10,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 11,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 12,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 13,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 14,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 15,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 16,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 17,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 18,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 19,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 20,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-075",
+      "group": "b12r-d",
+      "query": "capacity flaps up and down",
+      "gold_node_id": 43,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 2,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 3,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 4,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 5,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 6,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 7,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 8,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 9,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 10,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 11,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 12,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 13,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 14,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 15,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 16,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 17,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 18,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 19,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 20,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-076",
+      "group": "b12r-d",
+      "query": "single page load fires hundreds of queries",
+      "gold_node_id": 46,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 2,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 3,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 4,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 5,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 6,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 7,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 8,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 9,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 10,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 11,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 12,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 13,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 14,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 15,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 16,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 17,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 18,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 19,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 20,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-077",
+      "group": "b12r-d",
+      "query": "origin absorbed full traffic",
+      "gold_node_id": 49,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 2,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 3,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 4,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 5,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 6,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 7,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 8,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 9,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 10,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 11,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 12,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 13,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 14,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 15,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 16,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 17,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 18,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 19,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 20,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-080",
+      "group": "b12r-d",
+      "query": "everything feels slow",
+      "gold_node_id": 52,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 2,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 3,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 4,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 5,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 6,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 7,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 8,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 9,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 10,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 11,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 12,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 13,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 14,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 15,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 16,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 17,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 18,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 19,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 20,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-081",
+      "group": "b12r-d",
+      "query": "we may freeze releases",
+      "gold_node_id": 55,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 2,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 3,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 4,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 5,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 6,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 7,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 8,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 9,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 10,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 11,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 12,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 13,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 14,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 15,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 16,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 17,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 18,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 19,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 20,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-082",
+      "group": "b12r-d",
+      "query": "reports disagree",
+      "gold_node_id": 58,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 2,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 3,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 4,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 5,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 6,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 7,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 8,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 9,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 10,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 11,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 12,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 13,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 14,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 15,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 16,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 17,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 18,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 19,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 20,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-083",
+      "group": "b12r-d",
+      "query": "nothing reproduces",
+      "gold_node_id": 61,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 2,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 3,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 4,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 5,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 6,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 7,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 8,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 9,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 10,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 11,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 12,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 13,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 14,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 15,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 16,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 17,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 18,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 19,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 20,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-084",
+      "group": "b12r-d",
+      "query": "flapping with no deploy",
+      "gold_node_id": 64,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 2,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 3,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 4,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 5,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 6,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 7,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 8,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 9,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 10,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 11,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 12,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 13,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 14,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 15,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 16,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 17,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 18,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 19,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 20,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-085",
+      "group": "b12r-d",
+      "query": "something broke quietly",
+      "gold_node_id": 67,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 2,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 3,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 4,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 5,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 6,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 7,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 8,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 9,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 10,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 11,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 12,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 13,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 14,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 15,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 16,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 17,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 18,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 19,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 20,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-086",
+      "group": "b12r-d",
+      "query": "works on my machine",
+      "gold_node_id": 70,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 2,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 3,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 4,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 5,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 6,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 7,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 8,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 9,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 10,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 11,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 12,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 13,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 14,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 15,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 16,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 17,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 18,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 19,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 20,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-087",
+      "group": "b12r-d",
+      "query": "paging fatigue sets in",
+      "gold_node_id": 73,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 2,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 3,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 4,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 5,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 6,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 7,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 8,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 9,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 10,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 11,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 12,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 13,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 14,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 15,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 16,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 17,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 18,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 19,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 20,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-088",
+      "group": "b12r-d",
+      "query": "traffic may not be flowing",
+      "gold_node_id": 76,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 2,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 3,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 4,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 5,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 6,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 7,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 8,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 9,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 10,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 11,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 12,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 13,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 14,
+          "node_id": 52,
+          "text": "For 'everything feels slow', instrumentation showed p99 latency creeping upward all week — watch weekly latency trend lines to catch gradual degradation."
+        },
+        {
+          "rank": 15,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 16,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 17,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 18,
+          "node_id": 13,
+          "text": "For 'duplicate identifiers appearing in traces', the cause was the request-id overflow counter wrapping — widen the counter or use non-wrapping id generation."
+        },
+        {
+          "rank": 19,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 20,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-089",
+      "group": "b12r-d",
+      "query": "big account is unhappy",
+      "gold_node_id": 79,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 2,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 3,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 4,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 5,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 6,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 7,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 8,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 9,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 10,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 11,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 12,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 13,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 14,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 15,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 16,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 17,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 18,
+          "node_id": 16,
+          "text": "For 'csv download shows broken characters', the cause was a charset mismatch garbling the export file — align CSV export encoding and client charset declaration."
+        },
+        {
+          "rank": 19,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 20,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-090",
+      "group": "b12r-d",
+      "query": "sleep interrupted again",
+      "gold_node_id": 82,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 2,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 3,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 4,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 5,
+          "node_id": 4,
+          "text": "For 'sockets opening and closing constantly' (constant connection churn), the cause was misconfigured keepalive — fix keepalive settings to reuse connections."
+        },
+        {
+          "rank": 6,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 7,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 8,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 9,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 10,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 11,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 12,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 13,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 14,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 15,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 16,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 17,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 18,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 19,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 20,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-098",
+      "group": "b12r-d",
+      "query": "capacity planning was fantasy",
+      "gold_node_id": 85,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 85,
+          "text": "For 'capacity planning was fantasy' because holiday traffic dwarfed load test numbers, learn that load-test projections underestimated real holiday peaks — plan capacity beyond test baselines for seasonal spikes."
+        },
+        {
+          "rank": 2,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 3,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 4,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 5,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 6,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 7,
+          "node_id": 7,
+          "text": "For 'parallel requests queueing with idle cpu', the cause was thread pool starvation under fan-out — enlarge or restructure the thread pool when fan-out exhausts workers."
+        },
+        {
+          "rank": 8,
+          "node_id": 34,
+          "text": "For 'bandwidth savings vanished', the cause was payload compression ratio collapsing on binary blobs — recheck compression settings/content types when incompressible data dominates traffic."
+        },
+        {
+          "rank": 9,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 10,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 11,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 12,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        },
+        {
+          "rank": 13,
+          "node_id": 43,
+          "text": "For 'capacity flaps up and down', the cause was autoscaler oscillation adding and removing nodes — widen stabilization windows or damping to stop oscillating scale decisions."
+        },
+        {
+          "rank": 14,
+          "node_id": 22,
+          "text": "For 'process cannot open sockets', the cause was the file descriptor table filling under a connection storm — raise fd limits and cap concurrent connections."
+        },
+        {
+          "rank": 15,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 16,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 17,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 18,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 19,
+          "node_id": 58,
+          "text": "For 'reports disagree', the cause was that although the overnight batch finished, the numbers looked off — verify batch job output correctness, not just successful completion."
+        },
+        {
+          "rank": 20,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        }
+      ],
+      "gold_presented_rank": 1
+    },
+    {
+      "id": "para-099",
+      "group": "b12r-d",
+      "query": "action items will rot",
+      "gold_node_id": 88,
+      "gold_pool_rank": 0,
+      "pool_len": 20,
+      "presented": [
+        {
+          "rank": 1,
+          "node_id": 88,
+          "text": "For 'action items will rot' when the postmortem assigned work to nobody in particular, learn that postmortem items fail without a specific owner and deadline — always assign named owners."
+        },
+        {
+          "rank": 2,
+          "node_id": 61,
+          "text": "When the user says 'nothing reproduces' for intermittent complaints since Tuesday, treat it as a since-tuesday intermittent issue — correlate start time with recent changes and monitor rather than force repro."
+        },
+        {
+          "rank": 3,
+          "node_id": 79,
+          "text": "For 'big account is unhappy' escalated by customer success as a vague complaint, learn that vague escalations from major accounts require proactive outreach and account-specific technical investigation."
+        },
+        {
+          "rank": 4,
+          "node_id": 67,
+          "text": "For 'something broke quietly' revealed by support ticket spikes after a holiday, learn that silent breakages can surface as delayed support-ticket surges — mine tickets as an early signal."
+        },
+        {
+          "rank": 5,
+          "node_id": 64,
+          "text": "For a dashboard that 'went red then green alone' with 'flapping with no deploy', learn that flapping alerts without any deploy warrant investigation of transient/infra causes instead of dismissing the alarm."
+        },
+        {
+          "rank": 6,
+          "node_id": 28,
+          "text": "For 'cache stampede overloaded origin', the cause was request coalescing collapsing under a thundering herd — strengthen coalescing/locking to protect the origin during mass cache expiry."
+        },
+        {
+          "rank": 7,
+          "node_id": 37,
+          "text": "For 'events arrive shuffled', the cause was message ordering breaking after a partition rebalance — verify partition assignment/ordering keys after rebalances."
+        },
+        {
+          "rank": 8,
+          "node_id": 82,
+          "text": "For 'sleep interrupted again' when the pager fired twice after midnight, learn to batch/deduplicate non-urgent overnight pages to protect on-call health."
+        },
+        {
+          "rank": 9,
+          "node_id": 19,
+          "text": "For 'calls between systems drop briefly', the cause was the service mesh sidecar restarting under memory pressure — investigate sidecar memory limits on intermittent inter-service drops."
+        },
+        {
+          "rank": 10,
+          "node_id": 76,
+          "text": "For 'traffic may not be flowing' when a deploy finished but graphs look flat, learn that successful deploys don't guarantee traffic recovery — verify actual traffic flow on dashboards after deploys."
+        },
+        {
+          "rank": 11,
+          "node_id": 25,
+          "text": "For 'reads degrade over time', the cause was compaction backlog growing on the storage engine — monitor compaction lag when read latency creeps upward."
+        },
+        {
+          "rank": 12,
+          "node_id": 70,
+          "text": "For 'works on my machine' where staging passes but production fails, learn to diff staging vs production environments/configs/data rather than re-testing in staging."
+        },
+        {
+          "rank": 13,
+          "node_id": 55,
+          "text": "For 'we may freeze releases', analysis showed the error budget was burned faster than planned — track error budget burn rate to guide whether releases continue or freeze."
+        },
+        {
+          "rank": 14,
+          "node_id": 49,
+          "text": "For 'origin absorbed full traffic', the cause was cache stampede protection misfiring after a deploy — re-check stampede protections when caches are cold on deployment."
+        },
+        {
+          "rank": 15,
+          "node_id": 10,
+          "text": "For 'urgent tasks waiting behind batch work', the cause was priority inversion in the scheduler — redesign scheduling so low-priority batch jobs cannot block urgent tasks."
+        },
+        {
+          "rank": 16,
+          "node_id": 1,
+          "text": "For 'clients reaching the wrong server address', the cause was DNS resolver returning stale records — check resolver cache/TTL staleness before inspecting server config."
+        },
+        {
+          "rank": 17,
+          "node_id": 31,
+          "text": "For 'cluster shrinks for no reason', the cause was heartbeat timeouts evicting healthy members — tune heartbeat timeouts/thresholds before assuming real node failures."
+        },
+        {
+          "rank": 18,
+          "node_id": 46,
+          "text": "For 'single page load fires hundreds of queries', the cause was a GraphQL resolver n-plus-one pattern hammering the database — batch or dataload resolver lookups."
+        },
+        {
+          "rank": 19,
+          "node_id": 40,
+          "text": "For 'returning visitors handshake fully', the cause was TLS session resumption failing across restarts — persist session tickets/state to preserve resumption after restarts."
+        },
+        {
+          "rank": 20,
+          "node_id": 73,
+          "text": "For 'paging fatigue' from the same alert firing three nights running, learn that repeated identical alerts indicate a chronic unresolved condition needing suppression/threshold tuning or a persistent fix."
+        }
+      ],
+      "gold_presented_rank": 1
+    }
+  ]
+}
