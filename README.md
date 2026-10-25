@@ -8,6 +8,10 @@ A local-first memory engine for AI agents built around one honest contract:
   a pick step over a shortlist. CMHM ships no model of its own beyond a small
   local embedder, makes no LLM calls, and never discusses pricing or quality of
   a model it does not ship.
+- **Which model does the recall pick?** Whatever LLM drives your MCP client
+  (your agent). For the published bench numbers below, the stand-in pick model
+  was `a stand-in client LLM (name withheld)` - single run, hard slice only; any other
+  client model will produce its own, different numbers.
 
 No cloud, no API keys, no GPU. Everything runs on CPU in one Rust process,
 surfaced to agents over the Model Context Protocol (MCP).
