@@ -1,10 +1,9 @@
 {
   "mcpServers": {
     "cmhm": {
-      "command": "C:\\Games\\Projects\\Memory\\target\\x86_64-pc-windows-gnu\\release\\cmhm_mcp.exe",
+      "command": "<PUT-YOUR-FOLDER-HERE>\\cmhm_mcp.bat",
       "args": [],
       "env": {
-        "CMHM_CONFIG": "C:\\Games\\Projects\\Memory\\config.toml",
         "CMHM_LOG": "warn"
       }
     }
