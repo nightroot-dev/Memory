@@ -7,6 +7,7 @@
 //!   l3b_dump_record_hard        - fused pools, record learn, 30 hard items.
 //!   l3c_dump_d2expanded_para    - easy/medium record pools + hard D2 merged.
 //!   l3d_dump_w1bridge_all       - W1a keyword-bridge pools (100 para items).
+//!   b12r_dump_agent_texts       - B12-R agent-written memory pools (W/D arms).
 //!   l3b_score_record_hard       - score tools/eval_l3/rerank_record_hard.json.
 //!   l3c_score_d2expanded        - score tools/eval_l3/rerank_d2expanded.json.
 //!   l3d_score_w1bridge          - score tools/eval_l3/rerank_w1bridge.json.
@@ -337,6 +338,103 @@ fn dump_write(leg: &str, items: Vec<DumpItem>, file: &str) {
     };
     std::fs::write(out_path(file), serde_json::to_string_pretty(&dump).unwrap()).unwrap();
     println!("written: {} ({} items)", file, dump.items.len());
+}
+
+// ------------------------------------------------------ B12-R instrument ----
+
+fn b12r_path(name: &str) -> PathBuf {
+    for base in [
+        PathBuf::from("tools/eval_b12r"),
+        PathBuf::from("..").join("tools/eval_b12r"),
+    ] {
+        if base.exists() {
+            return base.join(name);
+        }
+    }
+    panic!("tools/eval_b12r not found");
+}
+
+fn load_saved_texts(file: &str) -> HashMap<String, String> {
+    serde_json::from_str(&std::fs::read_to_string(b12r_path(file)).unwrap()).unwrap()
+}
+
+/// Learn each agent-written text as the State node for its item. Missing
+/// items get the registered placeholder (a guaranteed miss in scoring).
+fn learn_agent_texts(
+    handle: &EngineHandle,
+    pairs: &[BaseItem],
+    saved: &HashMap<String, String>,
+    emb: &OnnxEmbedder,
+    model: &str,
+) -> (Vec<u64>, HashMap<u64, String>) {
+    let mut state_ids = vec![];
+    let mut texts = HashMap::new();
+    for (idx, p) in pairs.iter().enumerate() {
+        let text = saved
+            .get(&p.id)
+            .cloned()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "(no memory saved for this incident)".to_string());
+        let r = handle
+            .learn_with_text_context(
+                emb.embed(&text).unwrap(),
+                emb.embed(&format!("{} {idx}", p.action)).unwrap(),
+                emb.embed(&format!("{} {idx}", p.outcome)).unwrap(),
+                0.9, 0.5, model, 0.5, String::new(), None,
+                CallerRole::Agent, None, None,
+                Some((text.clone(), p.action.clone(), p.outcome.clone())),
+                false,
+            )
+            .unwrap();
+        state_ids.push(r.state_node_id);
+        texts.insert(r.state_node_id, text);
+    }
+    (state_ids, texts)
+}
+
+fn b12r_dump_arm(arm: &str) {
+    let pairs: Vec<BaseItem> = load_corpus("tools/corpus_l1.json")
+        .into_iter()
+        .filter(|p| p.difficulty == "hard")
+        .collect();
+    assert_eq!(pairs.len(), 30, "b12r: hard item count");
+    let saved = load_saved_texts(&format!("saved_{arm}.json"));
+    let (emb, model, proj_file) = make_embedder("minilm");
+    let pdir = projection_dir();
+    let _proj = Projection::from_bytes(&std::fs::read(pdir.join(proj_file)).unwrap()).unwrap();
+    let q_nat: Vec<Vec<f32>> = pairs.iter().map(|p| emb.embed(&p.query).unwrap()).collect();
+    let (_tmp, handle) = start_engine(&pdir);
+    let (t_state, texts) = learn_agent_texts(&handle, &pairs, &saved, &emb, model);
+    let mut items = vec![];
+    for (i, p) in pairs.iter().enumerate() {
+        let f = handle.retrieve(q_nat[i].clone(), model, NodeType::State, &p.query).unwrap();
+        assert!(f.post_filter_candidates.len() <= CAP, "engine cap violated on {}", p.id);
+        let gold = t_state[i];
+        let pool_rank = f.post_filter_candidates.iter().position(|&id| id == gold);
+        let (presented, p_rank) = present(&f.post_filter_candidates, &texts, gold);
+        items.push(DumpItem {
+            id: p.id.clone(),
+            group: format!("b12r-{arm}"),
+            query: p.query.clone(),
+            gold_node_id: gold,
+            gold_pool_rank: pool_rank,
+            pool_len: f.post_filter_candidates.len(),
+            presented,
+            gold_presented_rank: p_rank,
+        });
+    }
+    assert_eq!(items.len(), 30, "b12r: dump item count");
+    handle.shutdown().ok();
+    dump_write("b12r_dump_agent_texts", items, &format!("pools_b12r_{arm}.json"));
+}
+
+/// B12-R: agent-written memories (two save-wording arms) -> fused pools.
+/// Pre-registered in tools/eval_b8/b12r-save-discipline.md; eval only.
+#[test]
+#[ignore]
+fn b12r_dump_agent_texts() {
+    b12r_dump_arm("w");
+    b12r_dump_arm("d");
 }
 
 fn sit_texts(pairs: &[BaseItem], t_state: &[u64], suffix: bool) -> HashMap<u64, String> {

@@ -1,0 +1,48 @@
+You are recording troubleshooting memories for later reuse.
+For EACH incident in this file: write the ONE memory text you would save so
+a future session can find and reuse what was learned. Answer with STRICT
+JSON mapping every incident id (e.g. "para-006") to its memory text
+(string). Rules: exactly one entry per incident; keep each memory text to
+1-2 sentences; do not read any other files; derive the text only from the
+incident below; no commentary outside the JSON.
+
+
+INCIDENT para-060
+USER SYMPTOM: cluster shrinks for no reason
+WHAT WAS LEARNED: heartbeat timeout evicted healthy members
+
+INCIDENT para-061
+USER SYMPTOM: bandwidth savings vanished
+WHAT WAS LEARNED: payload compression ratio collapsed on binary blobs
+
+INCIDENT para-072
+USER SYMPTOM: events arrive shuffled
+WHAT WAS LEARNED: message ordering broke after partition rebalance
+
+INCIDENT para-073
+USER SYMPTOM: returning visitors handshake fully
+WHAT WAS LEARNED: tls session resumption failed across restarts
+
+INCIDENT para-075
+USER SYMPTOM: capacity flaps up and down
+WHAT WAS LEARNED: autoscaler oscillation added and removed nodes
+
+INCIDENT para-076
+USER SYMPTOM: single page load fires hundreds of queries
+WHAT WAS LEARNED: graphql resolver n-plus-one hammered the database
+
+INCIDENT para-077
+USER SYMPTOM: origin absorbed full traffic
+WHAT WAS LEARNED: cache stampede protection misfired on deploy
+
+INCIDENT para-080
+USER SYMPTOM: everything feels slow
+WHAT WAS LEARNED: p99 latency crept upward all week
+
+INCIDENT para-081
+USER SYMPTOM: we may freeze releases
+WHAT WAS LEARNED: error budget burned faster than planned
+
+INCIDENT para-082
+USER SYMPTOM: reports disagree
+WHAT WAS LEARNED: overnight batch finished but numbers look off

@@ -1,0 +1,48 @@
+You are recording troubleshooting memories for later reuse.
+For EACH incident in this file: write the ONE memory text you would save so
+a future session can find and reuse what was learned. Answer with STRICT
+JSON mapping every incident id (e.g. "para-006") to its memory text
+(string). Rules: exactly one entry per incident; keep each memory text to
+1-2 sentences; do not read any other files; derive the text only from the
+incident below; no commentary outside the JSON.
+
+
+INCIDENT para-083
+USER SYMPTOM: nothing reproduces
+WHAT WAS LEARNED: users complain intermittently since tuesday
+
+INCIDENT para-084
+USER SYMPTOM: flapping with no deploy
+WHAT WAS LEARNED: dashboard went red then green alone
+
+INCIDENT para-085
+USER SYMPTOM: something broke quietly
+WHAT WAS LEARNED: support tickets spiked after the holiday
+
+INCIDENT para-086
+USER SYMPTOM: works on my machine
+WHAT WAS LEARNED: staging passes but production fails
+
+INCIDENT para-087
+USER SYMPTOM: paging fatigue sets in
+WHAT WAS LEARNED: the same alert fired three nights running
+
+INCIDENT para-088
+USER SYMPTOM: traffic may not be flowing
+WHAT WAS LEARNED: deploy finished yet graphs look flat
+
+INCIDENT para-089
+USER SYMPTOM: big account is unhappy
+WHAT WAS LEARNED: customer success escalated a vague complaint
+
+INCIDENT para-090
+USER SYMPTOM: sleep interrupted again
+WHAT WAS LEARNED: pager fired twice after midnight
+
+INCIDENT para-098
+USER SYMPTOM: capacity planning was fantasy
+WHAT WAS LEARNED: holiday traffic dwarfed load test numbers
+
+INCIDENT para-099
+USER SYMPTOM: action items will rot
+WHAT WAS LEARNED: postmortem assigned to nobody in particular

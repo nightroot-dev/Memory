@@ -1,0 +1,52 @@
+You are recording troubleshooting memories for later reuse.
+For EACH incident in this file: write the ONE memory text you would save so
+a future session can find and reuse what was learned. Answer with STRICT
+JSON mapping every incident id (e.g. "para-006") to its memory text
+(string). Rules: exactly one entry per incident; keep each memory text to
+1-2 sentences; do not read any other files; derive the text only from the
+incident below; no commentary outside the JSON.
+
+
+SAVE DISCIPLINE: In each memory text, include the user's own words for the
+symptom (the USER SYMPTOM line) alongside what was learned.
+
+
+INCIDENT para-006
+USER SYMPTOM: clients reaching the wrong server address
+WHAT WAS LEARNED: dns resolver returning stale records
+
+INCIDENT para-014
+USER SYMPTOM: sockets opening and closing constantly
+WHAT WAS LEARNED: connection churn from misconfigured keepalive
+
+INCIDENT para-025
+USER SYMPTOM: parallel requests queueing with idle cpu
+WHAT WAS LEARNED: thread pool starvation under fan-out
+
+INCIDENT para-032
+USER SYMPTOM: urgent tasks waiting behind batch work
+WHAT WAS LEARNED: priority inversion in scheduler
+
+INCIDENT para-038
+USER SYMPTOM: duplicate identifiers appearing in traces
+WHAT WAS LEARNED: overflow counter wrapped request ids
+
+INCIDENT para-039
+USER SYMPTOM: csv download shows broken characters
+WHAT WAS LEARNED: charset mismatch garbled export file
+
+INCIDENT para-049
+USER SYMPTOM: calls between systems drop briefly
+WHAT WAS LEARNED: service mesh sidecar restarted under memory pressure
+
+INCIDENT para-054
+USER SYMPTOM: process cannot open sockets
+WHAT WAS LEARNED: file descriptor table filled under connection storm
+
+INCIDENT para-057
+USER SYMPTOM: reads degrade over time
+WHAT WAS LEARNED: compaction backlog grew on the storage engine
+
+INCIDENT para-059
+USER SYMPTOM: cache stampede overloaded origin
+WHAT WAS LEARNED: request coalescing collapsed under thundering herd
