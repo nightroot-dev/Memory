@@ -14,14 +14,28 @@ POOLS = BASE / "pools_record_hard.json"
 PICKS = BASE / "rerank_record_hard_repl.json"
 
 
+def _cdf(x: int, n: int, p: float) -> float:
+    """P(X <= x) for X ~ Binomial(n, p)."""
+    if x < 0:
+        return 0.0
+    if x >= n:
+        return 1.0
+    return sum(math.comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(x + 1))
+
+
 def cp_ci(k: int, n: int, alpha: float = 0.05):
-    """Clopper-Pearson exact interval via bisection on the binomial CDF."""
+    """Clopper-Pearson exact interval via bisection on the binomial CDF.
+
+    Lower bound solves P(X <= k-1 | p) = 1 - alpha/2; upper bound solves
+    P(X <= k | p) = alpha/2. Post-verdict correction 2026-10-25: the
+    originally committed helper had both bisection comparisons inverted and
+    returned an interval excluding the point estimate. Picks and the pick
+    rule were never affected; see tools/eval_b8/l3b-replication.md PART 2.
+    """
     lo, hi = 0.0, 1.0
     for _ in range(200):
         mid = (lo + hi) / 2
-        # P(X <= k-1 | mid) for lower bound target alpha/2 (k>0)
-        cdf = sum(math.comb(n, i) * mid**i * (1 - mid) ** (n - i) for i in range(k)) if k > 0 else 0.0
-        if cdf > alpha / 2:
+        if _cdf(k - 1, n, mid) > 1 - alpha / 2:
             lo = mid
         else:
             hi = mid
@@ -30,12 +44,10 @@ def cp_ci(k: int, n: int, alpha: float = 0.05):
     lo, hi = 0.0, 1.0
     for _ in range(200):
         mid = (lo + hi) / 2
-        # P(X <= k | mid) target 1 - alpha/2 for upper bound
-        cdf = sum(math.comb(n, i) * mid**i * (1 - mid) ** (n - i) for i in range(k + 1))
-        if cdf > 1 - alpha / 2:
-            hi = mid
-        else:
+        if _cdf(k, n, mid) > alpha / 2:
             lo = mid
+        else:
+            hi = mid
     upper = (lo + hi) / 2 if k < n else 1.0
     return lower, upper
 
