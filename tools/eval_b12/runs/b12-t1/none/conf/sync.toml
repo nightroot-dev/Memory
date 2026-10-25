@@ -1,4 +1,0 @@
-[sync]
-enabled = false     # flipped off during the March freeze, never restored
-run_id = "night-a"
-targets = ["e:/vault", "e:/backup"]

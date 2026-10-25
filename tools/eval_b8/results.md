@@ -20,7 +20,7 @@ does not resolve; report itself was strong.
 Â³ T6: no outright winner â€” notes fewest calls (30 vs 31/32), cmhm fastest
 wall (99.6s vs 156/219s). Neither satisfies the AND condition.
 
-Pilot notes (2026-10-13, all arms bench-agent-m-1.3 xhigh, model parity holds):
+Pilot notes (2026-10-13, all arms bench-agent-m xhigh, model parity holds):
 - All three arms produced correct, verifier-passing reports. The harness
   discriminates on efficiency, not capability â€” as designed.
 - notes beats cmhm beats none on both metrics. Per the kill criterion this
@@ -47,7 +47,7 @@ Caveats (read before citing):
   a re-run on current code could only help the cmhm arm.
 - Compliance verified from opencode.db for every arm: none/notes zero
   memory calls; cmhm arms 1â€“2 retrieves + 0 learns as instructed.
-- All arms bench-agent-m-1.3 xhigh (model parity). Metrics method: tool-call
+- All arms bench-agent-m xhigh (model parity). Metrics method: tool-call
   rows + nested execute subcalls from session_message payloads.
 - Fixture worktrees verified clean after all hunt runs.
 
@@ -85,7 +85,7 @@ Caveats (read before citing):
 # original cells (100sâ†’176s, 109sâ†’157s â€” run variance) with T7 still an
 # outright win. Notes still wins 5/7 outright and the tally doesn't move.
 # Compliance re-verified from opencode.db: all 7 re-run arms 1 retrieve +
-# 0 learns; model parity held (bench-agent-m-1.3 xhigh); worktrees clean.
+# 0 learns; model parity held (bench-agent-m xhigh); worktrees clean.
 
 # Session L recall + scale bench (current master, 2026-10-14 â€” not hand-edited)
 #
@@ -504,8 +504,8 @@ Mechanics validated before any arm runs (pilot harness check):
   data/registry.toml; sessions in session_v2).
 - arm spawn self-test: opencode run --title "B12 t1 none s1" from
   C:/Games/Projects/Memory -> **FAILED: "Model unavailable:
-  opencode/bench-agent-m-1.3-contributor-free"**. CLI catalog (opencode
-  models, 2026-10-17) no longer lists bench-agent-m-1.3-contributor-free
+  opencode/bench-agent-m-contributor-free"**. CLI catalog (opencode
+  models, 2026-10-17) no longer lists bench-agent-m-contributor-free
   (nvidia/* + opencode/<others> only). DB row ses_eb702e6f... (titled
   B12 t1 none s1, 3 message rows, wall 0.0s) records the failed spawn -
   rows can exist for refused model spawns; metrics must treat wall 0
@@ -530,8 +530,8 @@ DB (opencode.db, session_v2) vs results.md B10 table (lines 145-155):
 
 - Wall values match the results.md B10 table TO THE DECIMAL (732.2,
   1041.0, 2642.9, 2219.8, 3368.7, 1748.7) -> the recorded cmhm arms ARE
-  these sessions: bench-agent-k[default], NOT bench-agent-m-1.3 xhigh.
-- The results.md compliance line "all arms bench-agent-m-1.3 xhigh(model
+  these sessions: bench-agent-k[default], NOT bench-agent-m xhigh.
+- The results.md compliance line "all arms bench-agent-m xhigh(model
   parity held)" is therefore FALSE for the cmhm arm of every task.
 - Baselines: no B10 none/notes sessions exist in the DB; b10-minilm-step2.md
   says "none/notes arms" stand (cmhm arms only) -> the baseline rows are
@@ -676,7 +676,7 @@ d2-query-expansion.md (924e9af, committed BEFORE any run; B12-sequencing
 waiver documented pre-run per owner directive 2026-10-21). Raw run:
 tools/eval_d2/d2_run1.txt. Instrument: ops_bench_d2_expansion (MSVC+onnx);
 runs single, flagged. Expansion fixture = verbatim uninvolved-LLM subagent
-output (the uninvolved rerank LLM (name withheld), fresh session, no repo access; 3 causes x 30
+output (the stand-in client LLM (name withheld), fresh session, no repo access; 3 causes x 30
 hard queries; tools/eval_d2/subagent_output.json).
 
 | slice                    | seedP@1 (gate) | poolRec | MRR    | misses: cand/rank/safety |
@@ -719,7 +719,7 @@ owner before lever 3.
 Pre-registration: l3-llm-rerank.md (81217f5, committed BEFORE any run; gates
 A-E standing, never re-targeted). Fixtures eae433d. Raw run:
 tools/eval_l3/l3_run1.txt. Runs single, flagged. Uninvolved rerank LLM:
-the uninvolved rerank LLM (name withheld) via three fresh subagent sessions (committed
+a stand-in client LLM (name withheld) via three fresh subagent sessions (committed
 prompt batches only; 230/230 picks valid, 0 re-rolls).
 
 - L3a bge-base embedder swap: FAIL (A OK 100/100; B 3/30, C 163/200,

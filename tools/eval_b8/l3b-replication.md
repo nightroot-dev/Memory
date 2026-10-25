@@ -1,115 +1,141 @@
-# B12 design note: two-session accumulation eval (locked pre-registration)
+# L3b REPLICATION PRE-REGISTRATION — same-family variance sample (2026-10-25)
 
-**Status:** design locked BEFORE any arm runs. Owner gate: checked against
-the three definitions below before launch. No code changes; eval only.
-**Question:** does CMHM's actual product claim — automatic accumulation of
-facts across sessions — beat the realistic baseline (an agent writing its
-own notes), given that B8/B8r/B10 measured it only against an ideal
-hand-authored file?
+Status: registered BEFORE any run, per owner request 2026-10-25
+("test again, you are the client model on me"). Variance replication of
+**L3b only** (the hard-slice pick over the shipped MiniLM record pools).
 
-## 1. Win rule (IDENTICAL to B10 — not redefined)
+## Purpose and scope
 
-A task counts as a **cmhm outright win** only if ALL of:
-1. cmhm session-2 rubric PASSES;
-2. cmhm total tool calls < none AND < self-notes (ties favor baselines);
-3. cmhm total wall time < none AND < self-notes (ties favor baselines).
+- Second, independent sample of the L3b mechanism: an uninvolved picker
+  choosing, per hard item, the candidate that best explains the symptom, from
+  the SHIPPED pools (30 hard items; recorded L3b = 14/30 on 2026-10-21).
+- Does **NOT** replace, revise, or re-target L3b or its published number
+  (14/30 = 46.7%, Clopper-Pearson 95% CI [28.3%, 65.6%]). Both samples are
+  reported side by side; no number in README/records changes because of this
+  run.
+- No new gates. No pass/fail target. Measures run-to-run spread of the same
+  mechanism in the same model family.
+- NOT cross-model generality (same family as L3); NOT a recall-metric change;
+  no engine changes.
 
-Wall/calls measured exactly as B8/B10: tool-call rows + nested execute
-subcalls from `session_message` payloads; wall = last − first message
-timestamp per session, summed over the two sessions of the arm.
-Reported but NOT gating: a calls-only tally (B10 showed wall noise from
-LLM latency can dominate; the calls-only tally guards interpretation).
+## Fixtures (committed, unchanged)
 
-## 2. Sample size and inconclusive band (locked now)
+- Prompts: `tools/eval_l3/batches/l3b/b01.txt`, `b02.txt`, `b03.txt`
+  (committed at `eae433d`; gold-stripped) — reproduced verbatim, in that
+  order, one batch per message.
+- Scoring pools: `tools/eval_l3/pools_record_hard.json` (30 hard items, each
+  with `gold_node_id` and `presented[]` ranks).
+- Pick mapping (identical to the L3 scorer): for item `i`, pick `N` counts
+  correct iff `presented[N-1].node_id == gold_node_id`.
+- Original comparator artifacts: `rerank_record_hard.raw` / `.json` (L3b).
 
-- **n = 10 tasks** (b12-t1 … b12-t10), all run regardless of interim
-  results — no early stopping.
-- Let W = number of cmhm outright wins.
-- **W ≥ 6 → B12 win:** the ideal-file baseline was the artifact; the
-  product conversation reopens on honest evidence.
-- **W ≤ 4 → loss:** the memory-quality track STANDS DOWN permanently.
-  Remaining paths: narrow to what measurably works (lexical/identifier
-  recall 1.00) or archive.
-- **W = 5 → INCONCLUSIVE:** not a win. Raw table goes to the owner; no
-  claim either way.
+## Picker
 
-## 3. Self-notes arm fairness (instruction pre-registered verbatim)
+- Model: `a stand-in client LLM (name withheld)` (same model id as L3; verified live in
+  the catalog on 2026-10-25, status active, before the run).
+- One fresh uninvolved session (no repo access, no golds); three messages,
+  one per batch. Session id recorded in PART 2 after the run.
+- Owner asked for "you as the client model": the assistant itself is
+  contaminated (has read the records and corpus), so a fresh session of the
+  same model family is the honest analogue. This substitution is part of the
+  registration.
 
-Same agent type (general), same model (bench-agent-m xhigh), same task
-prompts as the other arms. The ONLY difference is the notes instruction,
-given identically in both sessions, verbatim:
+## Rules
 
-> "As you work, maintain a file named NOTES.md in your work directory.
-> Write down every fact you learn that would be needed to resume or redo
-> this task later: root causes, file locations, commands, pitfalls,
-> decisions. Keep it concise but complete. Do not write anything outside
-> your work directory."
+- Single run. No re-rolls, no prompt edits, no retry-on-bad-luck.
+- Malformed, missing, or duplicate picks for an item count as misses; no
+  manual repair, no re-ask.
+- Outputs saved verbatim (`tools/eval_l3/rerank_record_hard_repl.raw`, same
+  `b01.txt: {json}` format) + parsed json; score computed mechanically by the
+  committed script `tools/eval_l3/score_repl.py`; CP 95% CI reported.
+- If the model is unavailable or refuses, the run is ABORTED and recorded as
+  an abort (B12 lesson) — not re-tried on another model without a new
+  registration.
 
-Session-2 prompt addition (verbatim): "A previous session worked on this
-same task and may have left NOTES.md in the work directory. Read it first
-if present."
+## Reporting (PART 2, appended after the run)
 
-No hand-authored seed content is given to self-notes — the arm writes its
-own. The none arm gets no notes instruction and no memory access.
+- Picks per batch (expected 10/10/10), correct/30, CP 95% CI, side-by-side
+  with the recorded 14/30, deviations (none expected), and the honest scope
+  labels (hard slice only; single run; same family; not a replacement).
 
-## 4. cmhm arm protocol (honest product shape — no hand-feeding)
+---
 
-- **No pre-seeded contexts.** Memory must accumulate from session 1 work.
-  (B8's seeded contexts were the same ideal-file bias in different
-  clothing; B12 removes it.)
-- Session 1: learns unrestricted (agent follows the server instructions:
-  learn outcome-changing events); retrieves ≤ 2.
-- Session 2: retrieves ≤ 2; learns unrestricted.
-- Compliance verified from opencode.db per arm (retrieve/learn counts).
+# PART 2 — RESULTS (2026-10-25)
 
-## 5. Task family (10 two-session tasks)
+## Run facts
 
-Each task: session 1 = explore/diagnose a fixture and discover facts;
-session 2 = a task that REQUIRES those facts (resume, extend, or fix a
-related fault). Fixtures are new, small, deterministic, local (no
-network); built and rubrics written BEFORE any arm runs, one
-`task.md` + rubric per task under `tools/eval_b12/tasks/`. Rubric style:
-file-state checks or keyword groups, deterministic, same as B8. The
-session-2 rubrics are fixed before the first arm; nothing is tuned after
-seeing results.
+- Picker: `a stand-in client LLM (name withheld)` (same model id as L3b), one fresh
+  uninvolved session `ses_e8d333d36ffeofVpIxdd1gLZfG`.
+- Fixtures reproduced verbatim, one batch per message, in order
+  `b01.txt` → `b02.txt` → `b03.txt`; no prompt edits, no re-rolls, no
+  retries, no second session.
+- Answers: 30/30 items, 10 per batch; 0 missing, 0 duplicate, 0
+  out-of-range picks.
+- Raw outputs: `tools/eval_l3/rerank_record_hard_repl.raw`; parsed:
+  `tools/eval_l3/rerank_record_hard_repl.json`.
+- Scorer: `tools/eval_l3/score_repl.py` (pick rule unchanged:
+  `presented[N-1].node_id == gold_node_id` for pick `N`).
 
-## 6. B11 condition (the trap, named and controlled)
+## Headline (hard slice only, single run, same family)
 
-**UPDATE 2026-10-17: B11 is FIXED** (commit `c48ee4a`: exclusive sidecar
-lock + reload-merge save; acceptance repro green on the serving binary,
-`docs/eval_b8` record 7a491b1). The original mitigation plan is downgraded
-as follows:
+| Sample | Correct | Rate | CP 95% CI |
+|---|---|---|---|
+| L3b recorded 2026-10-21 | **14/30** | 46.7% | [28.3%, 65.6%] |
+| L3b replication 2026-10-25 | **13/30** | 43.3% | [25.5%, 62.6%] |
 
-- Arms still run strictly SEQUENTIALLY — one arm at a time, no parallel
-  subagents running concurrently. **Exactly ONE cmhm_mcp server instance
-  serves the whole eval** (B11's multi-writer clobber needs >=2 writers;
-  single instance + sequential arms removes that class entirely).
-- **Pilot (t1 × 3 arms × 2 sessions) is labelled a HARNESS CHECK, not a
-  verdict.** It validates: runner mechanics, fixture copying, prompt
-  verbatim-ness, registry tripwire, verify.py behaviour, DB metric
-  extraction. It contributes no win/loss to W and carries no B12
-  conclusion; its report is reviewed before the remaining 9 tasks run.
-- **Model parity guard (pre-registered):** every arm session spawns with
-  exactly `opencode/BENCH-MODEL-WITHHELD#xhigh` and this is
-  verified from `session_v2.model` in opencode.db after each session.
-  If that model cannot be spawned, the runner STOPS B12 and reports;
-  no fallback model is authorised (B10 record's parity is bench-agent-m; no silent
-  substitution).
-- **Registry integrity check around every arm** becomes pure regression
-  insurance (B11 reopened = any run's data void, re-run once): before and
-  after each arm, record `registry.toml` entry set. Any unexplained
-  disappearance = clobber = that arm VOID; second occurrence aborts B12.
-- Statement for the record: **B12 runs with B11 FIXED** (`c48ee4a`). A
-  cmhm loss in B12 is attributable to memory quality, not registry races.
+- The replication is a **second sample, not a replacement**: the published
+  L3b number remains 14/30 [28.3%, 65.6%]. No README or recorded number
+  changes because of this run.
+- No gate, no pass/fail target, no re-target: this run measures same-family
+  run-to-run spread only.
 
-## 7. What this note does not authorise
+## On-presented context (descriptive, secondary)
 
-No engine or registry code changes; no reranker; no embedder work; no
-changes to the B8/B10 records; no touching `docs/master_bug_list.md`
-(B11 transplant remains the reviewer's).
+Gold was present in the pool for 18 of the 30 hard items (the other 12 are
+the measured cap-20 visibility loss, unchanged by this run).
 
-## 8. Reporting
+| Sample | Correct on presented | Rate | CP 95% CI |
+|---|---|---|---|
+| L3b recorded | 14/18 | 77.8% | [52.4%, 93.6%] |
+| Replication | 13/18 | 72.2% | [46.5%, 90.3%] |
 
-Raw table → measured vs assumed → not done, project standard. Registry
-integrity log included. All reports, rubrics, and the registry log
-committed before the verdict commit.
+## Item-level agreement with the recorded sample
+
+- Identical pick on **23/30** items.
+- Seven disagreements (id, recorded pick, replication pick): `para-049`
+  (1, 8), `para-057` (6, 9), `para-061` (3, 17), `para-081` (1, 19),
+  `para-084` (3, 10), `para-085` (3, 19), `para-086` (18, 19).
+- The replication's 13 correct items are a **strict subset** of the recorded
+  14: it gained no item the first sample missed and lost only `para-057`
+  (gold at presented rank 5; replication picked 9). Difference between the
+  samples is therefore one pick on an item the first sample already had in
+  view.
+
+## Deviations
+
+- **Run deviations: none.** Three batches verbatim, one session, single run,
+  no re-rolls, no repairs.
+- **Instrument deviation (disclosed):** the pre-registered scorer's
+  Clopper-Pearson helper had both bisection comparisons inverted and first
+  printed `[59.4%, 100.0%]` for 13/30 — an interval that excludes its own
+  point estimate, which is how the defect was caught. The helper was
+  corrected post-verdict (record adjacent to this file; commit touching
+  `score_repl.py`). The pick rule, the picks, and the count (13/30) were
+  never affected. Validation of the corrected helper: (a) matches
+  `scipy.stats.beta` exact intervals (scipy 1.18.0), and (b) reproduces the
+  published L3b interval `[28.3%, 65.6%]` from 14/30.
+
+## Honest reading
+
+- Two same-family samples now bracket the blind-hard pick rate in the
+  **mid-40s** (14/30, 13/30; overlapping CIs). This is consistency evidence
+  for the one family measured — it is **not** cross-model generality.
+- Both samples sit far above engine-alone (2/30) and below the 70% claim
+  bar. Nothing here changes the published claim or the README labels.
+- The save-discipline ceiling result (L3d, 30/30 with the bridge + pick
+  stack under held save discipline) is untouched by this run; the blind
+  shipped-pool sample remains the honest product number.
+
+Labels for any citation of this run: **hard slice only; single run; same
+model family (`a stand-in client LLM (name withheld)`); replication sample — not a
+replacement for the recorded 14/30; no engine change; no gate applied.**

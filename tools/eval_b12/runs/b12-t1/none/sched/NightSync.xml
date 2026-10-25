@@ -1,2 +1,0 @@
-<?xml version="1.0"?>
-<Task version="1.2"><Triggers><TimeTrigger><StartBoundary>2026-03-01T03:00:00</StartBoundary></TimeTrigger></Triggers><Actions><Exec><Command>C:\ops\bin\sync.ps1</Command><WorkingDirectory>C:\ops</WorkingDirectory></Exec></Actions><Principals><UserId>SVC-SYNC</UserId></Principals></Task>
