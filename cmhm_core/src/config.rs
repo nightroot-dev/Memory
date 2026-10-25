@@ -191,6 +191,14 @@ pub struct Config {
     /// Default: 20. Old hardcoded value was 8 — doubled for recall improvement (R3).
     #[serde(default = "default_retrieval_seed_pool_size")]
     pub retrieval_seed_pool_size: usize,
+
+    /// B13: maximum candidates kept after dense+BM25 fusion — the cap
+    /// argument of `rrf_fuse` (the fused shortlist handed downstream).
+    /// Larger values widen the shortlist so gold candidates beyond the
+    /// 20-cap become visible to ranking/callers. Default: 20 — identical
+    /// to every recorded bench (this knob replaces the hardcoded literal).
+    #[serde(default = "default_retrieval_fusion_cap")]
+    pub retrieval_fusion_cap: usize,
 }
 
 impl Default for Config {
@@ -232,6 +240,7 @@ impl Default for Config {
             gate_threshold:                0.35,
             gate_kappa:                    2.0,
             retrieval_seed_pool_size:      20,  // R3: was hardcoded 8
+            retrieval_fusion_cap:          20,  // B13: knob added; was hardcoded 20
         }
     }
 }
@@ -249,6 +258,7 @@ fn default_enforce_gate()                  -> bool  { false }
 fn default_gate_threshold()                -> f32   { 0.35 }
 fn default_gate_kappa()                    -> f32   { 2.0 }
 fn default_retrieval_seed_pool_size()      -> usize { 20 }  // R3: was hardcoded 8
+fn default_retrieval_fusion_cap()          -> usize { 20 }  // B13: knob added; was hardcoded 20
 fn default_working_memory_size()           -> usize { 5 }
 fn default_edge_birth_threshold()          -> f32   { 0.35 }
 fn default_novelty_threshold()             -> f32   { 0.55 }

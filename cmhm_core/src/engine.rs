@@ -1765,6 +1765,7 @@ fn process_retrieve(
          query_text,
          &state.bm25_index,
          cfg.retrieval_seed_pool_size,
+         cfg.retrieval_fusion_cap,
         &state.learn_ledger,
         meta_filter,
       ))

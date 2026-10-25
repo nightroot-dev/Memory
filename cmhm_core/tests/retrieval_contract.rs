@@ -381,6 +381,7 @@ fn test_stale_state_does_not_override_authoritative() {
          "",    // query_text — vector-only contract test, dense path
          &cmhm_core::bm25::Bm25Index::new(),
          8,     // seed_pool_size — contract test uses fixed pool, not config
+         20,    // fusion_cap — contract pins the shipped-default literal (B13 knob)
          &cmhm_core::learn_ledger::LearnLedger::new(), // B1b: empty ledger (pre-B1b behavior)
          None, // B6b: no metadata filter — unfiltered contract behavior
      );

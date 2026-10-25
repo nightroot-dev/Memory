@@ -18,7 +18,7 @@ Call `memory_retrieve_text` on that context only when:
 Skip it for trivial edits, routine lookups and routine steps.
 
 ## Learn - only outcome-changing events
-Call `memory_learn_text` when an event changes what you would do next: a failure you diagnosed or fixed, a decision you made, a configuration or pitfall you discovered. Skip routine progress ("ran the tests", "edited a file"). One summary at the end of a session is enough.
+Call `memory_learn_text` when an event changes what you would do next: a failure you diagnosed or fixed, a decision you made, a configuration or pitfall you discovered. Skip routine progress ("ran the tests", "edited a file"). One summary at the end of a session is enough. When the learn carries a fix the user hit, write `state` so it quotes the user's own wording of the symptom alongside what was learned - verbatim symptom phrasing is what later queries match; paraphrase-only state text often becomes unfindable.
 
 ## Reading results honestly
 Retrievals return the stored text plus edge statistics. `evidence` is a count of observations, not a confidence percentage. A `no_match` routing result means nothing relevant exists - create a context only if the work is worth remembering later.

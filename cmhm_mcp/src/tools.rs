@@ -1917,6 +1917,13 @@ pub fn handle_learn_text(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     learn_meta.as_ref().map(|m| m.subject.as_str()),
                 ));
             }
+            // B13 ship default: deliver the documented save discipline to every
+            // learn caller. Committed record (tools/eval_b8/b12r-save-discipline.md
+            // + tools/eval_b8/b13-ship-default.md): quoting the symptom phrasing
+            // in the state text is what lifted fused hard-slice rank-1.
+            text.push_str(
+                "\n**Save discipline**: include the user's own words for the symptom in the `state` text, alongside what was learned — paraphrased-only symptom wording often becomes unfindable by keyword+fusion retrieval; verbatim symptom phrasing is what future queries match.\n",
+            );
             let structured = learn_disposition_json(&result, meta_applied);
             ToolCallResult {
                 content: vec![ContentItem::text(text), ContentItem::json(&structured)],

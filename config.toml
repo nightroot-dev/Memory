@@ -43,6 +43,11 @@ projections_dir = "data/projections"
 
 # Maximum hops in Dijkstra retrieval
 retrieval_max_depth = 3
+# B13: maximum candidates kept after dense+BM25 fusion (the fused shortlist
+# cap handed to ranking/callers). Higher = wider shortlist: beyond-cap gold
+# becomes visible, at the cost of more caller tokens per retrieve. Default 20
+# matches every recorded bench.
+retrieval_fusion_cap = 20
 
 # ── Context Runtime ────────────────────────────────────────────────────────────
 # Maximum number of contexts loaded in RAM simultaneously.

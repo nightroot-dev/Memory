@@ -352,6 +352,9 @@ pub fn retrieve(
     // R3: Seed pool size — number of NN candidates to retrieve before scoring.
     // Default 20 (was hardcoded 8). Tunable via Config::retrieval_seed_pool_size.
     seed_pool_size: usize,
+    // B13: fused-pool truncation cap (the rrf_fuse pool cap; was hardcoded 20).
+    // Tunable via Config::retrieval_fusion_cap; default 20 = unchanged behavior.
+    fusion_cap: usize,
     // B1b: learn-event ledger for the read-only episode join. Scoring,
     // filtering, and ordering above never read it; the join below only
     // resolves text/triples for already-ranked candidates.
@@ -441,7 +444,7 @@ pub fn retrieve(
                 Some(t) => node_store.get(id).map(|n| n.node_type == t).unwrap_or(false),
                 None => true,
             });
-            let mut fused: Vec<(u64, f32)> = crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, 20)
+            let mut fused: Vec<(u64, f32)> = crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, fusion_cap)
                 .into_iter()
                 .map(|(id, _rrf_score)| {
                     let cos = dense_cosines.get(&id).copied().unwrap_or_else(|| {

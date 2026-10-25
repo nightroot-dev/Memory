@@ -1,0 +1,2002 @@
+[
+  {
+    "action": "traced l1rare000 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare000', what was learned: l1rare000 firmware bootloader halted seized",
+    "id": "lex-000",
+    "kind": "lexical",
+    "outcome": "l1rare000 cleared after the replacement 000",
+    "query": "what caused l1rare000",
+    "situation": "l1rare000 firmware bootloader halted seized"
+  },
+  {
+    "action": "traced l1rare001 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare001', what was learned: l1rare001 hypervisor bios jammed snapped",
+    "id": "lex-001",
+    "kind": "lexical",
+    "outcome": "l1rare001 cleared after the replacement 001",
+    "query": "what caused l1rare001",
+    "situation": "l1rare001 hypervisor bios jammed snapped"
+  },
+  {
+    "action": "traced l1rare002 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare002', what was learned: l1rare002 uefi raid cracked warped",
+    "id": "lex-002",
+    "kind": "lexical",
+    "outcome": "l1rare002 cleared after the replacement 002",
+    "query": "what caused l1rare002",
+    "situation": "l1rare002 uefi raid cracked warped"
+  },
+  {
+    "action": "traced l1rare003 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare003', what was learned: l1rare003 nas san dented pitted",
+    "id": "lex-003",
+    "kind": "lexical",
+    "outcome": "l1rare003 cleared after the replacement 003",
+    "query": "what caused l1rare003",
+    "situation": "l1rare003 nas san dented pitted"
+  },
+  {
+    "action": "traced l1rare004 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare004', what was learned: l1rare004 fiber switch corroded annealed",
+    "id": "lex-004",
+    "kind": "lexical",
+    "outcome": "l1rare004 cleared after the replacement 004",
+    "query": "what caused l1rare004",
+    "situation": "l1rare004 fiber switch corroded annealed"
+  },
+  {
+    "action": "traced l1rare005 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare005', what was learned: l1rare005 router modem tempered quenched",
+    "id": "lex-005",
+    "kind": "lexical",
+    "outcome": "l1rare005 cleared after the replacement 005",
+    "query": "what caused l1rare005",
+    "situation": "l1rare005 router modem tempered quenched"
+  },
+  {
+    "action": "traced l1rare006 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare006', what was learned: l1rare006 codec transcoder plated coated",
+    "id": "lex-006",
+    "kind": "lexical",
+    "outcome": "l1rare006 cleared after the replacement 006",
+    "query": "what caused l1rare006",
+    "situation": "l1rare006 codec transcoder plated coated"
+  },
+  {
+    "action": "traced l1rare007 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare007', what was learned: l1rare007 multiplexer oscillator anodized galvanized",
+    "id": "lex-007",
+    "kind": "lexical",
+    "outcome": "l1rare007 cleared after the replacement 007",
+    "query": "what caused l1rare007",
+    "situation": "l1rare007 multiplexer oscillator anodized galvanized"
+  },
+  {
+    "action": "traced l1rare008 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare008', what was learned: l1rare008 resonator capacitor tinned soldered",
+    "id": "lex-008",
+    "kind": "lexical",
+    "outcome": "l1rare008 cleared after the replacement 008",
+    "query": "what caused l1rare008",
+    "situation": "l1rare008 resonator capacitor tinned soldered"
+  },
+  {
+    "action": "traced l1rare009 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare009', what was learned: l1rare009 inductor transistor brazed welded",
+    "id": "lex-009",
+    "kind": "lexical",
+    "outcome": "l1rare009 cleared after the replacement 009",
+    "query": "what caused l1rare009",
+    "situation": "l1rare009 inductor transistor brazed welded"
+  },
+  {
+    "action": "traced l1rare010 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare010', what was learned: l1rare010 diode thyristor riveted bolted",
+    "id": "lex-010",
+    "kind": "lexical",
+    "outcome": "l1rare010 cleared after the replacement 010",
+    "query": "what caused l1rare010",
+    "situation": "l1rare010 diode thyristor riveted bolted"
+  },
+  {
+    "action": "traced l1rare011 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare011', what was learned: l1rare011 relay contactor screwed nailed",
+    "id": "lex-011",
+    "kind": "lexical",
+    "outcome": "l1rare011 cleared after the replacement 011",
+    "query": "what caused l1rare011",
+    "situation": "l1rare011 relay contactor screwed nailed"
+  },
+  {
+    "action": "traced l1rare012 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare012', what was learned: l1rare012 breaker transformer pinned clamped",
+    "id": "lex-012",
+    "kind": "lexical",
+    "outcome": "l1rare012 cleared after the replacement 012",
+    "query": "what caused l1rare012",
+    "situation": "l1rare012 breaker transformer pinned clamped"
+  },
+  {
+    "action": "traced l1rare013 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare013', what was learned: l1rare013 generator turbine crimped swaged",
+    "id": "lex-013",
+    "kind": "lexical",
+    "outcome": "l1rare013 cleared after the replacement 013",
+    "query": "what caused l1rare013",
+    "situation": "l1rare013 generator turbine crimped swaged"
+  },
+  {
+    "action": "traced l1rare014 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare014', what was learned: l1rare014 compressor pump flared beveled",
+    "id": "lex-014",
+    "kind": "lexical",
+    "outcome": "l1rare014 cleared after the replacement 014",
+    "query": "what caused l1rare014",
+    "situation": "l1rare014 compressor pump flared beveled"
+  },
+  {
+    "action": "traced l1rare015 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare015', what was learned: l1rare015 valve actuator chamfered tapped",
+    "id": "lex-015",
+    "kind": "lexical",
+    "outcome": "l1rare015 cleared after the replacement 015",
+    "query": "what caused l1rare015",
+    "situation": "l1rare015 valve actuator chamfered tapped"
+  },
+  {
+    "action": "traced l1rare016 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare016', what was learned: l1rare016 sensor gyroscope threaded bored",
+    "id": "lex-016",
+    "kind": "lexical",
+    "outcome": "l1rare016 cleared after the replacement 016",
+    "query": "what caused l1rare016",
+    "situation": "l1rare016 sensor gyroscope threaded bored"
+  },
+  {
+    "action": "traced l1rare017 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare017', what was learned: l1rare017 accelerometer magnetometer reamed honed",
+    "id": "lex-017",
+    "kind": "lexical",
+    "outcome": "l1rare017 cleared after the replacement 017",
+    "query": "what caused l1rare017",
+    "situation": "l1rare017 accelerometer magnetometer reamed honed"
+  },
+  {
+    "action": "traced l1rare018 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare018', what was learned: l1rare018 barometer hygrometer lapped ground",
+    "id": "lex-018",
+    "kind": "lexical",
+    "outcome": "l1rare018 cleared after the replacement 018",
+    "query": "what caused l1rare018",
+    "situation": "l1rare018 barometer hygrometer lapped ground"
+  },
+  {
+    "action": "traced l1rare019 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare019', what was learned: l1rare019 thermometer thermostat polished sanded",
+    "id": "lex-019",
+    "kind": "lexical",
+    "outcome": "l1rare019 cleared after the replacement 019",
+    "query": "what caused l1rare019",
+    "situation": "l1rare019 thermometer thermostat polished sanded"
+  },
+  {
+    "action": "traced l1rare020 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare020', what was learned: l1rare020 humidifier purifier buffed blasted",
+    "id": "lex-020",
+    "kind": "lexical",
+    "outcome": "l1rare020 cleared after the replacement 020",
+    "query": "what caused l1rare020",
+    "situation": "l1rare020 humidifier purifier buffed blasted"
+  },
+  {
+    "action": "traced l1rare021 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare021', what was learned: l1rare021 ionizer ozonizer etched milled",
+    "id": "lex-021",
+    "kind": "lexical",
+    "outcome": "l1rare021 cleared after the replacement 021",
+    "query": "what caused l1rare021",
+    "situation": "l1rare021 ionizer ozonizer etched milled"
+  },
+  {
+    "action": "traced l1rare022 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare022', what was learned: l1rare022 humidistat anemometer turned drilled",
+    "id": "lex-022",
+    "kind": "lexical",
+    "outcome": "l1rare022 cleared after the replacement 022",
+    "query": "what caused l1rare022",
+    "situation": "l1rare022 humidistat anemometer turned drilled"
+  },
+  {
+    "action": "traced l1rare023 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare023', what was learned: l1rare023 pyrometer spectrometer sawed planed",
+    "id": "lex-023",
+    "kind": "lexical",
+    "outcome": "l1rare023 cleared after the replacement 023",
+    "query": "what caused l1rare023",
+    "situation": "l1rare023 pyrometer spectrometer sawed planed"
+  },
+  {
+    "action": "traced l1rare024 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare024', what was learned: l1rare024 interferometer oscilloscope jointed routed",
+    "id": "lex-024",
+    "kind": "lexical",
+    "outcome": "l1rare024 cleared after the replacement 024",
+    "query": "what caused l1rare024",
+    "situation": "l1rare024 interferometer oscilloscope jointed routed"
+  },
+  {
+    "action": "traced l1rare025 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare025', what was learned: l1rare025 multimeter analyzer shaped mortised",
+    "id": "lex-025",
+    "kind": "lexical",
+    "outcome": "l1rare025 cleared after the replacement 025",
+    "query": "what caused l1rare025",
+    "situation": "l1rare025 multimeter analyzer shaped mortised"
+  },
+  {
+    "action": "traced l1rare026 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare026', what was learned: l1rare026 synthesizer sequencer doweled glued",
+    "id": "lex-026",
+    "kind": "lexical",
+    "outcome": "l1rare026 cleared after the replacement 026",
+    "query": "what caused l1rare026",
+    "situation": "l1rare026 synthesizer sequencer doweled glued"
+  },
+  {
+    "action": "traced l1rare027 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare027', what was learned: l1rare027 plotter printer epoxied grouted",
+    "id": "lex-027",
+    "kind": "lexical",
+    "outcome": "l1rare027 cleared after the replacement 027",
+    "query": "what caused l1rare027",
+    "situation": "l1rare027 plotter printer epoxied grouted"
+  },
+  {
+    "action": "traced l1rare028 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare028', what was learned: l1rare028 engraver cutter caulked potted",
+    "id": "lex-028",
+    "kind": "lexical",
+    "outcome": "l1rare028 cleared after the replacement 028",
+    "query": "what caused l1rare028",
+    "situation": "l1rare028 engraver cutter caulked potted"
+  },
+  {
+    "action": "traced l1rare029 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare029', what was learned: l1rare029 welder riveter painted varnished",
+    "id": "lex-029",
+    "kind": "lexical",
+    "outcome": "l1rare029 cleared after the replacement 029",
+    "query": "what caused l1rare029",
+    "situation": "l1rare029 welder riveter painted varnished"
+  },
+  {
+    "action": "traced l1rare030 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare030', what was learned: l1rare030 press lathe lacquered stained",
+    "id": "lex-030",
+    "kind": "lexical",
+    "outcome": "l1rare030 cleared after the replacement 030",
+    "query": "what caused l1rare030",
+    "situation": "l1rare030 press lathe lacquered stained"
+  },
+  {
+    "action": "traced l1rare031 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare031', what was learned: l1rare031 shaper grinder dyed bleached",
+    "id": "lex-031",
+    "kind": "lexical",
+    "outcome": "l1rare031 cleared after the replacement 031",
+    "query": "what caused l1rare031",
+    "situation": "l1rare031 shaper grinder dyed bleached"
+  },
+  {
+    "action": "traced l1rare032 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare032', what was learned: l1rare032 polisher sander carded spun",
+    "id": "lex-032",
+    "kind": "lexical",
+    "outcome": "l1rare032 cleared after the replacement 032",
+    "query": "what caused l1rare032",
+    "situation": "l1rare032 polisher sander carded spun"
+  },
+  {
+    "action": "traced l1rare033 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare033', what was learned: l1rare033 drill saw woven knitted",
+    "id": "lex-033",
+    "kind": "lexical",
+    "outcome": "l1rare033 cleared after the replacement 033",
+    "query": "what caused l1rare033",
+    "situation": "l1rare033 drill saw woven knitted"
+  },
+  {
+    "action": "traced l1rare034 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare034', what was learned: l1rare034 hammer wrench felted quilted",
+    "id": "lex-034",
+    "kind": "lexical",
+    "outcome": "l1rare034 cleared after the replacement 034",
+    "query": "what caused l1rare034",
+    "situation": "l1rare034 hammer wrench felted quilted"
+  },
+  {
+    "action": "traced l1rare035 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare035', what was learned: l1rare035 pliers chisel stitched hemmed",
+    "id": "lex-035",
+    "kind": "lexical",
+    "outcome": "l1rare035 cleared after the replacement 035",
+    "query": "what caused l1rare035",
+    "situation": "l1rare035 pliers chisel stitched hemmed"
+  },
+  {
+    "action": "traced l1rare036 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare036', what was learned: l1rare036 rasp awl piped edged",
+    "id": "lex-036",
+    "kind": "lexical",
+    "outcome": "l1rare036 cleared after the replacement 036",
+    "query": "what caused l1rare036",
+    "situation": "l1rare036 rasp awl piped edged"
+  },
+  {
+    "action": "traced l1rare037 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare037', what was learned: l1rare037 punch die trimmed notched",
+    "id": "lex-037",
+    "kind": "lexical",
+    "outcome": "l1rare037 cleared after the replacement 037",
+    "query": "what caused l1rare037",
+    "situation": "l1rare037 punch die trimmed notched"
+  },
+  {
+    "action": "traced l1rare038 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare038', what was learned: l1rare038 mold cast grooved slotted",
+    "id": "lex-038",
+    "kind": "lexical",
+    "outcome": "l1rare038 cleared after the replacement 038",
+    "query": "what caused l1rare038",
+    "situation": "l1rare038 mold cast grooved slotted"
+  },
+  {
+    "action": "traced l1rare039 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare039', what was learned: l1rare039 forge furnace dimpled splined",
+    "id": "lex-039",
+    "kind": "lexical",
+    "outcome": "l1rare039 cleared after the replacement 039",
+    "query": "what caused l1rare039",
+    "situation": "l1rare039 forge furnace dimpled splined"
+  },
+  {
+    "action": "traced l1rare040 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare040', what was learned: l1rare040 kiln oven knurled peened",
+    "id": "lex-040",
+    "kind": "lexical",
+    "outcome": "l1rare040 cleared after the replacement 040",
+    "query": "what caused l1rare040",
+    "situation": "l1rare040 kiln oven knurled peened"
+  },
+  {
+    "action": "traced l1rare041 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare041', what was learned: l1rare041 boiler chiller burnished calibrated",
+    "id": "lex-041",
+    "kind": "lexical",
+    "outcome": "l1rare041 cleared after the replacement 041",
+    "query": "what caused l1rare041",
+    "situation": "l1rare041 boiler chiller burnished calibrated"
+  },
+  {
+    "action": "traced l1rare042 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare042', what was learned: l1rare042 stator rotor aligned balanced",
+    "id": "lex-042",
+    "kind": "lexical",
+    "outcome": "l1rare042 cleared after the replacement 042",
+    "query": "what caused l1rare042",
+    "situation": "l1rare042 stator rotor aligned balanced"
+  },
+  {
+    "action": "traced l1rare043 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare043', what was learned: l1rare043 bearing gasket tensioned torqued",
+    "id": "lex-043",
+    "kind": "lexical",
+    "outcome": "l1rare043 cleared after the replacement 043",
+    "query": "what caused l1rare043",
+    "situation": "l1rare043 bearing gasket tensioned torqued"
+  },
+  {
+    "action": "traced l1rare044 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare044', what was learned: l1rare044 flange manifold primed sealed",
+    "id": "lex-044",
+    "kind": "lexical",
+    "outcome": "l1rare044 cleared after the replacement 044",
+    "query": "what caused l1rare044",
+    "situation": "l1rare044 flange manifold primed sealed"
+  },
+  {
+    "action": "traced l1rare045 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare045', what was learned: l1rare045 piston crankshaft vented flushed",
+    "id": "lex-045",
+    "kind": "lexical",
+    "outcome": "l1rare045 cleared after the replacement 045",
+    "query": "what caused l1rare045",
+    "situation": "l1rare045 piston crankshaft vented flushed"
+  },
+  {
+    "action": "traced l1rare046 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare046', what was learned: l1rare046 camshaft flywheel purged adjusted",
+    "id": "lex-046",
+    "kind": "lexical",
+    "outcome": "l1rare046 cleared after the replacement 046",
+    "query": "what caused l1rare046",
+    "situation": "l1rare046 camshaft flywheel purged adjusted"
+  },
+  {
+    "action": "traced l1rare047 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare047', what was learned: l1rare047 clutch gearbox anchored banded",
+    "id": "lex-047",
+    "kind": "lexical",
+    "outcome": "l1rare047 cleared after the replacement 047",
+    "query": "what caused l1rare047",
+    "situation": "l1rare047 clutch gearbox anchored banded"
+  },
+  {
+    "action": "traced l1rare048 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare048', what was learned: l1rare048 differential axle beaded belted",
+    "id": "lex-048",
+    "kind": "lexical",
+    "outcome": "l1rare048 cleared after the replacement 048",
+    "query": "what caused l1rare048",
+    "situation": "l1rare048 differential axle beaded belted"
+  },
+  {
+    "action": "traced l1rare049 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare049', what was learned: l1rare049 suspension catalytic brushed burned",
+    "id": "lex-049",
+    "kind": "lexical",
+    "outcome": "l1rare049 cleared after the replacement 049",
+    "query": "what caused l1rare049",
+    "situation": "l1rare049 suspension catalytic brushed burned"
+  },
+  {
+    "action": "traced l1rare050 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare050', what was learned: l1rare050 muffler radiator carved capped",
+    "id": "lex-050",
+    "kind": "lexical",
+    "outcome": "l1rare050 cleared after the replacement 050",
+    "query": "what caused l1rare050",
+    "situation": "l1rare050 muffler radiator carved capped"
+  },
+  {
+    "action": "traced l1rare051 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare051', what was learned: l1rare051 alternator starter chained cinched",
+    "id": "lex-051",
+    "kind": "lexical",
+    "outcome": "l1rare051 cleared after the replacement 051",
+    "query": "what caused l1rare051",
+    "situation": "l1rare051 alternator starter chained cinched"
+  },
+  {
+    "action": "traced l1rare052 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare052', what was learned: l1rare052 solenoid actuatorx cleated coupled",
+    "id": "lex-052",
+    "kind": "lexical",
+    "outcome": "l1rare052 cleared after the replacement 052",
+    "query": "what caused l1rare052",
+    "situation": "l1rare052 solenoid actuatorx cleated coupled"
+  },
+  {
+    "action": "traced l1rare053 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare053', what was learned: l1rare053 beacon cabinet crated creased",
+    "id": "lex-053",
+    "kind": "lexical",
+    "outcome": "l1rare053 cleared after the replacement 053",
+    "query": "what caused l1rare053",
+    "situation": "l1rare053 beacon cabinet crated creased"
+  },
+  {
+    "action": "traced l1rare054 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare054', what was learned: l1rare054 damper emitter crimpedx crowned",
+    "id": "lex-054",
+    "kind": "lexical",
+    "outcome": "l1rare054 cleared after the replacement 054",
+    "query": "what caused l1rare054",
+    "situation": "l1rare054 damper emitter crimpedx crowned"
+  },
+  {
+    "action": "traced l1rare055 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare055', what was learned: l1rare055 filterx gauge dapped dished",
+    "id": "lex-055",
+    "kind": "lexical",
+    "outcome": "l1rare055 cleared after the replacement 055",
+    "query": "what caused l1rare055",
+    "situation": "l1rare055 filterx gauge dapped dished"
+  },
+  {
+    "action": "traced l1rare056 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare056', what was learned: l1rare056 heatsink isolator doweledx dressed",
+    "id": "lex-056",
+    "kind": "lexical",
+    "outcome": "l1rare056 cleared after the replacement 056",
+    "query": "what caused l1rare056",
+    "situation": "l1rare056 heatsink isolator doweledx dressed"
+  },
+  {
+    "action": "traced l1rare057 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare057', what was learned: l1rare057 junction keypad eased embossed",
+    "id": "lex-057",
+    "kind": "lexical",
+    "outcome": "l1rare057 cleared after the replacement 057",
+    "query": "what caused l1rare057",
+    "situation": "l1rare057 junction keypad eased embossed"
+  },
+  {
+    "action": "traced l1rare058 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare058', what was learned: l1rare058 lens matrix faced faired",
+    "id": "lex-058",
+    "kind": "lexical",
+    "outcome": "l1rare058 cleared after the replacement 058",
+    "query": "what caused l1rare058",
+    "situation": "l1rare058 lens matrix faced faired"
+  },
+  {
+    "action": "traced l1rare059 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare059', what was learned: l1rare059 nodex outlet filleted fitted",
+    "id": "lex-059",
+    "kind": "lexical",
+    "outcome": "l1rare059 cleared after the replacement 059",
+    "query": "what caused l1rare059",
+    "situation": "l1rare059 nodex outlet filleted fitted"
+  },
+  {
+    "action": "traced l1rare060 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare060', what was learned: l1rare060 panel quartz flanged floated",
+    "id": "lex-060",
+    "kind": "lexical",
+    "outcome": "l1rare060 cleared after the replacement 060",
+    "query": "what caused l1rare060",
+    "situation": "l1rare060 panel quartz flanged floated"
+  },
+  {
+    "action": "traced l1rare061 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare061', what was learned: l1rare061 resistorx socket folded forgedx",
+    "id": "lex-061",
+    "kind": "lexical",
+    "outcome": "l1rare061 cleared after the replacement 061",
+    "query": "what caused l1rare061",
+    "situation": "l1rare061 resistorx socket folded forgedx"
+  },
+  {
+    "action": "traced l1rare062 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare062', what was learned: l1rare062 terminal uplink framed frosted",
+    "id": "lex-062",
+    "kind": "lexical",
+    "outcome": "l1rare062 cleared after the replacement 062",
+    "query": "what caused l1rare062",
+    "situation": "l1rare062 terminal uplink framed frosted"
+  },
+  {
+    "action": "traced l1rare063 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare063', what was learned: l1rare063 vent waveguide galvanizedx gouged",
+    "id": "lex-063",
+    "kind": "lexical",
+    "outcome": "l1rare063 cleared after the replacement 063",
+    "query": "what caused l1rare063",
+    "situation": "l1rare063 vent waveguide galvanizedx gouged"
+  },
+  {
+    "action": "traced l1rare064 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare064', what was learned: l1rare064 xenon yoke graded greased",
+    "id": "lex-064",
+    "kind": "lexical",
+    "outcome": "l1rare064 cleared after the replacement 064",
+    "query": "what caused l1rare064",
+    "situation": "l1rare064 xenon yoke graded greased"
+  },
+  {
+    "action": "traced l1rare065 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare065', what was learned: l1rare065 zipper antenna groovedx hardened",
+    "id": "lex-065",
+    "kind": "lexical",
+    "outcome": "l1rare065 cleared after the replacement 065",
+    "query": "what caused l1rare065",
+    "situation": "l1rare065 zipper antenna groovedx hardened"
+  },
+  {
+    "action": "traced l1rare066 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare066', what was learned: l1rare066 busbar contactorx hobbed hoisted",
+    "id": "lex-066",
+    "kind": "lexical",
+    "outcome": "l1rare066 cleared after the replacement 066",
+    "query": "what caused l1rare066",
+    "situation": "l1rare066 busbar contactorx hobbed hoisted"
+  },
+  {
+    "action": "traced l1rare067 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare067', what was learned: l1rare067 armature baffle indexed jacked",
+    "id": "lex-067",
+    "kind": "lexical",
+    "outcome": "l1rare067 cleared after the replacement 067",
+    "query": "what caused l1rare067",
+    "situation": "l1rare067 armature baffle indexed jacked"
+  },
+  {
+    "action": "traced l1rare068 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare068', what was learned: l1rare068 ballast band joggled keyed",
+    "id": "lex-068",
+    "kind": "lexical",
+    "outcome": "l1rare068 cleared after the replacement 068",
+    "query": "what caused l1rare068",
+    "situation": "l1rare068 ballast band joggled keyed"
+  },
+  {
+    "action": "traced l1rare069 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare069', what was learned: l1rare069 barrel bellows knurledx lashed",
+    "id": "lex-069",
+    "kind": "lexical",
+    "outcome": "l1rare069 cleared after the replacement 069",
+    "query": "what caused l1rare069",
+    "situation": "l1rare069 barrel bellows knurledx lashed"
+  },
+  {
+    "action": "traced l1rare070 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare070', what was learned: l1rare070 bezel bushing lathed leveled",
+    "id": "lex-070",
+    "kind": "lexical",
+    "outcome": "l1rare070 cleared after the replacement 070",
+    "query": "what caused l1rare070",
+    "situation": "l1rare070 bezel bushing lathed leveled"
+  },
+  {
+    "action": "traced l1rare071 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare071', what was learned: l1rare071 cam cartridge lined locked",
+    "id": "lex-071",
+    "kind": "lexical",
+    "outcome": "l1rare071 cleared after the replacement 071",
+    "query": "what caused l1rare071",
+    "situation": "l1rare071 cam cartridge lined locked"
+  },
+  {
+    "action": "traced l1rare072 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare072', what was learned: l1rare072 caster chamber looped louvered",
+    "id": "lex-072",
+    "kind": "lexical",
+    "outcome": "l1rare072 cleared after the replacement 072",
+    "query": "what caused l1rare072",
+    "situation": "l1rare072 caster chamber looped louvered"
+  },
+  {
+    "action": "traced l1rare073 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare073', what was learned: l1rare073 chassis chimney matched mitered",
+    "id": "lex-073",
+    "kind": "lexical",
+    "outcome": "l1rare073 cleared after the replacement 073",
+    "query": "what caused l1rare073",
+    "situation": "l1rare073 chassis chimney matched mitered"
+  },
+  {
+    "action": "traced l1rare074 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare074', what was learned: l1rare074 chuck circuit notchedx oiled",
+    "id": "lex-074",
+    "kind": "lexical",
+    "outcome": "l1rare074 cleared after the replacement 074",
+    "query": "what caused l1rare074",
+    "situation": "l1rare074 chuck circuit notchedx oiled"
+  },
+  {
+    "action": "traced l1rare075 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare075', what was learned: l1rare075 clamp cleat packed patched",
+    "id": "lex-075",
+    "kind": "lexical",
+    "outcome": "l1rare075 cleared after the replacement 075",
+    "query": "what caused l1rare075",
+    "situation": "l1rare075 clamp cleat packed patched"
+  },
+  {
+    "action": "traced l1rare076 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare076', what was learned: l1rare076 coil collar pegged perforated",
+    "id": "lex-076",
+    "kind": "lexical",
+    "outcome": "l1rare076 cleared after the replacement 076",
+    "query": "what caused l1rare076",
+    "situation": "l1rare076 coil collar pegged perforated"
+  },
+  {
+    "action": "traced l1rare077 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare077', what was learned: l1rare077 column comb pinnedx planished",
+    "id": "lex-077",
+    "kind": "lexical",
+    "outcome": "l1rare077 cleared after the replacement 077",
+    "query": "what caused l1rare077",
+    "situation": "l1rare077 column comb pinnedx planished"
+  },
+  {
+    "action": "traced l1rare078 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare078', what was learned: l1rare078 console coupling plugged pressed",
+    "id": "lex-078",
+    "kind": "lexical",
+    "outcome": "l1rare078 cleared after the replacement 078",
+    "query": "what caused l1rare078",
+    "situation": "l1rare078 console coupling plugged pressed"
+  },
+  {
+    "action": "traced l1rare079 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare079', what was learned: l1rare079 cover cowling probed punched",
+    "id": "lex-079",
+    "kind": "lexical",
+    "outcome": "l1rare079 cleared after the replacement 079",
+    "query": "what caused l1rare079",
+    "situation": "l1rare079 cover cowling probed punched"
+  },
+  {
+    "action": "traced l1rare080 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare080', what was learned: l1rare080 cradle crank racked rated",
+    "id": "lex-080",
+    "kind": "lexical",
+    "outcome": "l1rare080 cleared after the replacement 080",
+    "query": "what caused l1rare080",
+    "situation": "l1rare080 cradle crank racked rated"
+  },
+  {
+    "action": "traced l1rare081 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare081', what was learned: l1rare081 crown dosimeter reamedx reeved",
+    "id": "lex-081",
+    "kind": "lexical",
+    "outcome": "l1rare081 cleared after the replacement 081",
+    "query": "what caused l1rare081",
+    "situation": "l1rare081 crown dosimeter reamedx reeved"
+  },
+  {
+    "action": "traced l1rare082 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare082', what was learned: l1rare082 dome drawer rivetedx rolled",
+    "id": "lex-082",
+    "kind": "lexical",
+    "outcome": "l1rare082 cleared after the replacement 082",
+    "query": "what caused l1rare082",
+    "situation": "l1rare082 dome drawer rivetedx rolled"
+  },
+  {
+    "action": "traced l1rare083 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare083', what was learned: l1rare083 duct dummy saddled scarfed",
+    "id": "lex-083",
+    "kind": "lexical",
+    "outcome": "l1rare083 cleared after the replacement 083",
+    "query": "what caused l1rare083",
+    "situation": "l1rare083 duct dummy saddled scarfed"
+  },
+  {
+    "action": "traced l1rare084 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare084', what was learned: l1rare084 elbow enclosure scored scraped",
+    "id": "lex-084",
+    "kind": "lexical",
+    "outcome": "l1rare084 cleared after the replacement 084",
+    "query": "what caused l1rare084",
+    "situation": "l1rare084 elbow enclosure scored scraped"
+  },
+  {
+    "action": "traced l1rare085 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare085', what was learned: l1rare085 eyelet fairing seamed seated",
+    "id": "lex-085",
+    "kind": "lexical",
+    "outcome": "l1rare085 cleared after the replacement 085",
+    "query": "what caused l1rare085",
+    "situation": "l1rare085 eyelet fairing seamed seated"
+  },
+  {
+    "action": "traced l1rare086 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare086', what was learned: l1rare086 fan faucet shaved sheared",
+    "id": "lex-086",
+    "kind": "lexical",
+    "outcome": "l1rare086 cleared after the replacement 086",
+    "query": "what caused l1rare086",
+    "situation": "l1rare086 fan faucet shaved sheared"
+  },
+  {
+    "action": "traced l1rare087 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare087', what was learned: l1rare087 fender ferrule shimmed shrunk",
+    "id": "lex-087",
+    "kind": "lexical",
+    "outcome": "l1rare087 cleared after the replacement 087",
+    "query": "what caused l1rare087",
+    "situation": "l1rare087 fender ferrule shimmed shrunk"
+  },
+  {
+    "action": "traced l1rare088 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare088', what was learned: l1rare088 fin flexure sized skived",
+    "id": "lex-088",
+    "kind": "lexical",
+    "outcome": "l1rare088 cleared after the replacement 088",
+    "query": "what caused l1rare088",
+    "situation": "l1rare088 fin flexure sized skived"
+  },
+  {
+    "action": "traced l1rare089 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare089', what was learned: l1rare089 flap frame slottedx solderedx",
+    "id": "lex-089",
+    "kind": "lexical",
+    "outcome": "l1rare089 cleared after the replacement 089",
+    "query": "what caused l1rare089",
+    "situation": "l1rare089 flap frame slottedx solderedx"
+  },
+  {
+    "action": "traced l1rare090 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare090', what was learned: l1rare090 funnel fusible spotted staked",
+    "id": "lex-090",
+    "kind": "lexical",
+    "outcome": "l1rare090 cleared after the replacement 090",
+    "query": "what caused l1rare090",
+    "situation": "l1rare090 funnel fusible spotted staked"
+  },
+  {
+    "action": "traced l1rare091 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare091', what was learned: l1rare091 grommet guard stamped stapled",
+    "id": "lex-091",
+    "kind": "lexical",
+    "outcome": "l1rare091 cleared after the replacement 091",
+    "query": "what caused l1rare091",
+    "situation": "l1rare091 grommet guard stamped stapled"
+  },
+  {
+    "action": "traced l1rare092 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare092', what was learned: l1rare092 guide gusset stitchedx strapped",
+    "id": "lex-092",
+    "kind": "lexical",
+    "outcome": "l1rare092 cleared after the replacement 092",
+    "query": "what caused l1rare092",
+    "situation": "l1rare092 guide gusset stitchedx strapped"
+  },
+  {
+    "action": "traced l1rare093 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare093', what was learned: l1rare093 hanger hasp swagedx tackled",
+    "id": "lex-093",
+    "kind": "lexical",
+    "outcome": "l1rare093 cleared after the replacement 093",
+    "query": "what caused l1rare093",
+    "situation": "l1rare093 hanger hasp swagedx tackled"
+  },
+  {
+    "action": "traced l1rare094 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare094', what was learned: l1rare094 header hinge tapered tenoned",
+    "id": "lex-094",
+    "kind": "lexical",
+    "outcome": "l1rare094 cleared after the replacement 094",
+    "query": "what caused l1rare094",
+    "situation": "l1rare094 header hinge tapered tenoned"
+  },
+  {
+    "action": "traced l1rare095 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare095', what was learned: l1rare095 holder hood tested tied",
+    "id": "lex-095",
+    "kind": "lexical",
+    "outcome": "l1rare095 cleared after the replacement 095",
+    "query": "what caused l1rare095",
+    "situation": "l1rare095 holder hood tested tied"
+  },
+  {
+    "action": "traced l1rare096 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare096', what was learned: l1rare096 housing hub tinnedx topped",
+    "id": "lex-096",
+    "kind": "lexical",
+    "outcome": "l1rare096 cleared after the replacement 096",
+    "query": "what caused l1rare096",
+    "situation": "l1rare096 housing hub tinnedx topped"
+  },
+  {
+    "action": "traced l1rare097 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare097', what was learned: l1rare097 impeller insert traced trued",
+    "id": "lex-097",
+    "kind": "lexical",
+    "outcome": "l1rare097 cleared after the replacement 097",
+    "query": "what caused l1rare097",
+    "situation": "l1rare097 impeller insert traced trued"
+  },
+  {
+    "action": "traced l1rare098 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare098', what was learned: l1rare098 intake jack trussed tucked",
+    "id": "lex-098",
+    "kind": "lexical",
+    "outcome": "l1rare098 cleared after the replacement 098",
+    "query": "what caused l1rare098",
+    "situation": "l1rare098 intake jack trussed tucked"
+  },
+  {
+    "action": "traced l1rare099 through telemetry and replaced the faulty unit",
+    "difficulty": "easy",
+    "discipline_text": "For 'what caused l1rare099', what was learned: l1rare099 jig journal turnedx waxed",
+    "id": "lex-099",
+    "kind": "lexical",
+    "outcome": "l1rare099 cleared after the replacement 099",
+    "query": "what caused l1rare099",
+    "situation": "l1rare099 jig journal turnedx waxed"
+  },
+  {
+    "action": "diagnosed database-connection-pool and applied documented fix 000",
+    "difficulty": "easy",
+    "discipline_text": "For 'why are connections timing out during busy hours', what was learned: database connection pool exhausted under peak load",
+    "id": "para-000",
+    "kind": "paraphrase",
+    "outcome": "database-connection-pool recovered after fix 000",
+    "query": "why are connections timing out during busy hours",
+    "situation": "database connection pool exhausted under peak load"
+  },
+  {
+    "action": "diagnosed authentication-token-expired and applied documented fix 001",
+    "difficulty": "easy",
+    "discipline_text": "For 'users getting logged out unexpectedly', what was learned: authentication token expired before refresh completed",
+    "id": "para-001",
+    "kind": "paraphrase",
+    "outcome": "authentication-token-expired recovered after fix 001",
+    "query": "users getting logged out unexpectedly",
+    "situation": "authentication token expired before refresh completed"
+  },
+  {
+    "action": "diagnosed disk-partition-reached and applied documented fix 002",
+    "difficulty": "easy",
+    "discipline_text": "For 'server ran out of storage space', what was learned: disk partition reached full capacity overnight",
+    "id": "para-002",
+    "kind": "paraphrase",
+    "outcome": "disk-partition-reached recovered after fix 002",
+    "query": "server ran out of storage space",
+    "situation": "disk partition reached full capacity overnight"
+  },
+  {
+    "action": "diagnosed message-queue-backlog and applied documented fix 003",
+    "difficulty": "medium",
+    "discipline_text": "For 'background jobs piling up unprocessed', what was learned: message queue backlog growing faster than workers drain",
+    "id": "para-003",
+    "kind": "paraphrase",
+    "outcome": "message-queue-backlog recovered after fix 003",
+    "query": "background jobs piling up unprocessed",
+    "situation": "message queue backlog growing faster than workers drain"
+  },
+  {
+    "action": "diagnosed tls-certificate-renewal and applied documented fix 004",
+    "difficulty": "easy",
+    "discipline_text": "For 'browsers warn the site is insecure', what was learned: tls certificate renewal failed on edge nodes",
+    "id": "para-004",
+    "kind": "paraphrase",
+    "outcome": "tls-certificate-renewal recovered after fix 004",
+    "query": "browsers warn the site is insecure",
+    "situation": "tls certificate renewal failed on edge nodes"
+  },
+  {
+    "action": "diagnosed cache-hit-ratio and applied documented fix 005",
+    "difficulty": "medium",
+    "discipline_text": "For 'responses suddenly much slower since release', what was learned: cache hit ratio collapsed after deploy",
+    "id": "para-005",
+    "kind": "paraphrase",
+    "outcome": "cache-hit-ratio recovered after fix 005",
+    "query": "responses suddenly much slower since release",
+    "situation": "cache hit ratio collapsed after deploy"
+  },
+  {
+    "action": "diagnosed dns-resolver-returning and applied documented fix 006",
+    "difficulty": "hard",
+    "discipline_text": "For 'clients reaching the wrong server address', what was learned: dns resolver returning stale records",
+    "id": "para-006",
+    "kind": "paraphrase",
+    "outcome": "dns-resolver-returning recovered after fix 006",
+    "query": "clients reaching the wrong server address",
+    "situation": "dns resolver returning stale records"
+  },
+  {
+    "action": "diagnosed memory-leak-in and applied documented fix 007",
+    "difficulty": "medium",
+    "discipline_text": "For 'service restarts fix rising ram usage temporarily', what was learned: memory leak in worker process over several hours",
+    "id": "para-007",
+    "kind": "paraphrase",
+    "outcome": "memory-leak-in recovered after fix 007",
+    "query": "service restarts fix rising ram usage temporarily",
+    "situation": "memory leak in worker process over several hours"
+  },
+  {
+    "action": "diagnosed leader-election-flapping and applied documented fix 008",
+    "difficulty": "medium",
+    "discipline_text": "For 'cluster keeps switching primary repeatedly', what was learned: leader election flapping between replicas",
+    "id": "para-008",
+    "kind": "paraphrase",
+    "outcome": "leader-election-flapping recovered after fix 008",
+    "query": "cluster keeps switching primary repeatedly",
+    "situation": "leader election flapping between replicas"
+  },
+  {
+    "action": "diagnosed rate-limiter-rejecting and applied documented fix 009",
+    "difficulty": "easy",
+    "discipline_text": "For 'customers report blocked requests during sales', what was learned: rate limiter rejecting legitimate bursts",
+    "id": "para-009",
+    "kind": "paraphrase",
+    "outcome": "rate-limiter-rejecting recovered after fix 009",
+    "query": "customers report blocked requests during sales",
+    "situation": "rate limiter rejecting legitimate bursts"
+  },
+  {
+    "action": "diagnosed null-pointer-crash and applied documented fix 010",
+    "difficulty": "easy",
+    "discipline_text": "For 'checkout fails with internal error', what was learned: null pointer crash in payment handler",
+    "id": "para-010",
+    "kind": "paraphrase",
+    "outcome": "null-pointer-crash recovered after fix 010",
+    "query": "checkout fails with internal error",
+    "situation": "null pointer crash in payment handler"
+  },
+  {
+    "action": "diagnosed stale-lock-held and applied documented fix 011",
+    "difficulty": "medium",
+    "discipline_text": "For 'jobs stuck waiting on a dead owner', what was learned: stale lock held after node failure",
+    "id": "para-011",
+    "kind": "paraphrase",
+    "outcome": "stale-lock-held recovered after fix 011",
+    "query": "jobs stuck waiting on a dead owner",
+    "situation": "stale lock held after node failure"
+  },
+  {
+    "action": "diagnosed index-rebuild-blocked and applied documented fix 012",
+    "difficulty": "easy",
+    "discipline_text": "For 'database froze during maintenance window', what was learned: index rebuild blocked writes for twenty minutes",
+    "id": "para-012",
+    "kind": "paraphrase",
+    "outcome": "index-rebuild-blocked recovered after fix 012",
+    "query": "database froze during maintenance window",
+    "situation": "index rebuild blocked writes for twenty minutes"
+  },
+  {
+    "action": "diagnosed clock-skew-broke and applied documented fix 013",
+    "difficulty": "medium",
+    "discipline_text": "For 'fresh logins rejected as expired', what was learned: clock skew broke token validation",
+    "id": "para-013",
+    "kind": "paraphrase",
+    "outcome": "clock-skew-broke recovered after fix 013",
+    "query": "fresh logins rejected as expired",
+    "situation": "clock skew broke token validation"
+  },
+  {
+    "action": "diagnosed connection-churn-from and applied documented fix 014",
+    "difficulty": "hard",
+    "discipline_text": "For 'sockets opening and closing constantly', what was learned: connection churn from misconfigured keepalive",
+    "id": "para-014",
+    "kind": "paraphrase",
+    "outcome": "connection-churn-from recovered after fix 014",
+    "query": "sockets opening and closing constantly",
+    "situation": "connection churn from misconfigured keepalive"
+  },
+  {
+    "action": "diagnosed retry-storm-amplified and applied documented fix 015",
+    "difficulty": "medium",
+    "discipline_text": "For 'one failing service took down the rest', what was learned: retry storm amplified downstream outage",
+    "id": "para-015",
+    "kind": "paraphrase",
+    "outcome": "retry-storm-amplified recovered after fix 015",
+    "query": "one failing service took down the rest",
+    "situation": "retry storm amplified downstream outage"
+  },
+  {
+    "action": "diagnosed unbounded-log-growth and applied documented fix 016",
+    "difficulty": "medium",
+    "discipline_text": "For 'alerts fired for filesystem at one hundred percent', what was learned: unbounded log growth consumed all disk",
+    "id": "para-016",
+    "kind": "paraphrase",
+    "outcome": "unbounded-log-growth recovered after fix 016",
+    "query": "alerts fired for filesystem at one hundred percent",
+    "situation": "unbounded log growth consumed all disk"
+  },
+  {
+    "action": "diagnosed schema-migration-locked and applied documented fix 017",
+    "difficulty": "easy",
+    "discipline_text": "For 'signups timing out during upgrade', what was learned: schema migration locked the users table",
+    "id": "para-017",
+    "kind": "paraphrase",
+    "outcome": "schema-migration-locked recovered after fix 017",
+    "query": "signups timing out during upgrade",
+    "situation": "schema migration locked the users table"
+  },
+  {
+    "action": "diagnosed hot-partition-throttled and applied documented fix 018",
+    "difficulty": "medium",
+    "discipline_text": "For 'one shard overloaded while others idle', what was learned: hot partition throttled by key skew",
+    "id": "para-018",
+    "kind": "paraphrase",
+    "outcome": "hot-partition-throttled recovered after fix 018",
+    "query": "one shard overloaded while others idle",
+    "situation": "hot partition throttled by key skew"
+  },
+  {
+    "action": "diagnosed feature-flag-evaluation and applied documented fix 019",
+    "difficulty": "easy",
+    "discipline_text": "For 'first request after boot takes forever', what was learned: feature flag evaluation slow on cold start",
+    "id": "para-019",
+    "kind": "paraphrase",
+    "outcome": "feature-flag-evaluation recovered after fix 019",
+    "query": "first request after boot takes forever",
+    "situation": "feature flag evaluation slow on cold start"
+  },
+  {
+    "action": "diagnosed webhook-delivery-delayed and applied documented fix 020",
+    "difficulty": "medium",
+    "discipline_text": "For 'integrations receiving events late', what was learned: webhook delivery delayed by backoff",
+    "id": "para-020",
+    "kind": "paraphrase",
+    "outcome": "webhook-delivery-delayed recovered after fix 020",
+    "query": "integrations receiving events late",
+    "situation": "webhook delivery delayed by backoff"
+  },
+  {
+    "action": "diagnosed session-store-evicted and applied documented fix 021",
+    "difficulty": "easy",
+    "discipline_text": "For 'shoppers losing basket contents', what was learned: session store evicted active carts",
+    "id": "para-021",
+    "kind": "paraphrase",
+    "outcome": "session-store-evicted recovered after fix 021",
+    "query": "shoppers losing basket contents",
+    "situation": "session store evicted active carts"
+  },
+  {
+    "action": "diagnosed search-index-lagging and applied documented fix 022",
+    "difficulty": "medium",
+    "discipline_text": "For 'new documents not appearing in results', what was learned: search index lagging behind writes",
+    "id": "para-022",
+    "kind": "paraphrase",
+    "outcome": "search-index-lagging recovered after fix 022",
+    "query": "new documents not appearing in results",
+    "situation": "search index lagging behind writes"
+  },
+  {
+    "action": "diagnosed backup-snapshot-corrupted and applied documented fix 023",
+    "difficulty": "medium",
+    "discipline_text": "For 'disaster recovery drill failed to bring data back', what was learned: backup snapshot corrupted and unrestorable",
+    "id": "para-023",
+    "kind": "paraphrase",
+    "outcome": "backup-snapshot-corrupted recovered after fix 023",
+    "query": "disaster recovery drill failed to bring data back",
+    "situation": "backup snapshot corrupted and unrestorable"
+  },
+  {
+    "action": "diagnosed container-image-pull and applied documented fix 024",
+    "difficulty": "easy",
+    "discipline_text": "For 'deploys stuck waiting on downloads', what was learned: container image pull throttled by registry",
+    "id": "para-024",
+    "kind": "paraphrase",
+    "outcome": "container-image-pull recovered after fix 024",
+    "query": "deploys stuck waiting on downloads",
+    "situation": "container image pull throttled by registry"
+  },
+  {
+    "action": "diagnosed thread-pool-starvation and applied documented fix 025",
+    "difficulty": "hard",
+    "discipline_text": "For 'parallel requests queueing with idle cpu', what was learned: thread pool starvation under fan-out",
+    "id": "para-025",
+    "kind": "paraphrase",
+    "outcome": "thread-pool-starvation recovered after fix 025",
+    "query": "parallel requests queueing with idle cpu",
+    "situation": "thread pool starvation under fan-out"
+  },
+  {
+    "action": "diagnosed misrouted-traffic-after and applied documented fix 026",
+    "difficulty": "medium",
+    "discipline_text": "For 'half the regions serving errors post deploy', what was learned: misrouted traffic after config push",
+    "id": "para-026",
+    "kind": "paraphrase",
+    "outcome": "misrouted-traffic-after recovered after fix 026",
+    "query": "half the regions serving errors post deploy",
+    "situation": "misrouted traffic after config push"
+  },
+  {
+    "action": "diagnosed password-rotation-broke and applied documented fix 027",
+    "difficulty": "medium",
+    "discipline_text": "For 'nightly sync failing authentication', what was learned: password rotation broke service account",
+    "id": "para-027",
+    "kind": "paraphrase",
+    "outcome": "password-rotation-broke recovered after fix 027",
+    "query": "nightly sync failing authentication",
+    "situation": "password rotation broke service account"
+  },
+  {
+    "action": "diagnosed fragmented-packets-dropped and applied documented fix 028",
+    "difficulty": "medium",
+    "discipline_text": "For 'large uploads failing on corporate network', what was learned: fragmented packets dropped by firewall",
+    "id": "para-028",
+    "kind": "paraphrase",
+    "outcome": "fragmented-packets-dropped recovered after fix 028",
+    "query": "large uploads failing on corporate network",
+    "situation": "fragmented packets dropped by firewall"
+  },
+  {
+    "action": "diagnosed runaway-cron-spawning and applied documented fix 029",
+    "difficulty": "easy",
+    "discipline_text": "For 'customers emailed the same invoice twice', what was learned: runaway cron spawning duplicate reports",
+    "id": "para-029",
+    "kind": "paraphrase",
+    "outcome": "runaway-cron-spawning recovered after fix 029",
+    "query": "customers emailed the same invoice twice",
+    "situation": "runaway cron spawning duplicate reports"
+  },
+  {
+    "action": "diagnosed serializer-mismatch-between and applied documented fix 030",
+    "difficulty": "medium",
+    "discipline_text": "For 'mobile app crashing on new api response', what was learned: serializer mismatch between client and server",
+    "id": "para-030",
+    "kind": "paraphrase",
+    "outcome": "serializer-mismatch-between recovered after fix 030",
+    "query": "mobile app crashing on new api response",
+    "situation": "serializer mismatch between client and server"
+  },
+  {
+    "action": "diagnosed file-descriptor-leak and applied documented fix 031",
+    "difficulty": "medium",
+    "discipline_text": "For 'gateway refusing connections after days uptime', what was learned: file descriptor leak in proxy",
+    "id": "para-031",
+    "kind": "paraphrase",
+    "outcome": "file-descriptor-leak recovered after fix 031",
+    "query": "gateway refusing connections after days uptime",
+    "situation": "file descriptor leak in proxy"
+  },
+  {
+    "action": "diagnosed priority-inversion-in and applied documented fix 032",
+    "difficulty": "hard",
+    "discipline_text": "For 'urgent tasks waiting behind batch work', what was learned: priority inversion in scheduler",
+    "id": "para-032",
+    "kind": "paraphrase",
+    "outcome": "priority-inversion-in recovered after fix 032",
+    "query": "urgent tasks waiting behind batch work",
+    "situation": "priority inversion in scheduler"
+  },
+  {
+    "action": "diagnosed expired-cache-poisoned and applied documented fix 033",
+    "difficulty": "easy",
+    "discipline_text": "For 'users seeing yesterday prices', what was learned: expired cache poisoned responses",
+    "id": "para-033",
+    "kind": "paraphrase",
+    "outcome": "expired-cache-poisoned recovered after fix 033",
+    "query": "users seeing yesterday prices",
+    "situation": "expired cache poisoned responses"
+  },
+  {
+    "action": "diagnosed split-brain-after and applied documented fix 034",
+    "difficulty": "medium",
+    "discipline_text": "For 'two primaries accepting writes simultaneously', what was learned: split brain after network partition",
+    "id": "para-034",
+    "kind": "paraphrase",
+    "outcome": "split-brain-after recovered after fix 034",
+    "query": "two primaries accepting writes simultaneously",
+    "situation": "split brain after network partition"
+  },
+  {
+    "action": "diagnosed slow-query-missing and applied documented fix 035",
+    "difficulty": "easy",
+    "discipline_text": "For 'report page loads in minutes not seconds', what was learned: slow query missing index on join",
+    "id": "para-035",
+    "kind": "paraphrase",
+    "outcome": "slow-query-missing recovered after fix 035",
+    "query": "report page loads in minutes not seconds",
+    "situation": "slow query missing index on join"
+  },
+  {
+    "action": "diagnosed health-check-too and applied documented fix 036",
+    "difficulty": "medium",
+    "discipline_text": "For 'instances cycling in and out of rotation', what was learned: health check too strict caused flapping",
+    "id": "para-036",
+    "kind": "paraphrase",
+    "outcome": "health-check-too recovered after fix 036",
+    "query": "instances cycling in and out of rotation",
+    "situation": "health check too strict caused flapping"
+  },
+  {
+    "action": "diagnosed secret-volume-failed and applied documented fix 037",
+    "difficulty": "easy",
+    "discipline_text": "For 'pods crashlooping on missing config', what was learned: secret volume failed to mount",
+    "id": "para-037",
+    "kind": "paraphrase",
+    "outcome": "secret-volume-failed recovered after fix 037",
+    "query": "pods crashlooping on missing config",
+    "situation": "secret volume failed to mount"
+  },
+  {
+    "action": "diagnosed overflow-counter-wrapped and applied documented fix 038",
+    "difficulty": "hard",
+    "discipline_text": "For 'duplicate identifiers appearing in traces', what was learned: overflow counter wrapped request ids",
+    "id": "para-038",
+    "kind": "paraphrase",
+    "outcome": "overflow-counter-wrapped recovered after fix 038",
+    "query": "duplicate identifiers appearing in traces",
+    "situation": "overflow counter wrapped request ids"
+  },
+  {
+    "action": "diagnosed charset-mismatch-garbled and applied documented fix 039",
+    "difficulty": "hard",
+    "discipline_text": "For 'csv download shows broken characters', what was learned: charset mismatch garbled export file",
+    "id": "para-039",
+    "kind": "paraphrase",
+    "outcome": "charset-mismatch-garbled recovered after fix 039",
+    "query": "csv download shows broken characters",
+    "situation": "charset mismatch garbled export file"
+  },
+  {
+    "action": "diagnosed load-balancer-health and applied documented fix 040",
+    "difficulty": "easy",
+    "discipline_text": "For 'traffic shifted unexpectedly', what was learned: load balancer health check flapped during deploy",
+    "id": "para-040",
+    "kind": "paraphrase",
+    "outcome": "load-balancer-health recovered after fix 040",
+    "query": "traffic shifted unexpectedly",
+    "situation": "load balancer health check flapped during deploy"
+  },
+  {
+    "action": "diagnosed redis-replica-fell and applied documented fix 041",
+    "difficulty": "easy",
+    "discipline_text": "For 'cache reads return stale data', what was learned: redis replica fell behind primary by seconds",
+    "id": "para-041",
+    "kind": "paraphrase",
+    "outcome": "redis-replica-fell recovered after fix 041",
+    "query": "cache reads return stale data",
+    "situation": "redis replica fell behind primary by seconds"
+  },
+  {
+    "action": "diagnosed storage-tier-promotion and applied documented fix 042",
+    "difficulty": "medium",
+    "discipline_text": "For 'hot data lags on cold media', what was learned: storage tier promotion delayed by replication backlog",
+    "id": "para-042",
+    "kind": "paraphrase",
+    "outcome": "storage-tier-promotion recovered after fix 042",
+    "query": "hot data lags on cold media",
+    "situation": "storage tier promotion delayed by replication backlog"
+  },
+  {
+    "action": "diagnosed database-migration-locked and applied documented fix 043",
+    "difficulty": "easy",
+    "discipline_text": "For 'writes paused during upgrade', what was learned: database migration locked the events table",
+    "id": "para-043",
+    "kind": "paraphrase",
+    "outcome": "database-migration-locked recovered after fix 043",
+    "query": "writes paused during upgrade",
+    "situation": "database migration locked the events table"
+  },
+  {
+    "action": "diagnosed certificate-rotation-broke and applied documented fix 044",
+    "difficulty": "easy",
+    "discipline_text": "For 'some services cannot connect', what was learned: certificate rotation broke mutual TLS handshake",
+    "id": "para-044",
+    "kind": "paraphrase",
+    "outcome": "certificate-rotation-broke recovered after fix 044",
+    "query": "some services cannot connect",
+    "situation": "certificate rotation broke mutual TLS handshake"
+  },
+  {
+    "action": "diagnosed scheduler-fairness-starved and applied documented fix 045",
+    "difficulty": "medium",
+    "discipline_text": "For 'background tasks never run', what was learned: scheduler fairness starved low-priority jobs",
+    "id": "para-045",
+    "kind": "paraphrase",
+    "outcome": "scheduler-fairness-starved recovered after fix 045",
+    "query": "background tasks never run",
+    "situation": "scheduler fairness starved low-priority jobs"
+  },
+  {
+    "action": "diagnosed message-dedup-key and applied documented fix 046",
+    "difficulty": "medium",
+    "discipline_text": "For 'some events processed twice', what was learned: message dedup key collided across tenants",
+    "id": "para-046",
+    "kind": "paraphrase",
+    "outcome": "message-dedup-key recovered after fix 046",
+    "query": "some events processed twice",
+    "situation": "message dedup key collided across tenants"
+  },
+  {
+    "action": "diagnosed query-planner-chose and applied documented fix 047",
+    "difficulty": "medium",
+    "discipline_text": "For 'queries became slow overnight', what was learned: query planner chose suboptimal index after stats update",
+    "id": "para-047",
+    "kind": "paraphrase",
+    "outcome": "query-planner-chose recovered after fix 047",
+    "query": "queries became slow overnight",
+    "situation": "query planner chose suboptimal index after stats update"
+  },
+  {
+    "action": "diagnosed log-aggregator-dropped and applied documented fix 048",
+    "difficulty": "easy",
+    "discipline_text": "For 'some lines are missing', what was learned: log aggregator dropped events during rotation",
+    "id": "para-048",
+    "kind": "paraphrase",
+    "outcome": "log-aggregator-dropped recovered after fix 048",
+    "query": "some lines are missing",
+    "situation": "log aggregator dropped events during rotation"
+  },
+  {
+    "action": "diagnosed service-mesh-sidecar and applied documented fix 049",
+    "difficulty": "hard",
+    "discipline_text": "For 'calls between systems drop briefly', what was learned: service mesh sidecar restarted under memory pressure",
+    "id": "para-049",
+    "kind": "paraphrase",
+    "outcome": "service-mesh-sidecar recovered after fix 049",
+    "query": "calls between systems drop briefly",
+    "situation": "service mesh sidecar restarted under memory pressure"
+  },
+  {
+    "action": "diagnosed cache-eviction-rate and applied documented fix 050",
+    "difficulty": "easy",
+    "discipline_text": "For 'responses are sluggish', what was learned: cache eviction rate spiked after memory pressure",
+    "id": "para-050",
+    "kind": "paraphrase",
+    "outcome": "cache-eviction-rate recovered after fix 050",
+    "query": "responses are sluggish",
+    "situation": "cache eviction rate spiked after memory pressure"
+  },
+  {
+    "action": "diagnosed connection-pool-leak and applied documented fix 051",
+    "difficulty": "easy",
+    "discipline_text": "For 'new requests wait indefinitely', what was learned: connection pool leak drained available sockets",
+    "id": "para-051",
+    "kind": "paraphrase",
+    "outcome": "connection-pool-leak recovered after fix 051",
+    "query": "new requests wait indefinitely",
+    "situation": "connection pool leak drained available sockets"
+  },
+  {
+    "action": "diagnosed read-replica-lagged and applied documented fix 052",
+    "difficulty": "medium",
+    "discipline_text": "For 'queries return outdated rows', what was learned: read replica lagged minutes behind the writer",
+    "id": "para-052",
+    "kind": "paraphrase",
+    "outcome": "read-replica-lagged recovered after fix 052",
+    "query": "queries return outdated rows",
+    "situation": "read replica lagged minutes behind the writer"
+  },
+  {
+    "action": "diagnosed thread-pool-saturation and applied documented fix 053",
+    "difficulty": "easy",
+    "discipline_text": "For 'server turns away work', what was learned: thread pool saturation rejected incoming tasks",
+    "id": "para-053",
+    "kind": "paraphrase",
+    "outcome": "thread-pool-saturation recovered after fix 053",
+    "query": "server turns away work",
+    "situation": "thread pool saturation rejected incoming tasks"
+  },
+  {
+    "action": "diagnosed file-descriptor-table and applied documented fix 054",
+    "difficulty": "hard",
+    "discipline_text": "For 'process cannot open sockets', what was learned: file descriptor table filled under connection storm",
+    "id": "para-054",
+    "kind": "paraphrase",
+    "outcome": "file-descriptor-table recovered after fix 054",
+    "query": "process cannot open sockets",
+    "situation": "file descriptor table filled under connection storm"
+  },
+  {
+    "action": "diagnosed poison-message-blocked and applied documented fix 055",
+    "difficulty": "medium",
+    "discipline_text": "For 'one bad record halts processing', what was learned: poison message blocked the consumer group",
+    "id": "para-055",
+    "kind": "paraphrase",
+    "outcome": "poison-message-blocked recovered after fix 055",
+    "query": "one bad record halts processing",
+    "situation": "poison message blocked the consumer group"
+  },
+  {
+    "action": "diagnosed clock-skew-broke and applied documented fix 056",
+    "difficulty": "medium",
+    "discipline_text": "For 'fresh credentials rejected as stale', what was learned: clock skew broke token expiry validation",
+    "id": "para-056",
+    "kind": "paraphrase",
+    "outcome": "clock-skew-broke recovered after fix 056",
+    "query": "fresh credentials rejected as stale",
+    "situation": "clock skew broke token expiry validation"
+  },
+  {
+    "action": "diagnosed compaction-backlog-grew and applied documented fix 057",
+    "difficulty": "hard",
+    "discipline_text": "For 'reads degrade over time', what was learned: compaction backlog grew on the storage engine",
+    "id": "para-057",
+    "kind": "paraphrase",
+    "outcome": "compaction-backlog-grew recovered after fix 057",
+    "query": "reads degrade over time",
+    "situation": "compaction backlog grew on the storage engine"
+  },
+  {
+    "action": "diagnosed sticky-session-affinity and applied documented fix 058",
+    "difficulty": "medium",
+    "discipline_text": "For 'one server gets everything', what was learned: sticky session affinity pinned load unevenly",
+    "id": "para-058",
+    "kind": "paraphrase",
+    "outcome": "sticky-session-affinity recovered after fix 058",
+    "query": "one server gets everything",
+    "situation": "sticky session affinity pinned load unevenly"
+  },
+  {
+    "action": "diagnosed request-coalescing-collapsed and applied documented fix 059",
+    "difficulty": "hard",
+    "discipline_text": "For 'cache stampede overloaded origin', what was learned: request coalescing collapsed under thundering herd",
+    "id": "para-059",
+    "kind": "paraphrase",
+    "outcome": "request-coalescing-collapsed recovered after fix 059",
+    "query": "cache stampede overloaded origin",
+    "situation": "request coalescing collapsed under thundering herd"
+  },
+  {
+    "action": "diagnosed heartbeat-timeout-evicted and applied documented fix 060",
+    "difficulty": "hard",
+    "discipline_text": "For 'cluster shrinks for no reason', what was learned: heartbeat timeout evicted healthy members",
+    "id": "para-060",
+    "kind": "paraphrase",
+    "outcome": "heartbeat-timeout-evicted recovered after fix 060",
+    "query": "cluster shrinks for no reason",
+    "situation": "heartbeat timeout evicted healthy members"
+  },
+  {
+    "action": "diagnosed payload-compression-ratio and applied documented fix 061",
+    "difficulty": "hard",
+    "discipline_text": "For 'bandwidth savings vanished', what was learned: payload compression ratio collapsed on binary blobs",
+    "id": "para-061",
+    "kind": "paraphrase",
+    "outcome": "payload-compression-ratio recovered after fix 061",
+    "query": "bandwidth savings vanished",
+    "situation": "payload compression ratio collapsed on binary blobs"
+  },
+  {
+    "action": "diagnosed traffic-shadowing-duplicated and applied documented fix 062",
+    "difficulty": "medium",
+    "discipline_text": "For 'mirror copies overwhelm staging', what was learned: traffic shadowing duplicated production load",
+    "id": "para-062",
+    "kind": "paraphrase",
+    "outcome": "traffic-shadowing-duplicated recovered after fix 062",
+    "query": "mirror copies overwhelm staging",
+    "situation": "traffic shadowing duplicated production load"
+  },
+  {
+    "action": "diagnosed leader-election-flapped and applied documented fix 063",
+    "difficulty": "medium",
+    "discipline_text": "For 'members cannot agree on a primary', what was learned: leader election flapped between two candidates",
+    "id": "para-063",
+    "kind": "paraphrase",
+    "outcome": "leader-election-flapped recovered after fix 063",
+    "query": "members cannot agree on a primary",
+    "situation": "leader election flapped between two candidates"
+  },
+  {
+    "action": "diagnosed noisy-neighbor-saturated and applied documented fix 064",
+    "difficulty": "medium",
+    "discipline_text": "For 'unrelated tenant slows us down', what was learned: noisy neighbor saturated the shared host",
+    "id": "para-064",
+    "kind": "paraphrase",
+    "outcome": "noisy-neighbor-saturated recovered after fix 064",
+    "query": "unrelated tenant slows us down",
+    "situation": "noisy neighbor saturated the shared host"
+  },
+  {
+    "action": "diagnosed SSL-certificate-chain and applied documented fix 065",
+    "difficulty": "easy",
+    "discipline_text": "For 'browsers reject the site identity', what was learned: SSL certificate chain validation failed on edge nodes",
+    "id": "para-065",
+    "kind": "paraphrase",
+    "outcome": "SSL-certificate-chain recovered after fix 065",
+    "query": "browsers reject the site identity",
+    "situation": "SSL certificate chain validation failed on edge nodes"
+  },
+  {
+    "action": "diagnosed authentication-service-returned and applied documented fix 066",
+    "difficulty": "easy",
+    "discipline_text": "For 'legitimate users blocked', what was learned: authentication service returned 401 for valid tokens",
+    "id": "para-066",
+    "kind": "paraphrase",
+    "outcome": "authentication-service-returned recovered after fix 066",
+    "query": "legitimate users blocked",
+    "situation": "authentication service returned 401 for valid tokens"
+  },
+  {
+    "action": "diagnosed canary-analysis-halted and applied documented fix 067",
+    "difficulty": "easy",
+    "discipline_text": "For 'release stopped halfway', what was learned: canary analysis halted the rollout automatically",
+    "id": "para-067",
+    "kind": "paraphrase",
+    "outcome": "canary-analysis-halted recovered after fix 067",
+    "query": "release stopped halfway",
+    "situation": "canary analysis halted the rollout automatically"
+  },
+  {
+    "action": "diagnosed database-sequence-exhausted and applied documented fix 068",
+    "difficulty": "medium",
+    "discipline_text": "For 'inserts fail with duplicate key', what was learned: database sequence exhausted available integers",
+    "id": "para-068",
+    "kind": "paraphrase",
+    "outcome": "database-sequence-exhausted recovered after fix 068",
+    "query": "inserts fail with duplicate key",
+    "situation": "database sequence exhausted available integers"
+  },
+  {
+    "action": "diagnosed websocket-connections-dropped and applied documented fix 069",
+    "difficulty": "easy",
+    "discipline_text": "For 'live updates stall', what was learned: websocket connections dropped behind the proxy",
+    "id": "para-069",
+    "kind": "paraphrase",
+    "outcome": "websocket-connections-dropped recovered after fix 069",
+    "query": "live updates stall",
+    "situation": "websocket connections dropped behind the proxy"
+  },
+  {
+    "action": "diagnosed container-cgroup-limit and applied documented fix 070",
+    "difficulty": "medium",
+    "discipline_text": "For 'app dies without logs', what was learned: container cgroup limit killed the process",
+    "id": "para-070",
+    "kind": "paraphrase",
+    "outcome": "container-cgroup-limit recovered after fix 070",
+    "query": "app dies without logs",
+    "situation": "container cgroup limit killed the process"
+  },
+  {
+    "action": "diagnosed feature-rollout-stuck and applied documented fix 071",
+    "difficulty": "easy",
+    "discipline_text": "For 'most users never got it', what was learned: feature rollout stuck at ten percent",
+    "id": "para-071",
+    "kind": "paraphrase",
+    "outcome": "feature-rollout-stuck recovered after fix 071",
+    "query": "most users never got it",
+    "situation": "feature rollout stuck at ten percent"
+  },
+  {
+    "action": "diagnosed message-ordering-broke and applied documented fix 072",
+    "difficulty": "hard",
+    "discipline_text": "For 'events arrive shuffled', what was learned: message ordering broke after partition rebalance",
+    "id": "para-072",
+    "kind": "paraphrase",
+    "outcome": "message-ordering-broke recovered after fix 072",
+    "query": "events arrive shuffled",
+    "situation": "message ordering broke after partition rebalance"
+  },
+  {
+    "action": "diagnosed tls-session-resumption and applied documented fix 073",
+    "difficulty": "hard",
+    "discipline_text": "For 'returning visitors handshake fully', what was learned: tls session resumption failed across restarts",
+    "id": "para-073",
+    "kind": "paraphrase",
+    "outcome": "tls-session-resumption recovered after fix 073",
+    "query": "returning visitors handshake fully",
+    "situation": "tls session resumption failed across restarts"
+  },
+  {
+    "action": "diagnosed backup-verification-found and applied documented fix 074",
+    "difficulty": "medium",
+    "discipline_text": "For 'disaster drill partially failed', what was learned: backup verification found unrestorable segments",
+    "id": "para-074",
+    "kind": "paraphrase",
+    "outcome": "backup-verification-found recovered after fix 074",
+    "query": "disaster drill partially failed",
+    "situation": "backup verification found unrestorable segments"
+  },
+  {
+    "action": "diagnosed autoscaler-oscillation-added and applied documented fix 075",
+    "difficulty": "hard",
+    "discipline_text": "For 'capacity flaps up and down', what was learned: autoscaler oscillation added and removed nodes",
+    "id": "para-075",
+    "kind": "paraphrase",
+    "outcome": "autoscaler-oscillation-added recovered after fix 075",
+    "query": "capacity flaps up and down",
+    "situation": "autoscaler oscillation added and removed nodes"
+  },
+  {
+    "action": "diagnosed graphql-resolver-n-plus-one and applied documented fix 076",
+    "difficulty": "hard",
+    "discipline_text": "For 'single page load fires hundreds of queries', what was learned: graphql resolver n-plus-one hammered the database",
+    "id": "para-076",
+    "kind": "paraphrase",
+    "outcome": "graphql-resolver-n-plus-one recovered after fix 076",
+    "query": "single page load fires hundreds of queries",
+    "situation": "graphql resolver n-plus-one hammered the database"
+  },
+  {
+    "action": "diagnosed cache-stampede-protection and applied documented fix 077",
+    "difficulty": "hard",
+    "discipline_text": "For 'origin absorbed full traffic', what was learned: cache stampede protection misfired on deploy",
+    "id": "para-077",
+    "kind": "paraphrase",
+    "outcome": "cache-stampede-protection recovered after fix 077",
+    "query": "origin absorbed full traffic",
+    "situation": "cache stampede protection misfired on deploy"
+  },
+  {
+    "action": "diagnosed dns-failover-advertised and applied documented fix 078",
+    "difficulty": "medium",
+    "discipline_text": "For 'clients flap between sites', what was learned: dns failover advertised the standby too early",
+    "id": "para-078",
+    "kind": "paraphrase",
+    "outcome": "dns-failover-advertised recovered after fix 078",
+    "query": "clients flap between sites",
+    "situation": "dns failover advertised the standby too early"
+  },
+  {
+    "action": "diagnosed log-volume-spike and applied documented fix 079",
+    "difficulty": "medium",
+    "discipline_text": "For 'search misses recent entries', what was learned: log volume spike saturated the ingest pipeline",
+    "id": "para-079",
+    "kind": "paraphrase",
+    "outcome": "log-volume-spike recovered after fix 079",
+    "query": "search misses recent entries",
+    "situation": "log volume spike saturated the ingest pipeline"
+  },
+  {
+    "action": "diagnosed p99-latency-crept and applied documented fix 080",
+    "difficulty": "hard",
+    "discipline_text": "For 'everything feels slow', what was learned: p99 latency crept upward all week",
+    "id": "para-080",
+    "kind": "paraphrase",
+    "outcome": "p99-latency-crept recovered after fix 080",
+    "query": "everything feels slow",
+    "situation": "p99 latency crept upward all week"
+  },
+  {
+    "action": "diagnosed error-budget-burned and applied documented fix 081",
+    "difficulty": "hard",
+    "discipline_text": "For 'we may freeze releases', what was learned: error budget burned faster than planned",
+    "id": "para-081",
+    "kind": "paraphrase",
+    "outcome": "error-budget-burned recovered after fix 081",
+    "query": "we may freeze releases",
+    "situation": "error budget burned faster than planned"
+  },
+  {
+    "action": "diagnosed overnight-batch-finished and applied documented fix 082",
+    "difficulty": "hard",
+    "discipline_text": "For 'reports disagree', what was learned: overnight batch finished but numbers look off",
+    "id": "para-082",
+    "kind": "paraphrase",
+    "outcome": "overnight-batch-finished recovered after fix 082",
+    "query": "reports disagree",
+    "situation": "overnight batch finished but numbers look off"
+  },
+  {
+    "action": "diagnosed users-complain-intermittently and applied documented fix 083",
+    "difficulty": "hard",
+    "discipline_text": "For 'nothing reproduces', what was learned: users complain intermittently since tuesday",
+    "id": "para-083",
+    "kind": "paraphrase",
+    "outcome": "users-complain-intermittently recovered after fix 083",
+    "query": "nothing reproduces",
+    "situation": "users complain intermittently since tuesday"
+  },
+  {
+    "action": "diagnosed dashboard-went-red and applied documented fix 084",
+    "difficulty": "hard",
+    "discipline_text": "For 'flapping with no deploy', what was learned: dashboard went red then green alone",
+    "id": "para-084",
+    "kind": "paraphrase",
+    "outcome": "dashboard-went-red recovered after fix 084",
+    "query": "flapping with no deploy",
+    "situation": "dashboard went red then green alone"
+  },
+  {
+    "action": "diagnosed support-tickets-spiked and applied documented fix 085",
+    "difficulty": "hard",
+    "discipline_text": "For 'something broke quietly', what was learned: support tickets spiked after the holiday",
+    "id": "para-085",
+    "kind": "paraphrase",
+    "outcome": "support-tickets-spiked recovered after fix 085",
+    "query": "something broke quietly",
+    "situation": "support tickets spiked after the holiday"
+  },
+  {
+    "action": "diagnosed staging-passes-but and applied documented fix 086",
+    "difficulty": "hard",
+    "discipline_text": "For 'works on my machine', what was learned: staging passes but production fails",
+    "id": "para-086",
+    "kind": "paraphrase",
+    "outcome": "staging-passes-but recovered after fix 086",
+    "query": "works on my machine",
+    "situation": "staging passes but production fails"
+  },
+  {
+    "action": "diagnosed the-same-alert and applied documented fix 087",
+    "difficulty": "hard",
+    "discipline_text": "For 'paging fatigue sets in', what was learned: the same alert fired three nights running",
+    "id": "para-087",
+    "kind": "paraphrase",
+    "outcome": "the-same-alert recovered after fix 087",
+    "query": "paging fatigue sets in",
+    "situation": "the same alert fired three nights running"
+  },
+  {
+    "action": "diagnosed deploy-finished-yet and applied documented fix 088",
+    "difficulty": "hard",
+    "discipline_text": "For 'traffic may not be flowing', what was learned: deploy finished yet graphs look flat",
+    "id": "para-088",
+    "kind": "paraphrase",
+    "outcome": "deploy-finished-yet recovered after fix 088",
+    "query": "traffic may not be flowing",
+    "situation": "deploy finished yet graphs look flat"
+  },
+  {
+    "action": "diagnosed customer-success-escalated and applied documented fix 089",
+    "difficulty": "hard",
+    "discipline_text": "For 'big account is unhappy', what was learned: customer success escalated a vague complaint",
+    "id": "para-089",
+    "kind": "paraphrase",
+    "outcome": "customer-success-escalated recovered after fix 089",
+    "query": "big account is unhappy",
+    "situation": "customer success escalated a vague complaint"
+  },
+  {
+    "action": "diagnosed pager-fired-twice and applied documented fix 090",
+    "difficulty": "hard",
+    "discipline_text": "For 'sleep interrupted again', what was learned: pager fired twice after midnight",
+    "id": "para-090",
+    "kind": "paraphrase",
+    "outcome": "pager-fired-twice recovered after fix 090",
+    "query": "sleep interrupted again",
+    "situation": "pager fired twice after midnight"
+  },
+  {
+    "action": "diagnosed deploy-queue-backed and applied documented fix 091",
+    "difficulty": "medium",
+    "discipline_text": "For 'nothing ships until it clears', what was learned: deploy queue backed up behind one stuck release",
+    "id": "para-091",
+    "kind": "paraphrase",
+    "outcome": "deploy-queue-backed recovered after fix 091",
+    "query": "nothing ships until it clears",
+    "situation": "deploy queue backed up behind one stuck release"
+  },
+  {
+    "action": "diagnosed feature-dependency-map and applied documented fix 092",
+    "difficulty": "medium",
+    "discipline_text": "For 'two services wait on each other', what was learned: feature dependency map has a cycle",
+    "id": "para-092",
+    "kind": "paraphrase",
+    "outcome": "feature-dependency-map recovered after fix 092",
+    "query": "two services wait on each other",
+    "situation": "feature dependency map has a cycle"
+  },
+  {
+    "action": "diagnosed sandbox-data-leaked and applied documented fix 093",
+    "difficulty": "medium",
+    "discipline_text": "For 'prospects saw fake accounts', what was learned: sandbox data leaked into demo environment",
+    "id": "para-093",
+    "kind": "paraphrase",
+    "outcome": "sandbox-data-leaked recovered after fix 093",
+    "query": "prospects saw fake accounts",
+    "situation": "sandbox data leaked into demo environment"
+  },
+  {
+    "action": "diagnosed rate-card-change and applied documented fix 094",
+    "difficulty": "medium",
+    "discipline_text": "For 'quotes are wrong this month', what was learned: rate card change broke billing estimates",
+    "id": "para-094",
+    "kind": "paraphrase",
+    "outcome": "rate-card-change recovered after fix 094",
+    "query": "quotes are wrong this month",
+    "situation": "rate card change broke billing estimates"
+  },
+  {
+    "action": "diagnosed single-sign-on-outage and applied documented fix 095",
+    "difficulty": "easy",
+    "discipline_text": "For 'nobody can log in', what was learned: single sign-on outage locked everyone out",
+    "id": "para-095",
+    "kind": "paraphrase",
+    "outcome": "single-sign-on-outage recovered after fix 095",
+    "query": "nobody can log in",
+    "situation": "single sign-on outage locked everyone out"
+  },
+  {
+    "action": "diagnosed changelog-generated-from and applied documented fix 096",
+    "difficulty": "medium",
+    "discipline_text": "For 'release notes describe other features', what was learned: changelog generated from wrong branch",
+    "id": "para-096",
+    "kind": "paraphrase",
+    "outcome": "changelog-generated-from recovered after fix 096",
+    "query": "release notes describe other features",
+    "situation": "changelog generated from wrong branch"
+  },
+  {
+    "action": "diagnosed gpu-queue-wait and applied documented fix 097",
+    "difficulty": "medium",
+    "discipline_text": "For 'training never starts', what was learned: gpu queue wait exceeded the job timeout",
+    "id": "para-097",
+    "kind": "paraphrase",
+    "outcome": "gpu-queue-wait recovered after fix 097",
+    "query": "training never starts",
+    "situation": "gpu queue wait exceeded the job timeout"
+  },
+  {
+    "action": "diagnosed holiday-traffic-dwarfed and applied documented fix 098",
+    "difficulty": "hard",
+    "discipline_text": "For 'capacity planning was fantasy', what was learned: holiday traffic dwarfed load test numbers",
+    "id": "para-098",
+    "kind": "paraphrase",
+    "outcome": "holiday-traffic-dwarfed recovered after fix 098",
+    "query": "capacity planning was fantasy",
+    "situation": "holiday traffic dwarfed load test numbers"
+  },
+  {
+    "action": "diagnosed postmortem-assigned-to and applied documented fix 099",
+    "difficulty": "hard",
+    "discipline_text": "For 'action items will rot', what was learned: postmortem assigned to nobody in particular",
+    "id": "para-099",
+    "kind": "paraphrase",
+    "outcome": "postmortem-assigned-to recovered after fix 099",
+    "query": "action items will rot",
+    "situation": "postmortem assigned to nobody in particular"
+  }
+]
