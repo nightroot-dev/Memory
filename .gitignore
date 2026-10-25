@@ -31,8 +31,27 @@ tools/eval_b8/tasks/t3-openbot-shortcut/fixtures/
 # B8 eval: per-arm run reports (working files, not committed).
 tools/eval_b8/runs/
 
+# B8 eval T1: third-party mod fixtures kept on disk only (excluded from publish)
+tools/eval_b8/tasks/t1-mods-tab-missing/fixtures/
+
 # Scratch OCR images: one-off diagram-reading tooling outputs (venn_*, char_*).
 # Kept on disk, not tracked since commit 84c1e69 onward.
 /venn_*.png
 /char_*.png
+
+# Scratch analysis tooling + private conversation narrative (never tracked)
+/analyze_q3.py
+/analyze_venn.py
+/ocr_venn.py
+/read_venn.py
+/read_venn2.py
+/find_numbers.py
+/find_numbers2.py
+/download_img.py
+/dl2.py
+/mcp_input.txt
+/MEMORYCONTEXT.txt
+
+# Distro bundle output (zips are built locally, published as GitHub Releases)
+/dist/
 
