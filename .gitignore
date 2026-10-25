@@ -52,6 +52,9 @@ tools/eval_b8/tasks/t1-mods-tab-missing/fixtures/
 /mcp_input.txt
 /MEMORYCONTEXT.txt
 
+# Local engine backups (context snapshots + key material) - NEVER leave the machine
+/backups/
+
 # Distro bundle output (zips are built locally, published as GitHub Releases)
 /dist/
 
