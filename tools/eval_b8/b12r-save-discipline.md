@@ -201,3 +201,106 @@ presented/30, keyword recall, deviations (if any), and the labels above.
 
 No README or recorded-number change follows from this run without the
 reviewer's sign-off.
+
+---
+
+# PART 2 - B12-R result (2026-10-25)
+
+Single run; no re-rolls; no prompt edits; no early stopping. Save stage: both
+arms **30/30 saved, 0 missing / 0 placeholders**. Pick stage: one fresh
+uninvolved session per arm, three batches per arm.
+
+Sessions:
+
+- Save W `ses_e8d09a1f9ffebjviX80mD5AesO`; save D `ses_e8d09a1f7ffemP98PzzaOw1uhn`.
+- Pick W `ses_e8d02c5ddffevqtYCZALW8bE2w`; pick D `ses_e8d04e60dffeYIiIfSsqp9neBp`.
+- Model both stages: `a stand-in client LLM (name withheld)`.
+
+## Result table
+
+| arm | correct / 30 | point estimate | CP 95% | gold presented | placeholders | query-token recall (mean) |
+|---|---|---|---|---|---|---|
+| W - neutral save prompt | 20/30 | 66.7% | [47.19%, 82.71%] | 30/30 | 0 | 0.6822 |
+| D - documented discipline | 30/30 | 100.0% | [88.43%, 100.00%] | 30/30 | 0 | 0.9889 |
+
+**D verdict: PASS the pre-registered bar (D >= 21/30).** The claim supported
+by this run is exactly: "With the documented save discipline, agent-written
+memories reached the 70% point-estimate bar on the hard slice (single run, one
+model family `a stand-in client LLM (name withheld)`, forced save)." D = 30/30, point
+estimate 100.0%, CP 95% [88.43%, 100.00%]. This is a point-estimate claim at
+n=30, not a lower-bound-at-70% claim; the pre-registered test is the point
+estimate.
+
+## Mechanism (read before citing)
+
+- **D made the saved memory the first retrieved candidate in 30/30 pools**
+  (gold pool rank 0 in 30/30; presented rank 1 in 30/30). The D picker answered
+  "1" on all 30 items. The pick stage therefore did not discriminate in D:
+  the end-to-end score equals retrieval@1. This is a statement about the
+  save/retrieval effect, not about reranking skill.
+- D texts quote the user's symptom verbatim. Example, para-006: "For 'clients
+  reaching the wrong server address', the cause was DNS resolver returning
+  stale records — check resolver cache/TTL staleness before inspecting server
+  config." W texts paraphrase the symptom instead. Query-token recall: D
+  0.9889 vs W 0.6822. The D texts are formulaic; readability and usefulness
+  beyond retrieval were not measured.
+- **W's 20/30 is not a clean discipline contrast.** Its b01 batch was
+  malformed: the raw reply contained the JSON object followed by "Selection
+  notes per item", so the registered parser rejected the whole batch
+  (`JSON ERROR (Extra data: line 13 column 1 (char 173))`) and those 10 picks
+  are misses under section 8. No repair, no re-score. W b02 and b03 were valid
+  and scored 20/20. The visible b01 picks were 10/10 correct (para-006:1,
+  para-014:2, para-025:1, para-032:1, para-038:1, para-039:1, para-049:1,
+  para-054:1, para-057:1, para-059:2), but they are **not scored**. The clean
+  descriptive W signals are the pool ranks and query-token recall, not the
+  20/30 total.
+- W pool ranks: presented {1:24, 2:2, 4:2, 8:1, 18:1}; pool {0:24, 1:2, 3:2,
+  7:1, 17:1}. The six non-first W items were para-014 (2), para-059 (2),
+  para-083 (4), para-086 (18), para-087 (8), para-098 (4). The valid b03 picks
+  chose the correct non-first rank for para-083 (4), para-086 (18), para-087
+  (8), and para-098 (4); the visible b01 picks chose rank 2 for para-014 and
+  para-059. W is descriptive only and is not the claim arm.
+
+## Deviations and transport notes
+
+- W b01 malformed pick batch: 10 registered misses, disclosed above. This is
+  the only pick-protocol deviation.
+- Prompt delivery was verified, not assumed. All six admitted prompt bodies
+  were compared against the committed/generated files: each matches
+  byte-for-byte after removing the session transport's single trailing
+  newline. The first message of each session additionally carries the harness
+  line "You are a subagent spawned by another session." (both arms, same
+  transport). W b02/b03 were admitted through the local `session.prompt` API
+  to the same W session (same model, agent, and message bytes; admitted bytes
+  verified) rather than retyped; D b02/b03 were subagent follow-ups. No prompt
+  content was edited and no extra model turn was added.
+- No live MCP server, no contexts, no `registry.toml` interaction: the save
+  stage wrote text only and the bench built the stores in tempdirs. B11
+  registry risk does not apply.
+- No engine change; eval data only. Corrected CP helper from
+  `tools/eval_l3/score_repl.py`. Mechanical per-item score:
+  `tools/eval_b12r/score_b12r.txt`. Parsed picks: `picks_w.json` (20 entries;
+  b01 absent by rule) and `picks_d.json` (30 entries).
+
+## What this does and does not change
+
+- It supports the pre-registered 70% point-estimate claim **only** in the
+  forced-save regime above. It is not a spontaneous-compliance result; B8's
+  zero-learns finding stands.
+- It does not replace or raise the published L3b hard-slice number, which
+  remains **14/30 (46.7%, CP 95% [28.3%, 65.6%])**. The L3b replication
+  (13/30, 43.3%, CP 95% [25.5%, 62.6%]) remains a second sample, not a
+  replacement.
+- No cross-model claim; no notes-file comparison; no claim that the engine
+  "semantically recalls"; no general 100% recall claim. The one model family
+  and the forced-save protocol are part of the result, not incidental labels.
+- No README or recorded-number change follows from this run without the
+  reviewer's sign-off.
+
+## Labels for any citation
+
+Hard slice only; single run; one model family
+(`a stand-in client LLM (name withheld)`); agent-written memories under a **forced-save**
+protocol (not spontaneous compliance); store of 30; no notes-file comparison;
+no cross-model claim; point estimate at the 70% bar with CP CI reported; no
+engine change; eval data only.

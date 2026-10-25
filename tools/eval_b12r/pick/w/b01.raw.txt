@@ -1,0 +1,26 @@
+```json
+{
+  "para-006": 1,
+  "para-014": 2,
+  "para-025": 1,
+  "para-032": 1,
+  "para-038": 1,
+  "para-039": 1,
+  "para-049": 1,
+  "para-054": 1,
+  "para-057": 1,
+  "para-059": 2
+}
+```
+
+Selection notes per item:
+- **para-006** → 1: stale DNS resolver cache directly explains clients reaching the wrong server address.
+- **para-014** → 2: constant socket open/close is the keepalive connection-churn case.
+- **para-025** → 1: requests queueing with idle CPU is classic thread pool starvation.
+- **para-032** → 1: urgent tasks blocked behind batch work is scheduler priority inversion.
+- **para-038** → 1: duplicate identifiers in traces were caused by an overflowing request ID counter.
+- **para-039** → 1: broken characters in CSV downloads are a charset/encoding mismatch.
+- **para-049** → 1: brief inter-system call drops were caused by sidecar restarts under memory pressure.
+- **para-054** → 1: a process unable to open sockets points to an exhausted file descriptor table.
+- **para-057** → 1: reads degrading over time maps to compaction backlog and growing write amplification.
+- **para-059** → 2: the generic cache-stampede symptom best matches request coalescing failing under a thundering herd (candidate 1 is narrower, tied specifically to a post-deploy trigger).
