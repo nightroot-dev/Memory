@@ -52,7 +52,7 @@ reads, selects, and decides. No autonomous-recall claim is made anywhere.
 |---|---|
 | Memory Mathematics (companion: `MATHCONTEXT.MD`) | Frozen (v1.0) |
 | CMHM Context OS Specification (`CMHM_Context_OS_Spec_v1.0.md`) | Frozen (v1.0) — unchanged by this file |
-| CMHM Validation Protocol | Not yet written as a formal doc; pre-registered, per-run protocols in this repo (e.g. the B13 ship-default run) are the working precursor |
+| CMHM Validation Protocol (`CMHM_Validation_Protocol_v1.0.md`) | Frozen (v1.0) — Specification 3 of 3 complete; five standing experiment families (exact lookup, engine-alone hard retrieval, agent-assisted record, durability, safety channels); instance notes live under `tools/eval_*` |
 | Engine/engineering docs (`CONTEXT.MD`, `RUNTIME.MD`, `CLIENTRUNTIME.MD`) | Describe the shipped subsystems |
 
 ## Delivered-stack note
