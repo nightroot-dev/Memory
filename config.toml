@@ -6,24 +6,31 @@
 working_memory_size = 5
 
 # Edge birth: minimum similarity score to create an inferred edge
+# [reserved for v2: the engine does not read this knob yet]
 edge_birth_threshold = 0.35
 
 # Node birth: maximum cosine to nearest neighbor (below = novel)
+# [reserved for v2: the engine does not read this knob yet]
 novelty_threshold = 0.55
 
 # Node birth: minimum salience to force creation even if not novel
+# [reserved for v2: the engine does not read this knob yet]
 salience_threshold = 0.70
 
 # Edge forgetting rate lambda_c in hr^-1 (half-life ≈ 7 hours)
+# [reserved for v2: the engine does not read this knob yet]
 forgetting_lambda_c = 0.1
 
 # Edge birth temporal decay lambda_t in s^-1
+# [reserved for v2: the engine does not read this knob yet]
 temporal_decay_lambda_t = 0.0001
 
 # Number of cohort centroids for superstition filter
+# [reserved for v2: the engine does not read this knob yet]
 cohort_count = 512
 
 # Dense core relation slices
+# [reserved for v2: the engine does not read this knob yet]
 dense_core_slices = 8
 
 # Hours between consolidation passes

@@ -8,24 +8,31 @@ pub struct Config {
     /// Working memory buffer capacity (default: 5).
     #[serde(default = "default_working_memory_size")]
     pub working_memory_size: usize,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Edge birth: minimum similarity score to create an inferred edge (default: 0.35).
     #[serde(default = "default_edge_birth_threshold")]
     pub edge_birth_threshold: f32,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Node birth: maximum cosine to nearest neighbor for novelty (default: 0.55).
     #[serde(default = "default_novelty_threshold")]
     pub novelty_threshold: f32,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Node birth: minimum salience to force creation even if not novel (default: 0.70).
     #[serde(default = "default_salience_threshold")]
     pub salience_threshold: f32,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Edge forgetting rate λ_c in hr⁻¹ (default: 0.1, half-life ~7h).
     #[serde(default = "default_forgetting_lambda_c")]
     pub forgetting_lambda_c: f64,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Edge birth temporal decay λ_t in s⁻¹ (default: 0.0001).
     #[serde(default = "default_temporal_decay_lambda_t")]
     pub temporal_decay_lambda_t: f64,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Number of cohort centroids for the superstition filter (default: 512).
     #[serde(default = "default_cohort_count")]
     pub cohort_count: usize,
+    /// Reserved for v2: the engine does not read this knob yet.
     /// Dense core relation slices (default: 8).
     #[serde(default = "default_dense_core_slices")]
     pub dense_core_slices: usize,

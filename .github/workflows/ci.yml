@@ -1,0 +1,27 @@
+name: rust-tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    # The repo's .cargo/config.toml pins the Windows-GNU toolchain for local
+    # builds; CI overrides the target explicitly so the runner's default MSVC
+    # toolchain is used (no MSYS2 needed). Default features only: the optional
+    # onnx embedder path is exercised locally, not in CI.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (default features, MSVC target override)
+        run: cargo build --target x86_64-pc-windows-msvc -p cmhm_core -p cmhm_mcp
+      - name: Core library tests
+        run: cargo test -p cmhm_core --lib --target x86_64-pc-windows-msvc
+      - name: MCP tool tests
+        run: cargo test -p cmhm_mcp --test tool_tests --target x86_64-pc-windows-msvc
