@@ -1,5 +1,7 @@
 # CMHM — Causal-Matrix Hybrid Memory
 
+[![rust-tests](https://github.com/nightroot-dev/Memory/actions/workflows/ci.yml/badge.svg)](https://github.com/nightroot-dev/Memory/actions/workflows/ci.yml)
+
 A local-first memory engine for AI agents built around one honest contract:
 
 - **Exact lookup always works, engine-only.** If the words you search with appear
