@@ -2,15 +2,16 @@ pub mod schema;
 
 /// Standing orders injected into the model's context on every session via MCP
 /// initialize. Deliberately tiered (B4): setup is one call, retrieval and
-/// learning fire on real events, and the text is honest about what the
-/// numbers mean. Lives in the lib so its properties are testable.
+/// learning fire on real events, acted-on recalls are closed via
+/// memory_feedback (usefulness bandit + decay), and the text is honest about
+/// what the numbers mean. Lives in the lib so its properties are testable.
 pub const CMHM_INSTRUCTIONS: &str = r#"
-You have a causal memory store (CMHM). Use it when it can help and skip it when it can't - every call costs time and tokens.
+You have a causal memory store (CMHM). Use it when it helps, skip it when it doesn't - calls cost time and tokens.
 
 ## Setup (once per session)
 Call `project_detect`. It returns a ready-to-use `context_id`: it reuses this project's context or creates one, and returns the same id on repeat calls. Use that id for the session; no further setup is needed.
 
-## Retrieve - only when there is something to recall
+## Retrieve - only with something to recall
 Call `memory_retrieve_text` on that context only when:
 - you start a task in a domain where this project has history,
 - you hit an error, a failed build, or a dead end, or
@@ -18,7 +19,10 @@ Call `memory_retrieve_text` on that context only when:
 Skip it for trivial edits, routine lookups and routine steps.
 
 ## Learn - only outcome-changing events
-Call `memory_learn_text` when an event changes what you would do next: a failure you diagnosed or fixed, a decision you made, a configuration or pitfall you discovered. Skip routine progress ("ran the tests", "edited a file"). One summary at the end of a session is enough. When the learn carries a fix the user hit, write `state` so it quotes the user's own wording of the symptom alongside what was learned - verbatim symptom phrasing is what later queries match; paraphrase-only state text often becomes unfindable.
+Call `memory_learn_text` when an event changes what you would do next: a failure you diagnosed or fixed, a decision you made, a configuration or pitfall you discovered. Skip routine progress ("ran the tests"). One end-of-session summary is enough. When the learn carries a fix the user hit, write `state` so it quotes the user's own wording of the symptom alongside what was learned - verbatim symptom phrasing is what later queries match; paraphrase-only state text often becomes unfindable.
+
+## Close the loop
+If you acted on recalled memory, call `memory_feedback` with acted-on node_ids, `retrieve_id`, outcome `"success"`/`"failure"`. Helpful memories live longer.
 
 ## Reading results honestly
 Retrievals return the stored text plus edge statistics. `evidence` is a count of observations, not a confidence percentage. A `no_match` routing result means nothing relevant exists - create a context only if the work is worth remembering later.
