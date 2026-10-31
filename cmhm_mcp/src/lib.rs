@@ -1,31 +1,32 @@
 pub mod schema;
 
-/// Standing orders injected into the model's context on every session via MCP
-/// initialize. Deliberately tiered (B4): setup is one call, retrieval and
-/// learning fire on real events, acted-on recalls are closed via
-/// memory_feedback (usefulness bandit + decay), and the text is honest about
-/// what the numbers mean. Lives in the lib so its properties are testable.
+/// Instructions injected into the model's context on session start via MCP
+/// initialize. Demoted from standing orders to on-request guidance after the
+/// pre-registered usefulness window measured 0 feedback closes across 7
+/// retrievals in 4 sessions (2026-10-26..31): look things up when stuck or
+/// asked, learn only outcome-changing events, close the loop only when a
+/// recall actually changed a decision. Kept lean and honest (B4 budget).
 pub const CMHM_INSTRUCTIONS: &str = r#"
-You have a causal memory store (CMHM). Use it when it helps, skip it when it doesn't - calls cost time and tokens.
+You have a local causal memory store (CMHM). Use it on request, not as a ritual: look something up when it could change a decision, skip it otherwise. Calls cost time and tokens.
 
-## Setup (once per session)
-Call `project_detect`. It returns a ready-to-use `context_id`: it reuses this project's context or creates one, and returns the same id on repeat calls. Use that id for the session; no further setup is needed.
+## Setup (first use only)
+Call `project_detect` when you first use the store. It returns a ready-to-use `context_id` (same id on repeat calls); pass that id to every call.
 
-## Retrieve - only with something to recall
-Call `memory_retrieve_text` on that context only when:
-- you start a task in a domain where this project has history,
-- you hit an error, a failed build, or a dead end, or
+## Retrieve - on request
+Call `memory_retrieve_text` only when:
+- you hit an error, a failed build, or a dead end,
+- the user asks what this project knows about something, or
 - you are choosing between real alternatives and a past attempt is plausible.
-Skip it for trivial edits, routine lookups and routine steps.
+Skip it for routine steps and when the context is already loaded.
 
 ## Learn - only outcome-changing events
-Call `memory_learn_text` when an event changes what you would do next: a failure you diagnosed or fixed, a decision you made, a configuration or pitfall you discovered. Skip routine progress ("ran the tests"). One end-of-session summary is enough. When the learn carries a fix the user hit, write `state` so it quotes the user's own wording of the symptom alongside what was learned - verbatim symptom phrasing is what later queries match; paraphrase-only state text often becomes unfindable.
+Call `memory_learn_text` when an event changes what you would do next: a failure you diagnosed or fixed, a decision you made, a configuration or pitfall you discovered. Skip routine progress ("ran the tests"). When the learn carries a fix the user hit, quote the user's own symptom words in `state` - verbatim phrasing is what later queries match.
 
-## Close the loop
-If you acted on recalled memory, call `memory_feedback` with acted-on node_ids, `retrieve_id`, outcome `"success"`/`"failure"`. Helpful memories live longer.
+## Feedback - optional
+If a recall actually changed what you did, close the loop once with `memory_feedback` (acted-on node_ids, `retrieve_id`, outcome "success"/"failure"). Skip it when the recall changed nothing.
 
 ## Reading results honestly
-Retrievals return the stored text plus edge statistics. `evidence` is a count of observations, not a confidence percentage. A `no_match` routing result means nothing relevant exists - create a context only if the work is worth remembering later.
+Retrievals return stored text plus edge statistics. `evidence` is a count of observations, not a confidence percentage. A `no_match` routing result means nothing relevant exists - create a context only if the work is worth remembering later.
 "#;
 
 pub mod tools;
