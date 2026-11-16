@@ -67,3 +67,6 @@ tools/phase5_data/repos/
 tools/phase5_data/model/
 tools/phase5_data_smoke/
 
+# Local dogfooding telemetry (daily working log, not project history)
+/DOGFOOD_LOG.md
+
