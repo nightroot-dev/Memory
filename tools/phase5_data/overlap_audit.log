@@ -1,0 +1,17 @@
+=== Phase 3 Overlap Audit Log (v1.5) ===
+Timestamp: 2026-11-16T18:52:02.4612947+05:30
+Candidate SHA-256:   5C1EF4440DD0A70DDD2C39552FAB63F28E2201EC03F1036F871C94C6CA681E13
+Ref Rejection SHA:   7D5DD0EA7FCE669A39B3E34C41CB8E2656EADA3118529010371AA888B33FE6FF
+Ref Compromised SHA: 40DF689C1C09B3D835BD1C65BEF6E5A3F561E23895ED9309D0E610CEA03C4231
+Ref Attempt-1:       40 queries hardcoded at audit-script commit (recoverable from e989a91)
+Ref Attempt-2:       43 queries hardcoded at audit-script commit (recoverable from 11c0a07)
+Ref Attempt-3:       43 queries hardcoded at audit-script commit (recoverable from a58bc0a)
+Attempt-1 Exact Matches: 0 (must be 0)
+Attempt-2 Exact Matches: 0 (must be 0)
+Attempt-3 Exact Matches: 0 (must be 0)
+Candidate Queries:   3620
+Threshold:           Jaccard < 0.3, Verbatim < 6 words
+Total pairwise checks: 803640
+Max Jaccard observed:  0.0526
+Total violations:      0
+VERDICT: PASS (Zero overlap violations detected)

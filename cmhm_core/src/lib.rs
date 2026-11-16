@@ -51,6 +51,7 @@ pub mod text_embed;
 pub mod bm25;
 pub mod scrub;
 pub mod embed;
+pub mod reranker;
 pub mod authority;
 pub mod migration;
 pub mod learn_ledger;

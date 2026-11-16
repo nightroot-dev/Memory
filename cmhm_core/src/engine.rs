@@ -124,6 +124,14 @@ pub enum Command {
         meta: crate::learn_ledger::LearnMeta,
         tx: mpsc::SyncSender<Result<bool>>,
     },
+    /// Phase 5: attach typed experience metadata to a node. Returns true when
+    /// applied, false when the node id is unknown. WAL-logged (0x08); replay
+    /// applies the same annotation idempotently.
+    AnnotateExperience {
+        node_id: u64,
+        meta: crate::learn_ledger::ExperienceMeta,
+        tx: mpsc::SyncSender<Result<bool>>,
+    },
     /// Read the current adaptive quantile gate value (birth_q30).
     GetBirthQ30 {
         tx: mpsc::SyncSender<f32>,
@@ -288,6 +296,20 @@ const WAL_TYPE_FEEDBACK_UNKEYED: u8 = 0x06;
 /// duplicate replay is benign (same posture as unkeyed feedback). Old readers
 /// hit the legacy `_` arm and skip it as an unparsable legacy entry.
 const WAL_TYPE_LEARN_META: u8 = 0x07;
+
+/// Phase 5: WAL record for typed experience metadata keyed by node id.
+/// Re-applying the same annotation is idempotent (same values, same node).
+const WAL_TYPE_EXPERIENCE_META: u8 = 0x08;
+
+/// Phase 5: serialisable experience annotation for WAL + replay paths.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct WalExperienceMetaEntry {
+    node_id: u64,
+    trigger_signature: String,
+    decision_payload: String,
+    disposition: crate::learn_ledger::Disposition,
+    blocked: Option<crate::learn_ledger::BlockedProcess>,
+}
 
 /// B6b: serialisable metadata record for WAL + snapshot paths.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -664,6 +686,19 @@ impl EngineHandle {
         resp_rx.recv()?
     }
 
+    /// Phase 5: attach typed experience metadata to a node (trigger signature,
+    /// decision payload, disposition, blocked-process details). Returns true
+    /// when applied, false when the node id is unknown. WAL-logged (0x08).
+    pub fn annotate_experience(
+        &self,
+        node_id: u64,
+        meta: crate::learn_ledger::ExperienceMeta,
+    ) -> Result<bool> {
+        let (resp_tx, resp_rx) = mpsc::sync_channel(1);
+        self.tx.send(Command::AnnotateExperience { node_id, meta, tx: resp_tx })?;
+        resp_rx.recv()?
+    }
+
     /// Current value of the adaptive P₀.₃₀ birth gate quantile.
     /// Returns 0.30 (the prior) if the channel is closed.
     /// Read-only — no WAL write. Used by tests to verify quantile convergence.
@@ -1005,6 +1040,50 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                         }
                     }
                 }
+            } else if found == 6 {
+                // v6 → v7: stores + ledger kept bit-for-bit; every node gains
+                // neutral Phase 5 experience defaults (empty trigger signature,
+                // unspecified disposition, no blocked process). No behavior
+                // change for legacy nodes: their `text` remains the index.
+                match crate::migration::migrate_v6_to_v7(&payload) {
+                    Ok(migrated) => {
+                        tracing::info!(
+                            "Snapshot v6→v7 migration succeeded: {} nodes recovered with ledger len {}.",
+                            migrated.node_store.len(),
+                            migrated.learn_ledger.len()
+                        );
+                        migrated
+                    }
+                    Err(migration_err) => {
+                        tracing::error!(
+                            "Snapshot schema mismatch (found=v{found}, expected=v{expected}). \
+                             Migration attempt failed: {migration_err}."
+                        );
+
+                        if cfg.allow_incompatible_snapshot_reset {
+                            let quarantine_path = snapshot_path.with_extension(
+                                format!("v{found}.incompatible")
+                            );
+                            let _ = std::fs::rename(&snapshot_path, &quarantine_path);
+                            for n in 1u32..=2 {
+                                let gen_path = snapshot_path.with_extension(format!("bin.{n}"));
+                                if gen_path.exists() {
+                                    let q = snapshot_path.with_extension(
+                                        format!("v{found}.incompatible.{n}")
+                                    );
+                                    let _ = std::fs::rename(&gen_path, &q);
+                                }
+                            }
+                            CoreState::new(cfg.working_memory_size)
+                        } else {
+                            return Err(anyhow::Error::new(SchemaMismatchError {
+                                found,
+                                expected,
+                                snapshot_path: snapshot_path.clone(),
+                            }));
+                        }
+                    }
+                }
             } else {
                 tracing::error!(
                     "Snapshot schema mismatch (found=v{found}, expected=v{expected})."
@@ -1290,6 +1369,23 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
                                 Err(e) => tracing::warn!("WAL LearnMeta decode error: {e}"),
                             }
                         }
+                        WAL_TYPE_EXPERIENCE_META => {
+                            // Phase 5: re-apply experience metadata. Idempotent
+                            // for identical content; unknown nodes skip.
+                            match bincode::deserialize::<WalExperienceMetaEntry>(&payload[1..]) {
+                                Ok(m) => {
+                                    let meta = crate::learn_ledger::ExperienceMeta {
+                                        trigger_signature: m.trigger_signature,
+                                        decision_payload: m.decision_payload,
+                                        disposition: m.disposition,
+                                        blocked: m.blocked,
+                                    };
+                                    apply_experience_meta(&mut state, m.node_id, &meta);
+                                    replayed += 1;
+                                }
+                                Err(e) => tracing::warn!("WAL ExperienceMeta decode error: {e}"),
+                            }
+                        }
                         _ => {
                             // Legacy untyped Learn (pre-44e4b15): whole payload = WalLearnEntry.
                             // Replay with neutral defaults for the new fields.
@@ -1349,6 +1445,26 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     // ── Step 4: Open fresh WAL ────────────────────────────────────────────
     let wal = Some(WalWriter::open(&wal_path)?);
 
+    // ── Step 4b: Optional Stage 2 reranker ────────────────────────────────
+    // Off by default. Enabling it requires both a build with `--features onnx`
+    // and an explicit `reranker_dir`; a misconfiguration fails startup instead
+    // of silently degrading to Stage 1.
+    #[cfg(feature = "onnx")]
+    let reranker = if cfg.reranker_enabled {
+        let dir = cfg.reranker_dir.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("reranker_enabled = true but reranker_dir is not set")
+        })?;
+        Some(crate::reranker::ExperienceReranker::from_dir(dir)?)
+    } else {
+        None
+    };
+    #[cfg(not(feature = "onnx"))]
+    if cfg.reranker_enabled {
+        return Err(anyhow::anyhow!(
+            "reranker_enabled = true but this build was compiled without the onnx feature"
+        ));
+    }
+
     // ── Step 5: Start worker thread ───────────────────────────────────────
     let (cmd_tx, cmd_rx) = mpsc::sync_channel::<Command>(64);
     let worker_cfg = cfg.clone();
@@ -1359,6 +1475,9 @@ pub fn start(cfg: Config) -> Result<EngineHandle> {
     std::thread::Builder::new()
         .name("cmhm-worker".to_string())
         .spawn(move || {
+            #[cfg(feature = "onnx")]
+            worker_loop(state, cmd_rx, wal, worker_cfg, worker_snapshot_path, worker_wal_path, reranker);
+            #[cfg(not(feature = "onnx"))]
             worker_loop(state, cmd_rx, wal, worker_cfg, worker_snapshot_path, worker_wal_path);
         })?;
 
@@ -1374,6 +1493,7 @@ fn worker_loop(
     cfg: Config,
     snapshot_path: PathBuf,
     _wal_path: PathBuf,
+    #[cfg(feature = "onnx")] mut reranker: Option<crate::reranker::ExperienceReranker>,
 ) {
     let mut rng = SmallRng::from_entropy();
     let mut cmd_count: u64 = 0;
@@ -1386,7 +1506,13 @@ fn worker_loop(
 
         match cmd {
              Command::Retrieve { query_emb, model_id, seed_type, query_text, meta_filter, tx } => {
-                 let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &query_text, meta_filter.as_ref(), &mut rng, &cfg);
+                 #[cfg(feature = "onnx")]
+                 let stage2 = reranker
+                     .as_mut()
+                     .map(|r| r as &mut dyn crate::reranker::Stage2Reranker);
+                 #[cfg(not(feature = "onnx"))]
+                 let stage2: Option<&mut dyn crate::reranker::Stage2Reranker> = None;
+                 let result = process_retrieve(&state, &query_emb, &model_id, seed_type, &query_text, meta_filter.as_ref(), &mut rng, &cfg, stage2);
                 let _ = tx.send(result);
             }
 
@@ -1606,6 +1732,10 @@ fn worker_loop(
                     timestamp: n.timestamp,
                     authority: n.authority,
                     provenance: n.provenance.clone(),
+                    trigger_signature: n.trigger_signature.clone(),
+                    decision_payload: n.decision_payload.clone(),
+                    disposition: n.disposition,
+                    blocked: n.blocked.clone(),
                 });
                 let _ = tx.send(result);
             }
@@ -1623,6 +1753,10 @@ fn worker_loop(
                         timestamp: n.timestamp,
                         authority: n.authority,
                         provenance: n.provenance.clone(),
+                        trigger_signature: n.trigger_signature.clone(),
+                        decision_payload: n.decision_payload.clone(),
+                        disposition: n.disposition,
+                        blocked: n.blocked.clone(),
                     })
                 }).collect();
                 let _ = tx.send(rows);
@@ -1652,6 +1786,33 @@ fn worker_loop(
                             tagged.push(WAL_TYPE_LEARN_META);
                             tagged.extend_from_slice(&payload);
                             if let Err(e) = wal.append(&tagged) { tracing::error!("WAL append failed (LearnMeta): {e}"); }
+                        }
+                    }
+                }
+                let _ = tx.send(Ok(applied));
+            }
+
+            Command::AnnotateExperience { node_id, meta, tx } => {
+                // Phase 5: apply typed experience metadata; WAL-log on success
+                // (0x08 re-apply is idempotent). Unknown node ids return
+                // Ok(false) — surfaced, never silent.
+                let applied = apply_experience_meta(&mut state, node_id, &meta);
+                if applied {
+                    if let Some(wal) = &mut wal {
+                        let entry = WalExperienceMetaEntry {
+                            node_id,
+                            trigger_signature: meta.trigger_signature.clone(),
+                            decision_payload: meta.decision_payload.clone(),
+                            disposition: meta.disposition,
+                            blocked: meta.blocked.clone(),
+                        };
+                        if let Ok(payload) = bincode::serialize(&entry) {
+                            let mut tagged = Vec::with_capacity(1 + payload.len());
+                            tagged.push(WAL_TYPE_EXPERIENCE_META);
+                            tagged.extend_from_slice(&payload);
+                            if let Err(e) = wal.append(&tagged) {
+                                tracing::error!("WAL append failed (ExperienceMeta): {e}");
+                            }
                         }
                     }
                 }
@@ -1743,6 +1904,7 @@ fn process_retrieve(
      meta_filter: Option<&crate::learn_ledger::MetaFilter>,
      rng: &mut impl rand::Rng,
     cfg: &Config,
+    stage2: Option<&mut dyn crate::reranker::Stage2Reranker>,
 ) -> Result<RetrievalResult> {
     let projected = state.projections.project(model_id, raw_emb)
         .map_err(|e| anyhow::anyhow!("Projection error: {e}"))?;
@@ -1768,6 +1930,7 @@ fn process_retrieve(
          cfg.retrieval_fusion_cap,
         &state.learn_ledger,
         meta_filter,
+        stage2,
       ))
  }
 
@@ -1950,6 +2113,30 @@ fn process_learn(
 /// Returns `(id, birthed)`: `birthed=true` when a new node was inserted,
 /// `false` when an existing node was returned (dedup). Projection refusal
 /// returns `(0, false)` — callers treat 0 as fail-closed.
+/// Phase 5: apply typed experience metadata to one node and refresh its BM25
+/// entry. Returns false when the node id is unknown.
+fn apply_experience_meta(
+    state: &mut CoreState,
+    node_id: u64,
+    meta: &crate::learn_ledger::ExperienceMeta,
+) -> bool {
+    let index_text = {
+        let Some(node) = state.node_store.get_mut(node_id) else {
+            return false;
+        };
+        node.trigger_signature = meta.trigger_signature.clone();
+        node.decision_payload = meta.decision_payload.clone();
+        node.disposition = meta.disposition;
+        node.blocked = meta.blocked.clone();
+        node.index_text().to_string()
+    };
+    state.bm25_index.remove(node_id);
+    if !index_text.is_empty() {
+        state.bm25_index.insert(node_id, &index_text);
+    }
+    true
+}
+
 fn birth_node(
     state: &mut CoreState,
     full_emb: Vec<f32>,
@@ -2010,11 +2197,10 @@ fn birth_node(
          let node = Node::new(blended_projected.to_vec(), model_id.to_string(), salience, timestamp, eta as f32, node_type, authority, provenance)
              .with_assertion(assertion_key, polarity)
              .with_text(text.unwrap_or_default());
+         let index_text = node.index_text().to_string();
          let id = state.node_store.insert(node);
-         if let Some(t) = text {
-             if !t.is_empty() {
-                 state.bm25_index.insert(id, t);
-             }
+         if !index_text.is_empty() {
+             state.bm25_index.insert(id, &index_text);
          }
 
         // Edge birth: connect to each node in working memory
@@ -2060,7 +2246,7 @@ fn birth_node(
             if let Some(t) = text {
                 if !t.is_empty() {
                     let has_text = state.node_store.get(existing_id)
-                        .map(|n| !n.text.is_empty())
+                        .map(|n| !n.index_text().is_empty())
                         .unwrap_or(false);
                     if !has_text {
                         state.bm25_index.insert(existing_id, t);

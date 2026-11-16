@@ -626,3 +626,87 @@ pub struct PromoteParams {
     #[schemars(default = "default_true")]
     pub auto_tag: bool,
 }
+
+/// Pre-flight veto check against stored `blocked_process` experiences.
+///
+/// Call this BEFORE running a command or workflow that could repeat a known
+/// failure. The check is read-only; a blocked result tells the agent to stop
+/// and ask the human for an explicit override.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PreflightCheckParams {
+    /// The exact action or command sequence about to be run.
+    /// Example: "cargo test --all-features" or "npm install --force".
+    pub planned_action: String,
+
+    /// Optional target: file, module, service, host, or environment.
+    pub target: Option<String>,
+
+    /// Optional surrounding context: symptom, goal, or prior step.
+    pub context: Option<String>,
+
+    /// UUID or display name of the context to check.
+    /// Omit to use the default (or currently active) context.
+    pub context_id: Option<String>,
+
+    /// Set true ONLY after the human explicitly authorizes a one-time retry
+    /// of a blocked process. The default (false) fails closed.
+    #[serde(default)]
+    pub user_override: bool,
+}
+
+/// Record a typed experience: a proven rule to prefer, or a failed process
+/// that must not be repeated blindly.
+///
+/// The `trigger_signature` is the ONLY text indexed for matching; the
+/// `decision_payload` is returned on a match and never blended into the
+/// embedding. For a blocked process, `action_signature`, `root_cause` and
+/// `recommended_fix` are required.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RecordExperienceParams {
+    /// `"experience_rule"` (prefer this decision) or `"blocked_process"`
+    /// (never repeat this failure without an explicit override).
+    pub disposition: String,
+
+    /// Domain label used in the normalized trigger signature.
+    /// Example: "rust", "typescript", "postgres".
+    pub domain: String,
+
+    /// Tool, crate, module, or service involved.
+    /// Example: "cargo", "tsc", "cmhm_core".
+    pub tool_or_module: String,
+
+    /// Exact symbols, error codes, file names, or flags to match.
+    #[serde(default)]
+    pub symbols: Vec<String>,
+
+    /// Human-readable symptom description, ideally quoting the user's words.
+    pub symptom: String,
+
+    /// Optional pre-normalized trigger signature. When omitted or empty, the
+    /// server builds `[domain | tool | symbols] symptom` deterministically.
+    pub trigger_signature: Option<String>,
+
+    /// The rule, rationale, or step-by-step fix returned on a match.
+    pub decision_payload: String,
+
+    /// BLOCKED_PROCESS only: normalized command/tool sequence that failed.
+    pub action_signature: Option<String>,
+
+    /// BLOCKED_PROCESS only: why it failed.
+    pub root_cause: Option<String>,
+
+    /// BLOCKED_PROCESS only: approved alternative that worked.
+    pub recommended_fix: Option<String>,
+
+    /// BLOCKED_PROCESS only: observed failure count (default 1).
+    pub failure_count: Option<u32>,
+
+    /// Source-trust level in [0, 1]. Default 0.85.
+    pub authority: Option<f32>,
+
+    /// Machine-readable source class (default `"user_explicit"`).
+    pub provenance: Option<String>,
+
+    /// UUID or display name of the context to record into.
+    pub context_id: Option<String>,
+}

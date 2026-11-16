@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::learn_ledger::{BlockedProcess, Disposition, ExperienceMeta};
+
 /// Node type discriminant.
 /// 0 = State, 1 = Action, 2 = Outcome, 3 = Skill (compiled)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,6 +77,19 @@ pub struct NodeRecord {
     pub timestamp: i64,
     pub authority: f32,
     pub provenance: String,
+    /// Phase 5: normalized trigger signature (indexed text). Empty on legacy
+    /// nodes; `text` is the fallback.
+    #[serde(default)]
+    pub trigger_signature: String,
+    /// Phase 5: decision payload (metadata only, never indexed).
+    #[serde(default)]
+    pub decision_payload: String,
+    /// Phase 5: typed disposition.
+    #[serde(default)]
+    pub disposition: Disposition,
+    /// Phase 5: structured blocked-process payload.
+    #[serde(default)]
+    pub blocked: Option<BlockedProcess>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,6 +221,28 @@ pub struct Node {
     /// Empty for vector-path learns and pre-v4 migrated nodes (no BM25 coverage).
     #[serde(default)]
     pub text: String,
+
+    // ── Phase 5: experience schema ───────────────────────────────────────────
+    /// Normalized trigger signature: the symptom, error, tool/module and exact
+    /// symbols that should match a future query. When non-empty this is the
+    /// ONLY text indexed by BM25 and the dense arm; `text` remains the raw
+    /// record. Empty on legacy nodes, where `text` is the index fallback.
+    #[serde(default)]
+    pub trigger_signature: String,
+
+    /// The rule, rationale, or step-by-step fix returned on a match. Stored as
+    /// metadata and deliberately NEVER blended into the index/embedding.
+    #[serde(default)]
+    pub decision_payload: String,
+
+    /// Phase 5 typed disposition (`experience_rule`, `blocked_process`,
+    /// `user_override`, or `unspecified`).
+    #[serde(default)]
+    pub disposition: Disposition,
+
+    /// Structured payload for a `blocked_process` node.
+    #[serde(default)]
+    pub blocked: Option<BlockedProcess>,
 }
 
  // Serde default helpers (functions, not closures — required by serde's default attribute)
@@ -247,6 +284,10 @@ pub struct Node {
              assertion_key:        None,
              polarity:             None,
              text:                 String::new(),
+             trigger_signature:    String::new(),
+             decision_payload:     String::new(),
+             disposition:          Disposition::Unspecified,
+             blocked:              None,
          }
      }
 
@@ -259,6 +300,25 @@ pub struct Node {
          self.assertion_key = assertion_key;
          self.polarity = polarity;
          self
+     }
+
+     /// Attach a Phase 5 typed experience payload.
+     pub fn with_experience(mut self, meta: ExperienceMeta) -> Self {
+         self.trigger_signature = meta.trigger_signature;
+         self.decision_payload = meta.decision_payload;
+         self.disposition = meta.disposition;
+         self.blocked = meta.blocked;
+         self
+     }
+
+     /// The text this node is indexed by: the trigger signature when present,
+     /// otherwise the legacy raw text. An empty result means "not indexed".
+     pub fn index_text(&self) -> &str {
+         if self.trigger_signature.is_empty() {
+             &self.text
+         } else {
+             &self.trigger_signature
+         }
      }
  }
 
@@ -558,6 +618,36 @@ mod tests {
         for _ in 0..9 { n.update_from_outcome(false); }
         let mean: f32 = (0..200).map(|_| n.thompson_draw(&mut rng)).sum::<f32>() / 200.0;
         assert!(mean < 0.35, "after 9 failures, mean draw should be < 0.35, got {mean:.3}");
+    }
+
+    #[test]
+    fn index_text_prefers_trigger_signature_and_falls_back_to_text() {
+        let mut n = test_node();
+        n.text = "legacy symptom text".to_string();
+        assert_eq!(n.index_text(), "legacy symptom text");
+
+        n.trigger_signature = "[rust | cargo | E0382] borrow error".to_string();
+        assert_eq!(n.index_text(), "[rust | cargo | E0382] borrow error");
+    }
+
+    #[test]
+    fn with_experience_attaches_typed_payload() {
+        let meta = ExperienceMeta {
+            trigger_signature: "sig".to_string(),
+            decision_payload: "rule".to_string(),
+            disposition: Disposition::BlockedProcess,
+            blocked: Some(BlockedProcess {
+                action_signature: "cargo build".to_string(),
+                root_cause: "OOM".to_string(),
+                recommended_fix: "use -j1".to_string(),
+                failure_count: 2,
+            }),
+        };
+        let n = test_node().with_experience(meta);
+        assert_eq!(n.trigger_signature, "sig");
+        assert_eq!(n.decision_payload, "rule");
+        assert!(n.disposition.is_blocking());
+        assert_eq!(n.blocked.as_ref().unwrap().failure_count, 2);
     }
 }
 

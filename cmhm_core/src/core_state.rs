@@ -112,12 +112,14 @@ impl CoreState {
      /// Rebuild the BM25 lexical index from stored node text.
      ///
      /// Called after snapshot load / migration (index is `serde(skip)`).
-     /// Nodes with empty text are skipped (vector-path learns, legacy nodes).
+     /// Phase 5: the trigger signature is indexed when present; legacy nodes
+     /// fall back to their raw text. Empty text is skipped.
      pub fn rebuild_bm25_index(&mut self) {
          let mut index = crate::bm25::Bm25Index::new();
          for (&id, node) in self.node_store.iter() {
-             if !node.text.is_empty() {
-                 index.insert(id, &node.text);
+             let index_text = node.index_text();
+             if !index_text.is_empty() {
+                 index.insert(id, index_text);
              }
          }
          self.bm25_index = index;

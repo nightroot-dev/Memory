@@ -50,6 +50,81 @@ pub fn shared_marker(n: usize) -> String {
     format!("(+{n} other episodes share this memory)")
 }
 
+/// Phase 5: typed disposition of a stored experience node.
+///
+/// `Unspecified` is the serde default so every pre-Phase-5 snapshot loads
+/// unchanged. `BlockedProcess` is the only disposition that may veto a
+/// planned action; `ExperienceRule` and `UserOverride` are advisory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Disposition {
+    #[default]
+    Unspecified,
+    /// A proven architectural/coding decision to prefer.
+    ExperienceRule,
+    /// A failed command/tool sequence that must not be repeated blindly.
+    BlockedProcess,
+    /// Explicit human authorization to retry a blocked process once.
+    UserOverride,
+}
+
+impl Disposition {
+    /// Stable machine-readable label (also the serde representation).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unspecified => "unspecified",
+            Self::ExperienceRule => "experience_rule",
+            Self::BlockedProcess => "blocked_process",
+            Self::UserOverride => "user_override",
+        }
+    }
+
+    /// Parse the closed set. Unknown strings return `None` so callers can
+    /// reject them explicitly instead of silently defaulting.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "unspecified" => Some(Self::Unspecified),
+            "experience_rule" => Some(Self::ExperienceRule),
+            "blocked_process" => Some(Self::BlockedProcess),
+            "user_override" => Some(Self::UserOverride),
+            _ => None,
+        }
+    }
+
+    /// True only for the disposition that can veto a planned action.
+    pub fn is_blocking(self) -> bool {
+        self == Self::BlockedProcess
+    }
+}
+
+/// Phase 5: structured payload for a `BlockedProcess` experience.
+///
+/// Stored on the node so a pre-flight check can return the exact failure
+/// cause and the approved alternative without re-reading free text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct BlockedProcess {
+    /// Normalized command/tool sequence that failed.
+    pub action_signature: String,
+    /// Why it failed (root cause).
+    pub root_cause: String,
+    /// Approved alternative that worked.
+    pub recommended_fix: String,
+    /// How many times the failure was observed (>= 1 for a real block).
+    pub failure_count: u32,
+}
+
+/// Phase 5: the complete typed experience payload carried by one node.
+///
+/// Used by the engine annotation command and its WAL record; `Node` stores
+/// the same values flat so retrieval does not need a second lookup.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ExperienceMeta {
+    pub trigger_signature: String,
+    pub decision_payload: String,
+    pub disposition: Disposition,
+    pub blocked: Option<BlockedProcess>,
+}
+
 /// Resolution outcome for an episode lookup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EpisodeStatus {

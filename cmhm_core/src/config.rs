@@ -207,6 +207,21 @@ pub struct Config {
     /// recorded bench before that verdict).
     #[serde(default = "default_retrieval_fusion_cap")]
     pub retrieval_fusion_cap: usize,
+
+    /// Stage 2 cross-encoder reranker (opt-in, default **false**).
+    ///
+    /// When enabled, retrieval reranks the top 25 fused candidates with the
+    /// local ONNX cross-encoder before seed and causal-chain selection. This
+    /// requires a build with `--features onnx` and a valid `reranker_dir`;
+    /// `start()` fails closed when either is missing. The default path never
+    /// loads the model and pays zero rerank latency.
+    #[serde(default = "default_reranker_enabled")]
+    pub reranker_enabled: bool,
+
+    /// Directory holding `model_quantized.onnx` plus tokenizer files.
+    /// Required when `reranker_enabled = true`; ignored otherwise.
+    #[serde(default)]
+    pub reranker_dir: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -249,6 +264,8 @@ impl Default for Config {
             gate_kappa:                    2.0,
             retrieval_seed_pool_size:      20,  // R3: was hardcoded 8
             retrieval_fusion_cap:          40,  // B13 verdict: pre-registered 6c flip applied (was 20)
+            reranker_enabled:              false,
+            reranker_dir:                  None,
         }
     }
 }
@@ -267,6 +284,7 @@ fn default_gate_threshold()                -> f32   { 0.35 }
 fn default_gate_kappa()                    -> f32   { 2.0 }
 fn default_retrieval_seed_pool_size()      -> usize { 20 }  // R3: was hardcoded 8
 fn default_retrieval_fusion_cap()          -> usize { 40 }  // B13 verdict: 6c flip applied (was 20)
+fn default_reranker_enabled()              -> bool  { false }
 fn default_working_memory_size()           -> usize { 5 }
 fn default_edge_birth_threshold()          -> f32   { 0.35 }
 fn default_novelty_threshold()             -> f32   { 0.55 }
@@ -324,5 +342,18 @@ mod tests {
         assert_eq!(cfg.router_alpha, def.router_alpha);
         assert_eq!(cfg.max_active_contexts, def.max_active_contexts);
         assert_eq!(cfg.gate_kappa, def.gate_kappa);
+        assert_eq!(cfg.reranker_enabled, def.reranker_enabled);
+        assert_eq!(cfg.reranker_dir, def.reranker_dir);
+    }
+
+    #[test]
+    fn stage2_reranker_is_off_by_default() {
+        let cfg = Config::default();
+        assert!(!cfg.reranker_enabled, "Stage 2 must be opt-in");
+        assert!(cfg.reranker_dir.is_none(), "no model dir is configured by default");
+
+        let parsed: Config = toml::from_str("data_dir = \"altdata\"").expect("partial config");
+        assert!(!parsed.reranker_enabled);
+        assert!(parsed.reranker_dir.is_none());
     }
 }

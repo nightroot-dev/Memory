@@ -6,9 +6,227 @@ use crate::node_store::{NodeStore, cosine};
 /// B1b read-only join types. [`EpisodeStatus`] is re-exported here so callers
 /// match on resolution status via `retrieval::EpisodeStatus`.
 pub use crate::learn_ledger::{EpisodeStatus, LearnLedger, MetaFilter, SeedEpisode};
+use crate::learn_ledger::{BlockedProcess, Disposition};
 use crate::edge_store::EdgeStore;
 use crate::dense_core::DenseCore;
 use crate::EMBED_DIM;
+
+/// Phase 5: Stage 1 keeps at most this many candidates for Stage 2 reranking.
+pub const STAGE1_CANDIDATE_POOL: usize = 25;
+
+/// Phase 5: how Stage 1 fuses lexical and dense evidence.
+///
+/// The classifier is deliberately deterministic and cheap: exact symbols,
+/// error codes, file extensions and CLI flags must not be diluted by a small
+/// bi-encoder, while natural-language symptom descriptions keep a semantic
+/// majority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QueryMode {
+    /// Exact-symbol / error-shaped query: 0.75 BM25, 0.25 dense.
+    LexicalDominant,
+    /// Natural-language symptom: 0.40 BM25, 0.60 dense.
+    SemanticBalanced,
+}
+
+impl QueryMode {
+    /// Classify a query. Empty text is semantic (fusion is skipped anyway).
+    pub fn classify(query_text: &str) -> Self {
+        let q = query_text.trim();
+        if q.is_empty() {
+            return Self::SemanticBalanced;
+        }
+        if has_error_code(q)
+            || has_file_extension(q)
+            || has_cli_flag(q)
+            || has_snake_case(q)
+            || has_camel_case(q)
+            || has_all_caps_symbol(q)
+        {
+            Self::LexicalDominant
+        } else {
+            Self::SemanticBalanced
+        }
+    }
+
+    pub fn bm25_weight(self) -> f32 {
+        match self {
+            Self::LexicalDominant => 0.75,
+            Self::SemanticBalanced => 0.40,
+        }
+    }
+
+    pub fn dense_weight(self) -> f32 {
+        match self {
+            Self::LexicalDominant => 0.25,
+            Self::SemanticBalanced => 0.60,
+        }
+    }
+}
+
+/// Trim surrounding prose punctuation without eating the dots in file names.
+fn trim_query_token(tok: &str) -> &str {
+    tok.trim_matches(|c: char| {
+        matches!(
+            c,
+            '"' | '\'' | '`' | ',' | ';' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>'
+        )
+    })
+}
+
+/// Tokens split on whitespace and common prose punctuation, but not on `_`,
+/// `.`, `/`, `\` or `-` (those carry identifier/path/flag meaning).
+fn symbol_tokens(query: &str) -> impl Iterator<Item = &str> {
+    query.split(|c: char| {
+        c.is_whitespace()
+            || matches!(
+                c,
+                ',' | ';' | ':' | '(' | ')' | '[' | ']' | '{' | '}' | '"' | '\'' | '`' | '<' | '>'
+            )
+    })
+}
+
+const FILE_EXTENSIONS: &[&str] = &[
+    "rs", "ts", "tsx", "js", "jsx", "py", "sql", "go", "java", "cpp", "cc", "c", "h",
+    "hpp", "json", "toml", "yaml", "yml", "md", "sh", "ps1", "css", "html", "lock",
+];
+
+fn has_file_extension(query: &str) -> bool {
+    query.split_whitespace().any(|raw| {
+        let token = trim_query_token(raw).trim_end_matches('.').to_ascii_lowercase();
+        FILE_EXTENSIONS.iter().any(|ext| {
+            token.len() >= ext.len() + 1
+                && token.ends_with(ext)
+                && token.as_bytes()[token.len() - ext.len() - 1] == b'.'
+        })
+    })
+}
+
+fn has_cli_flag(query: &str) -> bool {
+    query.split_whitespace().any(|raw| {
+        let token = trim_query_token(raw);
+        if let Some(rest) = token.strip_prefix("--") {
+            !rest.is_empty() && rest.chars().any(|c| c.is_ascii_alphanumeric())
+        } else if let Some(rest) = token.strip_prefix('-') {
+            rest.len() == 1 && rest.chars().all(|c| c.is_ascii_alphabetic())
+        } else {
+            false
+        }
+    })
+}
+
+fn has_snake_case(query: &str) -> bool {
+    symbol_tokens(query).any(|raw| {
+        let token = trim_query_token(raw);
+        token.contains('_')
+            && !token.starts_with('_')
+            && !token.ends_with('_')
+            && token.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && token.chars().any(|c| c.is_ascii_alphabetic())
+    })
+}
+
+fn has_camel_case(query: &str) -> bool {
+    symbol_tokens(query).any(|raw| {
+        let token = trim_query_token(raw);
+        if token.len() < 3
+            || !token.chars().all(|c| c.is_ascii_alphanumeric())
+            || !token.chars().any(|c| c.is_ascii_lowercase())
+        {
+            return false;
+        }
+        let mut previous_lower = false;
+        let mut humps = 0;
+        for c in token.chars() {
+            if previous_lower && c.is_ascii_uppercase() {
+                humps += 1;
+            }
+            previous_lower = c.is_ascii_lowercase();
+        }
+        humps >= 1
+    })
+}
+
+fn has_all_caps_symbol(query: &str) -> bool {
+    symbol_tokens(query).any(|raw| {
+        let token = trim_query_token(raw);
+        (token.len() >= 4 || (token.len() >= 3 && token.contains('_')))
+            && token.chars().any(|c| c.is_ascii_uppercase())
+            && token
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+    })
+}
+
+fn has_http_context(lower: &str) -> bool {
+    [
+        "error", "status", "http", "https", "code", "response", "request", "api",
+        "server", "client", "fail", "failed", "unauthorized", "forbidden", "timeout",
+        "gateway",
+    ]
+    .iter()
+    .any(|word| lower.contains(word))
+}
+
+fn has_error_code(query: &str) -> bool {
+    let lower = query.to_ascii_lowercase();
+    const STACK_MARKERS: &[&str] = &[
+        "panicked at",
+        "stack trace",
+        "traceback (most recent call last)",
+        "segmentation fault",
+        "undefined reference to",
+        "cannot find module",
+        "module not found",
+        "npm err!",
+        "nullpointerexception",
+        "typeerror:",
+        "syntaxerror:",
+        "referenceerror:",
+    ];
+    if STACK_MARKERS.iter().any(|marker| lower.contains(marker)) {
+        return true;
+    }
+
+    let token_count = query.split_whitespace().count();
+    for raw in query.split_whitespace() {
+        let token = trim_query_token(raw);
+        let upper = token.to_ascii_uppercase();
+        if upper.starts_with("TS")
+            && upper.len() > 2
+            && upper[2..].chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+        if upper.starts_with('E')
+            && upper.len() >= 4
+            && upper[1..].chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+        if upper.starts_with("CS")
+            && upper.len() >= 5
+            && upper[2..].chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+        if upper.starts_with("ERR_") || upper.starts_with("ERR!") {
+            return true;
+        }
+        if upper.starts_with("0X")
+            && upper.len() >= 6
+            && upper[2..].chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return true;
+        }
+        if token.len() == 3 && token.chars().all(|c| c.is_ascii_digit()) {
+            let status: u16 = token.parse().unwrap_or(0);
+            if (400..=599).contains(&status) && (has_http_context(&lower) || token_count <= 2) {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 /// A single step in a retrieved causal chain.
 #[derive(Debug, Clone)]
@@ -137,11 +355,23 @@ pub struct ChainNodeText {
 ///
 /// Read-only join: `node_id` follows `scored_candidates` order exactly;
 /// `text`/`timestamp` are resolved live from the store at retrieval time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CandidateText {
     pub node_id: u64,
     pub text: String,
     pub timestamp: i64,
+    /// Phase 5: indexed trigger signature (empty on legacy nodes).
+    #[serde(default)]
+    pub trigger_signature: String,
+    /// Phase 5: decision payload (never indexed).
+    #[serde(default)]
+    pub decision_payload: String,
+    /// Phase 5: typed disposition.
+    #[serde(default)]
+    pub disposition: Disposition,
+    /// Phase 5: structured blocked-process payload.
+    #[serde(default)]
+    pub blocked: Option<BlockedProcess>,
 }
 
 /// Maximum characters of node text rendered in the human-readable
@@ -364,6 +594,10 @@ pub fn retrieve(
     // and BEFORE scoring: a user query constraint, not a safety rule.
     // None or inactive = byte-identical unfiltered behavior.
     meta_filter: Option<&MetaFilter>,
+    // Stage 2: optional cross-encoder reranker applied to the top fused
+    // candidates before seed/chain selection. None keeps the default Stage 1
+    // path byte-identical.
+    stage2: Option<&mut dyn crate::reranker::Stage2Reranker>,
 ) -> RetrievalResult {
     // Step 1: Dense context
     let dense_ctx = dense_core.query(query);
@@ -401,14 +635,22 @@ pub fn retrieve(
         Some(t) => node_store.nearest_by_type(query, model_id, seed_pool_size, t),
         None    => node_store.nearest(query, model_id, seed_pool_size),
     };
-    // BM25 lexical candidates fused via RRF when query_text is provided.
+    // BM25 lexical candidates fused with the dense arm when query_text is provided.
     // Empty query_text (legacy/vector paths) skips fusion — dense-only behavior unchanged.
     //
     // R1 FIX: Snapshot dense cosines BEFORE fusion so the scorer receives a real cosine
     // value (∈ [−1,1]) for every candidate, not the RRF rank score (~0.016).
-    // BM25-only candidates that have no dense hit receive dense_cos = 0.0.
-    // rrf_fuse() output is used only for pool membership and ordering; the (id, rrf_score)
-    // tuple's score is immediately replaced by the original dense cosine below.
+    // BM25-only candidates that have no dense hit receive a computed cosine (or 0.0).
+    //
+    // Phase 5: the classifier picks the BM25/dense mix per query. Stage 1 returns a
+    // weighted relevance score (BM25 min-max normalized, dense cosine clamped to
+    // [0,1]) plus the exact-identifier boost, then truncates to STAGE1_CANDIDATE_POOL
+    // for the Stage 2 reranker. The final scorer below consumes this relevance
+    // directly for text queries; the dense-only path keeps the legacy query_weight
+    // scaling.
+    let query_mode = QueryMode::classify(query_text);
+    let stage1_bm25_weight = query_mode.bm25_weight();
+    let stage1_dense_weight = query_mode.dense_weight();
     let dense_cosines: std::collections::HashMap<u64, f32> =
         raw_candidates.iter().map(|&(id, cos)| (id, cos)).collect();
 
@@ -420,7 +662,7 @@ pub fn retrieve(
         // Action/Outcome node enters the pool and can be returned as the seed of a State
         // request. Over-fetch because the index holds state, action and outcome texts and the
         // filter drops the other types; the list handed to fusion is still capped at 50.
-        let bm25_candidates: Vec<(u64, f32)> = {
+        let bm25_scored: Vec<(u64, f32)> = {
             let all = bm25.query(query_text, 150);
             match seed_type {
                 Some(t) => all
@@ -431,32 +673,58 @@ pub fn retrieve(
                 None => all.into_iter().take(50).collect(),
             }
         };
-        if bm25_candidates.is_empty() {
+        if bm25_scored.is_empty() {
             raw_candidates
         } else {
-            // Fuse for pool membership. Each candidate keeps its REAL dense cosine (computed on
-            // demand for BM25-only hits instead of 0.0) plus the identifier boost below, then
-            // the pool is re-sorted by that score.
-            // Identifier channel: boost wanted-type nodes that contain an explicit identifier from
-            // the query. NO injection: rrf_fuse truncates to the 20-cap first and the boost only
-            // reorders inside that pool, so pool membership and truncation are unchanged.
+            // Min-max normalize BM25 scores across this query's candidates so the
+            // lexical weight is comparable to a cosine. A single candidate is 1.0.
+            let (mut bm25_min, mut bm25_max) = (f32::INFINITY, f32::NEG_INFINITY);
+            for &(_, score) in &bm25_scored {
+                bm25_min = bm25_min.min(score);
+                bm25_max = bm25_max.max(score);
+            }
+            let bm25_range = bm25_max - bm25_min;
+            let bm25_norm: std::collections::HashMap<u64, f32> = bm25_scored
+                .iter()
+                .map(|&(id, score)| {
+                    // A lone candidate carries all the lexical evidence: 1.0, not 0/0.
+                    let norm = if bm25_range.abs() < 1e-6 {
+                        1.0
+                    } else {
+                        (score - bm25_min) / bm25_range
+                    };
+                    (id, norm)
+                })
+                .collect();
+
+            // Fuse for pool membership. RRF ranks decide who enters the pool; the
+            // weighted Stage 1 score below decides the order inside it.
+            let bm25_candidates: Vec<(u64, f32)> =
+                bm25_scored.iter().map(|&(id, _)| (id, 0.0)).collect();
             let boosts = bm25.identifier_boost(query_text, |id| match seed_type {
                 Some(t) => node_store.get(id).map(|n| n.node_type == t).unwrap_or(false),
                 None => true,
             });
-            let mut fused: Vec<(u64, f32)> = crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, fusion_cap)
-                .into_iter()
-                .map(|(id, _rrf_score)| {
-                    let cos = dense_cosines.get(&id).copied().unwrap_or_else(|| {
-                        node_store.get(id)
-                            .filter(|n| n.model_id == model_id && n.embedding.len() == query.len())
-                            .map(|n| cosine(query, &n.embedding))
-                            .unwrap_or(0.0)
-                    });
-                    (id, cos + boosts.get(&id).copied().unwrap_or(0.0))
-                })
-                .collect();
+            let mut fused: Vec<(u64, f32)> =
+                crate::bm25::rrf_fuse(&raw_candidates, &bm25_candidates, fusion_cap)
+                    .into_iter()
+                    .map(|(id, _rrf_score)| {
+                        let cos = dense_cosines.get(&id).copied().unwrap_or_else(|| {
+                            node_store.get(id)
+                                .filter(|n| n.model_id == model_id && n.embedding.len() == query.len())
+                                .map(|n| cosine(query, &n.embedding))
+                                .unwrap_or(0.0)
+                        });
+                        let dense_component = cos.clamp(0.0, 1.0);
+                        let lexical_component = bm25_norm.get(&id).copied().unwrap_or(0.0);
+                        let stage1 = stage1_dense_weight * dense_component
+                            + stage1_bm25_weight * lexical_component
+                            + boosts.get(&id).copied().unwrap_or(0.0);
+                        (id, stage1)
+                    })
+                    .collect();
             fused.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+            fused.truncate(STAGE1_CANDIDATE_POOL);
             fused
         }
     };
@@ -690,7 +958,12 @@ pub fn retrieve(
     // detection above can see them, but they are structurally ineligible to be
     // returned as a seed. This makes the safety posture fail-closed rather than
     // relying on scoring to make unsafe returns unlikely.
-    // score = query_weight * cos(q, node)
+    //
+    // Phase 5: for text queries, `cos` entering this loop is already the
+    // weighted Stage 1 relevance (BM25/dense mix + exact-identifier boost), so
+    // it is used directly. For dense-only queries it is the raw cosine and
+    // keeps the legacy query_weight scaling.
+    // score = relevance
     //       + context_weight * cos(dense_ctx, node)
     //       + authority_weight * node.authority   <- bounded, α=0.25; see gate sweep
     //       + BANDIT_WEIGHT * node.thompson_draw(rng)  <- H-03 fix: bandit exploration
@@ -700,6 +973,11 @@ pub fn retrieve(
     // Weight 0.10 keeps exploration bounded relative to cosine similarity.
     const BANDIT_WEIGHT: f32 = 0.10;
     let mut scored: Vec<(u64, f32)> = candidates.iter().filter_map(|(id, cos)| {
+        let relevance = if query_text.is_empty() {
+            query_weight * cos
+        } else {
+            *cos
+        };
         let score = match node_store.get(*id) {
             Some(node) => {
                 if node.provenance == "contradicted" {
@@ -715,12 +993,12 @@ pub fn retrieve(
                 } else {
                     0.0 // uniform prior = no exploitation signal
                 };
-                query_weight * cos
+                relevance
                     + context_weight * dense_cos
                     + authority_weight * node.authority
                     + BANDIT_WEIGHT * bandit_draw
             }
-            None => query_weight * cos,
+            None => relevance,
         };
         Some((*id, score))
     }).collect();
@@ -740,6 +1018,49 @@ pub fn retrieve(
             .then_with(|| id_a.cmp(id_b))
     });
 
+    // Stage 2 (opt-in): rerank the fused head with the cross-encoder. This is
+    // the only mutation of `scored` after sorting; every downstream consumer
+    // (candidate_texts, conflict scores, seed, chain) sees the reranked order.
+    // The reranked head carries calibrated probabilities in [0, 1]; the
+    // untouched tail keeps Stage 1 fused scores, so the two blocks are not
+    // numerically comparable.
+    if let Some(reranker) = stage2 {
+        const STAGE2_POOL: usize = 25;
+        let pool: Vec<(u64, String)> = scored
+            .iter()
+            .take(STAGE2_POOL)
+            .filter_map(|(id, _)| {
+                node_store.get(*id).map(|node| {
+                    let text = if node.trigger_signature.is_empty() {
+                        node.text.clone()
+                    } else {
+                        node.trigger_signature.clone()
+                    };
+                    (*id, text)
+                })
+            })
+            .collect();
+        if !pool.is_empty() {
+            match crate::reranker::rerank_top_k(reranker, query_text, &pool, pool.len()) {
+                Ok(ranked) => {
+                    let reranked: std::collections::HashSet<u64> =
+                        ranked.iter().map(|(id, _)| *id).collect();
+                    let mut next = ranked;
+                    for (id, score) in scored.iter().take(STAGE2_POOL) {
+                        if !reranked.contains(id) {
+                            next.push((*id, *score));
+                        }
+                    }
+                    next.extend(scored.iter().skip(STAGE2_POOL).copied());
+                    scored = next;
+                }
+                Err(err) => {
+                    tracing::warn!("stage2 reranker failed; keeping Stage 1 order: {err}");
+                }
+            }
+        }
+    }
+
     // Stage 2: SCORED diagnostic snapshot (passive, unmutated).
     let scored_candidates: Vec<(u64, f32)> = scored.clone();
 
@@ -751,6 +1072,10 @@ pub fn retrieve(
             node_id: *id,
             text: n.map(|x| x.text.clone()).unwrap_or_default(),
             timestamp: n.map(|x| x.timestamp).unwrap_or(0),
+            trigger_signature: n.map(|x| x.trigger_signature.clone()).unwrap_or_default(),
+            decision_payload: n.map(|x| x.decision_payload.clone()).unwrap_or_default(),
+            disposition: n.map(|x| x.disposition).unwrap_or_default(),
+            blocked: n.and_then(|x| x.blocked.clone()),
         }
     }).collect();
 
@@ -1026,4 +1351,59 @@ fn format_explanation(chain: &[ChainStep], _node_store: &NodeStore) -> String {
         parts.push(unverified_links_hidden_marker(hidden));
     }
     parts.join(" ")
+}
+
+#[cfg(test)]
+mod phase5_tests {
+    use super::*;
+
+    #[test]
+    fn classifier_routes_exact_symbols_to_lexical() {
+        for q in [
+            "error TS2375: exactOptionalPropertyTypes",
+            "E0382 use of moved value",
+            "build fails in src/retrieval.rs",
+            "cargo test --all-features fails",
+            "normalize_trigger_signature returns empty",
+            "CoreState::rebuild_bm25_index panics",
+            "HTTP 401 from the gateway",
+            "status 500",
+            "ERR_MODULE_NOT_FOUND",
+            "0x80070005 access denied",
+        ] {
+            assert_eq!(QueryMode::classify(q), QueryMode::LexicalDominant, "query: {q}");
+        }
+    }
+
+    #[test]
+    fn classifier_routes_natural_language_to_semantic() {
+        for q in [
+            "why does the build keep failing after the refactor",
+            "the app forgets my settings when I restart it",
+            "I have 401 apples in the crate",
+            "how do I make the retry loop stop early",
+            "memory usage grows without bound",
+        ] {
+            assert_eq!(QueryMode::classify(q), QueryMode::SemanticBalanced, "query: {q}");
+        }
+        assert_eq!(QueryMode::classify("   "), QueryMode::SemanticBalanced);
+    }
+
+    #[test]
+    fn classifier_weights_are_complementary() {
+        for mode in [QueryMode::LexicalDominant, QueryMode::SemanticBalanced] {
+            let sum = mode.bm25_weight() + mode.dense_weight();
+            assert!((sum - 1.0).abs() < 1e-6, "{mode:?} weights sum to {sum}");
+        }
+        assert!(QueryMode::LexicalDominant.bm25_weight() > QueryMode::LexicalDominant.dense_weight());
+        assert!(QueryMode::SemanticBalanced.dense_weight() > QueryMode::SemanticBalanced.bm25_weight());
+    }
+
+    #[test]
+    fn classifier_does_not_treat_prose_as_file_extension() {
+        assert!(!has_file_extension("this is a sentence."));
+        assert!(!has_file_extension("version 1.2.3"));
+        assert!(has_file_extension("open main.rs."));
+        assert!(has_file_extension("edit the .tsx component"));
+    }
 }

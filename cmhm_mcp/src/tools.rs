@@ -6,6 +6,9 @@ use parking_lot::Mutex;
 use uuid::Uuid;
 use std::sync::OnceLock;
 use cmhm_core::{ContextRuntime, ContextType, extract_tags, scrub::scrub_learn, node::NodeType};
+use cmhm_core::authority::CallerRole;
+use cmhm_core::consolidation::normalize_trigger_signature;
+use cmhm_core::learn_ledger::{BlockedProcess, Disposition, ExperienceMeta};
 use cmhm_core::embed::{default_embedder, Embedder};
 use crate::schema::{
     RetrieveParams, LearnParams, LearnTextParams, RetrieveTextParams,
@@ -13,6 +16,7 @@ use crate::schema::{
     RouteParams, MemoryStatsParams, MemoryListParams, MemoryGetParams,
     ContextTypeParam, ProjectDetectParams,
     MemoryFeedbackParams, PromoteParams,
+    PreflightCheckParams, RecordExperienceParams,
     ToolCallResult, ContentItem, ToolDefinition,
 };
 
@@ -551,6 +555,23 @@ const TOOLS: &[ToolEntry] = &[
             audit logging of novelty drift and promotion-time gate inspection.",
         schema: || schema_of::<PromoteParams>(),
     },
+    ToolEntry {
+        name: "preflight_check",
+        description: "Check a planned action against stored BLOCKED_PROCESS experiences BEFORE running it. \
+            Read-only. Returns status=BLOCKED_BY_EXPERIENCE with the rule id, root cause and recommended fix \
+            when a previously failed workflow matches. Do not retry a blocked action unless the human \
+            explicitly authorizes it; then call again with user_override=true. \
+            Returns status=ALLOWED when no blocking experience matches.",
+        schema: || schema_of::<PreflightCheckParams>(),
+    },
+    ToolEntry {
+        name: "record_experience",
+        description: "Record a typed experience immediately after resolving a failure or making a durable decision. \
+            disposition=blocked_process stores a failed workflow (action_signature, root_cause, recommended_fix) \
+            that preflight_check will veto. disposition=experience_rule stores a proven decision to prefer. \
+            The trigger_signature is the only indexed text; decision_payload is returned on a match.",
+        schema: || schema_of::<RecordExperienceParams>(),
+    },
 ];
 
 /// Raw-embedding tool names, hidden from agents unless explicitly enabled.
@@ -746,6 +767,10 @@ fn candidate_texts_json(result: &cmhm_core::RetrievalResult) -> Vec<serde_json::
                 "node_id":   c.node_id,
                 "text":      c.text,
                 "timestamp": c.timestamp,
+                "trigger_signature": c.trigger_signature,
+                "decision_payload":  c.decision_payload,
+                "disposition":       c.disposition,
+                "blocked":           c.blocked,
             })
         })
         .collect()
@@ -1522,6 +1547,10 @@ pub fn handle_memory_list(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                     "timestamp":  r.timestamp,
                     "authority":  r.authority,
                     "provenance": r.provenance,
+                    "trigger_signature": r.trigger_signature,
+                    "decision_payload":  r.decision_payload,
+                    "disposition":       r.disposition,
+                    "blocked":           r.blocked,
                 })).collect::<Vec<_>>(),
             });
             ToolCallResult {
@@ -1555,6 +1584,10 @@ pub fn handle_memory_get(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
                 "timestamp":  r.timestamp,
                 "authority":  r.authority,
                 "provenance": r.provenance,
+                "trigger_signature": r.trigger_signature,
+                "decision_payload":  r.decision_payload,
+                "disposition":       r.disposition,
+                "blocked":           r.blocked,
             });
             ToolCallResult {
                 content: vec![ContentItem::text(text), ContentItem::json(&structured)],
@@ -2504,3 +2537,430 @@ pub fn handle_memory_promote(rt: &SharedRuntime, args: &Value) -> ToolCallResult
     }
 }
 
+
+// ── Phase 5: pre-flight veto + typed experience recording ──────────────────
+
+/// Calibrated confidence required to veto a planned action. The raw hybrid
+/// score is mapped through a logistic centered at 0.45; 0.78 corresponds to a
+/// raw score of ~0.60, i.e. a strong lexical match plus authority/context.
+pub const PREFLIGHT_BLOCK_THRESHOLD: f32 = 0.78;
+
+/// A veto also needs real overlap with the stored action, not just a shared
+/// tool name. `cargo fmt` must not be blocked by `cargo build --release`.
+pub const PREFLIGHT_MIN_ACTION_OVERLAP: f32 = 0.34;
+
+fn preflight_tokens(text: &str) -> std::collections::HashSet<String> {
+    text.to_ascii_lowercase()
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|t| t.len() >= 2)
+        .map(str::to_string)
+        .collect()
+}
+
+/// Jaccard overlap between the planned action and the stored failed action.
+fn preflight_action_overlap(planned: &str, stored: &str) -> f32 {
+    let a = preflight_tokens(planned);
+    let b = preflight_tokens(stored);
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let intersection = a.intersection(&b).count() as f32;
+    let union = a.union(&b).count() as f32;
+    if union == 0.0 { 0.0 } else { intersection / union }
+}
+
+/// Map the raw retrieval score to [0,1]. This is a monotone calibration, not a
+/// probability claim: it exists so the veto threshold is stable across stores.
+fn preflight_confidence(raw: f32) -> f32 {
+    let z = (raw - 0.45) * 8.0;
+    (1.0 / (1.0 + (-z).exp())).clamp(0.0, 1.0)
+}
+
+fn preflight_block_json(
+    rule_id: u64,
+    confidence: f32,
+    action_overlap: f32,
+    rec: &cmhm_core::NodeRecord,
+    context_id: &str,
+    status: &str,
+    requires_override: bool,
+) -> Value {
+    let blocked = rec.blocked.clone().unwrap_or_default();
+    json!({
+        "status": status,
+        "rule_id": rule_id,
+        "root_cause": blocked.root_cause,
+        "recommended_fix": blocked.recommended_fix,
+        "requires_user_override": requires_override,
+        "confidence": confidence,
+        "action_overlap": action_overlap,
+        "threshold": PREFLIGHT_BLOCK_THRESHOLD,
+        "min_action_overlap": PREFLIGHT_MIN_ACTION_OVERLAP,
+        "trigger_signature": rec.trigger_signature,
+        "action_signature": blocked.action_signature,
+        "failure_count": blocked.failure_count,
+        "disposition": rec.disposition,
+        "context": context_id,
+    })
+}
+
+pub fn handle_preflight_check(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
+    let params: PreflightCheckParams = match serde_json::from_value(args.clone()) {
+        Ok(p) => p,
+        Err(e) => return error_result(format!("Invalid arguments: {e}")),
+    };
+
+    let action = params.planned_action.trim();
+    if action.is_empty() {
+        return error_result("planned_action must not be empty");
+    }
+
+    // The query includes target/context because the same command can be safe in
+    // one module and fatal in another. All three fields are indexed as text.
+    let mut query = action.to_string();
+    for extra in [params.target.as_deref(), params.context.as_deref()].into_iter().flatten() {
+        let extra = extra.trim();
+        if !extra.is_empty() {
+            query.push(' ');
+            query.push_str(extra);
+        }
+    }
+
+    let emb = embed_text(&query);
+    let mut rt = rt.lock();
+    let ctx_id = params.context_id.as_deref();
+
+    let (result, ctx) = match rt.retrieve_with_filter(
+        ctx_id,
+        emb,
+        text_model_id(),
+        NodeType::State,
+        &query,
+        None,
+    ) {
+        Ok(v) => v,
+        // A broken store must not silently allow a possibly-blocked action.
+        Err(e) => return error_result(format!("Pre-flight check failed (fail-closed): {e}")),
+    };
+
+    if result.abstained {
+        return error_result(
+            "Pre-flight check abstained: conflicting memories detected. \
+             Resolve the conflict before running the planned action.",
+        );
+    }
+
+    let mut best_block: Option<(u64, f32, f32, cmhm_core::NodeRecord)> = None;
+    let mut best_rule: Option<(u64, f32, cmhm_core::NodeRecord)> = None;
+
+    for (id, raw_score) in result.scored_candidates.iter().take(25) {
+        let rec = match rt.get_node_record(ctx_id, *id) {
+            Ok(Some(r)) => r,
+            Ok(None) => continue,
+            Err(e) => return error_result(format!("Pre-flight lookup failed (fail-closed): {e}")),
+        };
+        let confidence = preflight_confidence(*raw_score);
+        match rec.disposition {
+            Disposition::BlockedProcess => {
+                // The stored action is the safety anchor. A shared tool name
+                // alone must never veto an unrelated command.
+                let stored_action = rec
+                    .blocked
+                    .as_ref()
+                    .map(|b| b.action_signature.as_str())
+                    .unwrap_or("");
+                let overlap = preflight_action_overlap(action, stored_action);
+                if overlap < PREFLIGHT_MIN_ACTION_OVERLAP {
+                    continue;
+                }
+                if best_block.as_ref().map_or(true, |(_, c, _, _)| confidence > *c) {
+                    best_block = Some((*id, confidence, overlap, rec));
+                }
+            }
+            Disposition::ExperienceRule => {
+                if best_rule.as_ref().map_or(true, |(_, c, _)| confidence > *c) {
+                    best_rule = Some((*id, confidence, rec));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if let Some((id, confidence, action_overlap, rec)) = best_block {
+        if confidence >= PREFLIGHT_BLOCK_THRESHOLD && !params.user_override {
+            let structured = preflight_block_json(
+                id, confidence, action_overlap, &rec, &ctx.id.to_string(),
+                "BLOCKED_BY_EXPERIENCE", true,
+            );
+            let blocked = rec.blocked.clone().unwrap_or_default();
+            let text = format!(
+                "## BLOCKED_BY_EXPERIENCE\n\
+                 **Rule**: {id} (confidence {:.2}, threshold {:.2})\n\
+                 **Root cause**: {}\n\
+                 **Recommended fix**: {}\n\
+                 **Failed action**: {}\n\
+                 **Observed failures**: {}\n\n\
+                 Do NOT run the planned action. Ask the human for explicit authorization; \
+                 only then call preflight_check again with `user_override: true`.",
+                confidence, PREFLIGHT_BLOCK_THRESHOLD,
+                blocked.root_cause, blocked.recommended_fix,
+                blocked.action_signature, blocked.failure_count,
+            );
+            return ToolCallResult {
+                content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+                isError: None,
+            };
+        }
+
+        // Override granted, or a below-threshold near miss. Both are surfaced:
+        // the caller must never think a veto was silently ignored.
+        let (status, requires_override) = if confidence >= PREFLIGHT_BLOCK_THRESHOLD {
+            ("OVERRIDE_GRANTED", false)
+        } else {
+            ("ALLOWED_NEAR_MISS", true)
+        };
+        let structured = preflight_block_json(
+            id, confidence, action_overlap, &rec, &ctx.id.to_string(), status, requires_override,
+        );
+        let text = if status == "OVERRIDE_GRANTED" {
+            format!(
+                "## OVERRIDE_GRANTED\n\
+                 The human authorized a one-time retry of blocked rule {id} \
+                 (confidence {:.2}). Root cause: {}. Recommended fix: {}.",
+                confidence,
+                rec.blocked.as_ref().map(|b| b.root_cause.as_str()).unwrap_or(""),
+                rec.blocked.as_ref().map(|b| b.recommended_fix.as_str()).unwrap_or(""),
+            )
+        } else {
+            format!(
+                "## ALLOWED_NEAR_MISS\n\
+                 Rule {id} matched weakly (confidence {:.2} < {:.2}); it is advisory, \
+                 not a veto. Review its recommended fix before proceeding.",
+                confidence, PREFLIGHT_BLOCK_THRESHOLD,
+            )
+        };
+        return ToolCallResult {
+            content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+            isError: None,
+        };
+    }
+
+    let advisory = best_rule.map(|(id, confidence, rec)| {
+        json!({
+            "rule_id": id,
+            "confidence": confidence,
+            "trigger_signature": rec.trigger_signature,
+            "decision_payload": rec.decision_payload,
+        })
+    });
+    let structured = json!({
+        "status": "ALLOWED",
+        "requires_user_override": false,
+        "checked_candidates": result.scored_candidates.len(),
+        "context": ctx.id.to_string(),
+        "advisory_rule": advisory,
+    });
+    let text = match structured.get("advisory_rule").and_then(|v| v.as_object()) {
+        Some(rule) => format!(
+            "## ALLOWED\nNo blocking experience matched. Advisory rule {}: {}",
+            rule.get("rule_id").and_then(|v| v.as_u64()).unwrap_or(0),
+            rule.get("decision_payload").and_then(|v| v.as_str()).unwrap_or(""),
+        ),
+        None => "## ALLOWED\nNo blocking experience matched.".to_string(),
+    };
+    ToolCallResult {
+        content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+        isError: None,
+    }
+}
+
+pub fn handle_record_experience(rt: &SharedRuntime, args: &Value) -> ToolCallResult {
+    let params: RecordExperienceParams = match serde_json::from_value(args.clone()) {
+        Ok(p) => p,
+        Err(e) => return error_result(format!("Invalid arguments: {e}")),
+    };
+
+    let disposition = match Disposition::from_str(params.disposition.trim()) {
+        Some(d @ (Disposition::ExperienceRule | Disposition::BlockedProcess)) => d,
+        Some(other) => {
+            return error_result(format!(
+                "disposition {:?} is not recordable here; use experience_rule or blocked_process",
+                other.as_str()
+            ))
+        }
+        None => {
+            return error_result(format!(
+                "Unknown disposition {:?}; expected experience_rule or blocked_process",
+                params.disposition
+            ))
+        }
+    };
+
+    let domain = params.domain.trim();
+    let tool = params.tool_or_module.trim();
+    let symptom = params.symptom.trim();
+    let payload = params.decision_payload.trim();
+    if symptom.is_empty() {
+        return error_result("symptom must not be empty");
+    }
+    if payload.is_empty() {
+        return error_result("decision_payload must not be empty");
+    }
+
+    let supplied_trigger = params.trigger_signature.as_deref().unwrap_or("").trim();
+    let trigger_signature = if supplied_trigger.is_empty() {
+        let symbols: Vec<&str> = params.symbols.iter().map(|s| s.as_str()).collect();
+        normalize_trigger_signature(domain, tool, &symbols, symptom)
+    } else {
+        supplied_trigger.to_string()
+    };
+    if trigger_signature.is_empty() {
+        return error_result("trigger_signature resolved to empty");
+    }
+
+    let blocked = match disposition {
+        Disposition::BlockedProcess => {
+            let action_signature = params.action_signature.as_deref().unwrap_or("").trim();
+            let root_cause = params.root_cause.as_deref().unwrap_or("").trim();
+            let recommended_fix = params.recommended_fix.as_deref().unwrap_or("").trim();
+            if action_signature.is_empty() || root_cause.is_empty() || recommended_fix.is_empty() {
+                return error_result(
+                    "blocked_process requires non-empty action_signature, root_cause and recommended_fix",
+                );
+            }
+            Some(BlockedProcess {
+                action_signature: action_signature.to_string(),
+                root_cause: root_cause.to_string(),
+                recommended_fix: recommended_fix.to_string(),
+                failure_count: params.failure_count.unwrap_or(1).max(1),
+            })
+        }
+        Disposition::ExperienceRule => {
+            if params.action_signature.is_some()
+                || params.root_cause.is_some()
+                || params.recommended_fix.is_some()
+                || params.failure_count.is_some()
+            {
+                return error_result(
+                    "action_signature/root_cause/recommended_fix/failure_count are only valid for blocked_process",
+                );
+            }
+            None
+        }
+        _ => unreachable!("filtered above"),
+    };
+
+    let authority = params.authority.unwrap_or(0.85);
+    if !authority.is_finite() || !(0.0..=1.0).contains(&authority) {
+        return error_result("authority must be a finite number in [0.0, 1.0]");
+    }
+    let provenance = params
+        .provenance
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("user_explicit")
+        .to_string();
+
+    let action_text = blocked
+        .as_ref()
+        .map(|b| b.action_signature.clone())
+        .unwrap_or_else(|| "experience rule recorded".to_string());
+    let outcome_text = blocked
+        .as_ref()
+        .map(|b| b.root_cause.clone())
+        .unwrap_or_else(|| "experience rule recorded".to_string());
+
+    let state_emb = embed_text(&trigger_signature);
+    let action_emb = embed_text(&action_text);
+    let outcome_emb = embed_text(&outcome_text);
+
+    let mut rt = rt.lock();
+    let ctx_id = params.context_id.as_deref();
+    let prediction_error = if blocked.is_some() { 1.0 } else { 0.0 };
+
+    let (learned, ctx) = match rt.learn_text_with_context(
+        ctx_id,
+        state_emb,
+        action_emb,
+        outcome_emb,
+        prediction_error,
+        0.7,
+        text_model_id(),
+        authority,
+        provenance.clone(),
+        None,
+        CallerRole::User,
+        None,
+        None,
+        Some((trigger_signature.clone(), action_text, outcome_text)),
+        false,
+    ) {
+        Ok(v) => v,
+        Err(e) => return error_result(format!("Failed to record experience: {e}")),
+    };
+
+    // Re-recording the same blocked process increments its observed failure
+    // count instead of resetting it. A first record still honours an explicit
+    // count (useful when importing a known history).
+    let blocked = match blocked {
+        Some(mut b) => {
+            let prior = rt
+                .get_node_record(ctx_id, learned.state_node_id)
+                .ok()
+                .flatten()
+                .and_then(|r| r.blocked)
+                .map(|p| p.failure_count)
+                .unwrap_or(0);
+            b.failure_count = prior.saturating_add(1).max(b.failure_count);
+            Some(b)
+        }
+        None => None,
+    };
+
+    let meta = ExperienceMeta {
+        trigger_signature: trigger_signature.clone(),
+        decision_payload: payload.to_string(),
+        disposition,
+        blocked: blocked.clone(),
+    };
+    match rt.annotate_experience(ctx_id, learned.state_node_id, meta) {
+        Ok(true) => {}
+        Ok(false) => {
+            return error_result(format!(
+                "Experience node {} disappeared before annotation; nothing was activated",
+                learned.state_node_id
+            ))
+        }
+        Err(e) => return error_result(format!("Failed to annotate experience: {e}")),
+    }
+
+    let structured = json!({
+        "status": "RECORDED",
+        "node_id": learned.state_node_id,
+        "disposition": disposition,
+        "trigger_signature": trigger_signature,
+        "decision_payload": payload,
+        "blocked": blocked,
+        "context": ctx.id.to_string(),
+        "authority": authority,
+        "provenance": provenance,
+    });
+    let text = format!(
+        "## RECORDED {}\n\
+         **Node**: {}\n\
+         **Trigger**: {}\n\
+         **Decision**: {}\n\
+         **Context**: {} ({})",
+        disposition.as_str(),
+        learned.state_node_id,
+        trigger_signature,
+        payload,
+        ctx.display_name,
+        ctx.id,
+    );
+    ToolCallResult {
+        content: vec![ContentItem::text(text), ContentItem::json(&structured)],
+        isError: None,
+    }
+}

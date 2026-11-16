@@ -106,3 +106,16 @@ retrieval_context_weight = 0.3
 # Lower → more edges flagged as uncertain; higher → only the most volatile edges.
 # Range: (0.0, 1.0). Default 0.1 flags edges with < ~10 observations.
 retrieval_curiosity_threshold = 0.1
+
+# ── Stage 2 Reranker (opt-in) ─────────────────────────────────────────────────
+# The local ONNX cross-encoder reranker is OFF by default. Stage 1 (typed
+# trigger_signature separation + symbol-aware hybrid router) measured
+# R@1 0.8901 / R@3 0.9890 / R@5 1.0000 on the held-out git-triplet bench;
+# enabling Stage 2 is a latency/accuracy trade you must opt into.
+#
+# Requires a build with `--features onnx`; `start()` fails closed if enabled
+# without that feature or without reranker_dir. When enabled, retrieval
+# reranks the top 25 fused candidates before seed/chain selection, adding
+# model-load memory and CPU/GPU inference time to every retrieve.
+reranker_enabled = false
+# reranker_dir = "tools/phase5_data/model"

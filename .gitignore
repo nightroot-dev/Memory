@@ -19,6 +19,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Python bytecode
+__pycache__/
+
 # Archives
 *.zip
 
@@ -57,4 +60,10 @@ tools/eval_b8/tasks/t1-mods-tab-missing/fixtures/
 
 # Distro bundle output (zips are built locally, published as GitHub Releases)
 /dist/
+
+# Phase 5 reranker training: cloned repos and exported models are local build
+# artifacts; the mined corpus (jsonl/manifest) is tracked explicitly.
+tools/phase5_data/repos/
+tools/phase5_data/model/
+tools/phase5_data_smoke/
 

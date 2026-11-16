@@ -1,7 +1,7 @@
 // cmhm_core/src/migration.rs
 //! Snapshot migration engine.
 //!
-//! Provides deterministic migration from earlier snapshot formats to current SNAPSHOT_VERSION = 6.
+//! Provides deterministic migration from earlier snapshot formats to current SNAPSHOT_VERSION = 7.
 //! Preserves all node IDs, embeddings, types, timestamps, and causal edges, while populating
 //! new fields with neutral, unpromoted defaults (authority = 0.50, provenance = "",
 //! superseded_by = None, assertion_key = None, polarity = None).
@@ -22,9 +22,8 @@ use crate::{
     dense_core::DenseCore,
     consolidation::Cohorts,
     projection::{Projection, ProjectionRegistry},
-    learn_ledger::{LearnLedger, LearnEpisode},
+    learn_ledger::{Disposition, LearnLedger, LearnEpisode},
 };
-
 /// Serialized Node representation in SNAPSHOT_VERSION = 2.
 /// Pre-dates authority, provenance, superseded_by, assertion_key, polarity.
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,6 +49,113 @@ pub struct NodeStoreV2 {
     pub next_id: u64,
     pub global_ema: Vec<f32>,
     pub embed_dim: usize,
+}
+
+/// Serialized Node in SNAPSHOT_VERSION = 6 (pre-Phase-5 layout).
+///
+/// Exact positional layout of the 18 fields that existed before the Phase 5
+/// experience schema. Snapshots v3 through v6 all share this node layout.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NodeV6 {
+    pub embedding: Vec<f32>,
+    pub model_id: String,
+    pub salience: f32,
+    pub timestamp: i64,
+    pub emotional_tag: f32,
+    pub node_type: NodeType,
+    pub n_retrievals: u32,
+    pub last_retrieved: i64,
+    pub half_life_days: f32,
+    pub max_prediction_error: f32,
+    pub bandit_alpha: f32,
+    pub bandit_beta: f32,
+    pub authority: f32,
+    pub provenance: String,
+    pub superseded_by: Option<u64>,
+    pub assertion_key: Option<String>,
+    pub polarity: Option<i8>,
+    pub text: String,
+}
+
+impl NodeV6 {
+    /// Upgrade to the current `Node`, assigning neutral Phase 5 defaults.
+    fn into_current(self) -> Node {
+        Node {
+            embedding:            self.embedding,
+            model_id:             self.model_id,
+            salience:             self.salience,
+            timestamp:            self.timestamp,
+            emotional_tag:        self.emotional_tag,
+            node_type:            self.node_type,
+            n_retrievals:         self.n_retrievals,
+            last_retrieved:       self.last_retrieved,
+            half_life_days:       self.half_life_days,
+            max_prediction_error: self.max_prediction_error,
+            bandit_alpha:         self.bandit_alpha,
+            bandit_beta:          self.bandit_beta,
+            authority:            self.authority,
+            provenance:           self.provenance,
+            superseded_by:        self.superseded_by,
+            assertion_key:        self.assertion_key,
+            polarity:             self.polarity,
+            text:                 self.text,
+            trigger_signature:    String::new(),
+            decision_payload:     String::new(),
+            disposition:          Disposition::Unspecified,
+            blocked:              None,
+        }
+    }
+}
+
+impl From<Node> for NodeV6 {
+    /// Downgrade a current node to the v6 layout (drops the Phase 5 fields).
+    /// Used by migration fixtures that must serialize the old byte layout.
+    fn from(n: Node) -> Self {
+        Self {
+            embedding:            n.embedding,
+            model_id:             n.model_id,
+            salience:             n.salience,
+            timestamp:            n.timestamp,
+            emotional_tag:        n.emotional_tag,
+            node_type:            n.node_type,
+            n_retrievals:         n.n_retrievals,
+            last_retrieved:       n.last_retrieved,
+            half_life_days:       n.half_life_days,
+            max_prediction_error: n.max_prediction_error,
+            bandit_alpha:         n.bandit_alpha,
+            bandit_beta:          n.bandit_beta,
+            authority:            n.authority,
+            provenance:           n.provenance,
+            superseded_by:        n.superseded_by,
+            assertion_key:        n.assertion_key,
+            polarity:             n.polarity,
+            text:                 n.text,
+        }
+    }
+}
+
+/// Serialized NodeStore in SNAPSHOT_VERSION = 3 through 6.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NodeStoreV6 {
+    pub nodes: HashMap<u64, NodeV6>,
+    pub next_id: u64,
+    pub global_ema: Vec<f32>,
+    pub embed_dim: usize,
+}
+
+impl NodeStoreV6 {
+    /// Upgrade to the current `NodeStore`, defaulting every node's Phase 5
+    /// experience fields.
+    fn into_current(self) -> NodeStore {
+        NodeStore {
+            nodes: self.nodes.into_iter()
+                .map(|(id, node)| (id, node.into_current()))
+                .collect(),
+            next_id: self.next_id,
+            global_ema: self.global_ema,
+            embed_dim: self.embed_dim,
+        }
+    }
 }
 
 /// Serialized CoreState in SNAPSHOT_VERSION = 2.
@@ -106,6 +212,10 @@ pub fn migrate_v2_to_v3(v2_payload: &[u8]) -> Result<CoreState> {
              assertion_key:        None,
              polarity:             None,
              text:                 String::new(),
+             trigger_signature:    String::new(),
+             decision_payload:     String::new(),
+             disposition:          Disposition::Unspecified,
+             blocked:              None,
          };
          migrated_nodes.insert(id, node);
      }
@@ -152,7 +262,7 @@ pub fn migrate_v2_to_v3(v2_payload: &[u8]) -> Result<CoreState> {
 /// The BM25 index is `serde(skip)` in both (never on disk).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CoreStateV3 {
-    pub node_store: NodeStore,
+    pub node_store: NodeStoreV6,
     pub edge_store: EdgeStore,
     pub working_memory: WorkingMemory,
     pub episode_log: EpisodeLog,
@@ -179,7 +289,7 @@ pub fn migrate_v3_to_v4(v3_payload: &[u8]) -> Result<CoreState> {
     let v3: CoreStateV3 = bincode::deserialize(v3_payload)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize v3 CoreState: {e}"))?;
     let mut state = CoreState {
-        node_store:              v3.node_store,
+        node_store:              v3.node_store.into_current(),
         edge_store:              v3.edge_store,
         working_memory:          v3.working_memory,
         episode_log:             v3.episode_log,
@@ -209,7 +319,7 @@ pub fn migrate_v3_to_v4(v3_payload: &[u8]) -> Result<CoreState> {
 /// exactly. The BM25 index is `serde(skip)` in both (never on disk).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CoreStateV4 {
-    pub node_store: NodeStore,
+    pub node_store: NodeStoreV6,
     pub edge_store: EdgeStore,
     pub working_memory: WorkingMemory,
     pub episode_log: EpisodeLog,
@@ -244,7 +354,7 @@ pub struct LearnLedgerV5 {
 /// Identical to the v6 [`CoreState`] except its ledger is [`LearnLedgerV5`].
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CoreStateV5 {
-    pub node_store: NodeStore,
+    pub node_store: NodeStoreV6,
     pub edge_store: EdgeStore,
     pub working_memory: WorkingMemory,
     pub episode_log: EpisodeLog,
@@ -279,7 +389,7 @@ pub fn migrate_v5_to_v6(v5_payload: &[u8]) -> Result<CoreState> {
         v5.learn_ledger.evicted_up_to,
     );
     let mut state = CoreState {
-        node_store:              v5.node_store,
+        node_store:              v5.node_store.into_current(),
         edge_store:              v5.edge_store,
         working_memory:          v5.working_memory,
         episode_log:             v5.episode_log,
@@ -301,11 +411,69 @@ pub fn migrate_v5_to_v6(v5_payload: &[u8]) -> Result<CoreState> {
     state.rebuild_ledger_index();
     Ok(state)
 }
+
+/// Serialized CoreState in SNAPSHOT_VERSION = 6 (pre-Phase-5 layout).
+///
+/// Identical to the current [`CoreState`] except nodes use [`NodeV6`] (no
+/// experience-schema fields). The ledger already carries the B6b meta sidecar.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CoreStateV6 {
+    pub node_store: NodeStoreV6,
+    pub edge_store: EdgeStore,
+    pub working_memory: WorkingMemory,
+    pub episode_log: EpisodeLog,
+    pub salience_engine: SalienceEngine,
+    pub dense_core: DenseCore,
+    pub cohorts: Cohorts,
+    pub projections: ProjectionRegistry,
+    pub learn_ledger: LearnLedger,
+    pub cmd_seq: u64,
+    pub last_consolidation_secs: f64,
+    pub cumulative_reinforce: f32,
+    #[serde(with = "crate::serde_helpers::f32_128")]
+    pub global_ema: [f32; 128],
+    pub feedback_seen: HashSet<u64>,
+    pub birth_q30: f32,
+    pub last_applied_wal_seq: u64,
+}
+
+/// Migrate a v6 snapshot payload directly to the current (v7) CoreState.
+///
+/// Preserves every store and the ledger bit-for-bit; assigns neutral Phase 5
+/// experience defaults to every node (empty trigger signature and decision
+/// payload, `Unspecified` disposition, no blocked process). Rebuilds both
+/// transient indexes before returning.
+pub fn migrate_v6_to_v7(v6_payload: &[u8]) -> Result<CoreState> {
+    let v6: CoreStateV6 = bincode::deserialize(v6_payload)
+        .map_err(|e| anyhow::anyhow!("Failed to deserialize v6 CoreState: {e}"))?;
+    let mut state = CoreState {
+        node_store:              v6.node_store.into_current(),
+        edge_store:              v6.edge_store,
+        working_memory:          v6.working_memory,
+        episode_log:             v6.episode_log,
+        salience_engine:         v6.salience_engine,
+        dense_core:              v6.dense_core,
+        cohorts:                 v6.cohorts,
+        projections:             v6.projections,
+        bm25_index:              crate::bm25::Bm25Index::new(),
+        learn_ledger:            v6.learn_ledger,
+        cmd_seq:                 v6.cmd_seq,
+        last_consolidation_secs: v6.last_consolidation_secs,
+        cumulative_reinforce:    v6.cumulative_reinforce,
+        global_ema:              v6.global_ema,
+        feedback_seen:           v6.feedback_seen,
+        birth_q30:               v6.birth_q30,
+        last_applied_wal_seq:    v6.last_applied_wal_seq,
+    };
+    state.rebuild_bm25_index();
+    state.rebuild_ledger_index();
+    Ok(state)
+}
 pub fn migrate_v4_to_v5(v4_payload: &[u8]) -> Result<CoreState> {
     let v4: CoreStateV4 = bincode::deserialize(v4_payload)
         .map_err(|e| anyhow::anyhow!("Failed to deserialize v4 CoreState: {e}"))?;
     let mut state = CoreState {
-        node_store:              v4.node_store,
+        node_store:              v4.node_store.into_current(),
         edge_store:              v4.edge_store,
         working_memory:          v4.working_memory,
         episode_log:             v4.episode_log,
@@ -491,8 +659,8 @@ mod tests {
             "user_explicit".to_string(),
         );
         node.text = "v3 state text".to_string();
-        nodes.insert(42u64, node);
-        let node_store = NodeStore {
+        nodes.insert(42u64, NodeV6::from(node));
+        let node_store = NodeStoreV6 {
             nodes,
             next_id: 43,
             global_ema: vec![0.0f32; 128],
@@ -551,8 +719,8 @@ mod tests {
             0.7,
             "user_explicit".to_string(),
         );
-        nodes.insert(42u64, node);
-        let node_store = NodeStore {
+        nodes.insert(42u64, NodeV6::from(node));
+        let node_store = NodeStoreV6 {
             nodes,
             next_id: 43,
             global_ema: vec![0.0f32; 128],
@@ -601,6 +769,65 @@ mod tests {
         assert!(migrated.learn_ledger.meta_for_seq(2).is_none());
     }
 
+
+    #[test]
+    fn test_v6_to_v7_migration_preserves_nodes_and_defaults_experience() {
+        let mut nodes = HashMap::new();
+        let mut emb = vec![0.0f32; 128];
+        emb[0] = 1.0;
+        let mut node = Node::new(
+            emb.clone(),
+            "hash-128d".to_string(),
+            0.85,
+            123456789,
+            0.5,
+            NodeType::State,
+            0.7,
+            "user_explicit".to_string(),
+        );
+        node.text = "legacy bm25 text".to_string();
+        nodes.insert(42u64, NodeV6::from(node));
+
+        let v6_state = CoreStateV6 {
+            node_store: NodeStoreV6 {
+                nodes,
+                next_id: 43,
+                global_ema: vec![0.0f32; 128],
+                embed_dim: 128,
+            },
+            edge_store: EdgeStore::new(),
+            working_memory: WorkingMemory::new(8),
+            episode_log: EpisodeLog::new(),
+            salience_engine: SalienceEngine::new(),
+            dense_core: DenseCore::new(),
+            cohorts: Cohorts::new(),
+            projections: ProjectionRegistry::new(),
+            learn_ledger: LearnLedger::new(),
+            cmd_seq: 11,
+            last_consolidation_secs: 100.0,
+            cumulative_reinforce: 1.5,
+            global_ema: [0.0f32; 128],
+            feedback_seen: HashSet::new(),
+            birth_q30: 0.30,
+            last_applied_wal_seq: 9,
+        };
+        let payload = bincode::serialize(&v6_state).unwrap();
+        let migrated = migrate_v6_to_v7(&payload).unwrap();
+
+        let n = migrated.node_store.get(42).expect("node 42 preserved");
+        assert_eq!(n.embedding, emb);
+        assert_eq!(n.text, "legacy bm25 text");
+        assert_eq!(n.authority, 0.7);
+        assert_eq!(n.provenance, "user_explicit");
+        assert!(n.trigger_signature.is_empty());
+        assert!(n.decision_payload.is_empty());
+        assert_eq!(n.disposition, Disposition::Unspecified);
+        assert!(n.blocked.is_none());
+        assert_eq!(migrated.cmd_seq, 11);
+        assert_eq!(migrated.last_applied_wal_seq, 9);
+        // BM25 rebuilt from the legacy text fallback.
+        assert_eq!(migrated.bm25_index.len(), 1);
+    }
 
     #[test]
     fn test_v2_to_v3_migration_preserves_identity_and_defaults() {

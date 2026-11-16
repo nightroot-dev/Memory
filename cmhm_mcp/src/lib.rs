@@ -55,6 +55,8 @@ pub fn dispatch(name: &str, rt: &tools::SharedRuntime, args: &Value) -> Option<s
         "memory_get"           => Some(tools::handle_memory_get(rt, args)),
         "project_detect"       => Some(tools::handle_project_detect(rt, args)),
         "memory_promote"       => Some(tools::handle_memory_promote(rt, args)),
+        "preflight_check"      => Some(tools::handle_preflight_check(rt, args)),
+        "record_experience"    => Some(tools::handle_record_experience(rt, args)),
         _ => None,
     }
 }

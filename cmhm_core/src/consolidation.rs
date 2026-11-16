@@ -513,10 +513,117 @@ fn compile_skills(node_store: &mut NodeStore, edge_store: &mut EdgeStore, now_ts
     }
 }
 
+/// Phase 5: maximum characters in a normalized trigger signature.
+pub const MAX_TRIGGER_SIGNATURE_CHARS: usize = 512;
+const MAX_DOMAIN_CHARS: usize = 32;
+const MAX_TOOL_CHARS: usize = 48;
+const MAX_SYMBOLS_CHARS: usize = 96;
+
+/// Collapse whitespace and remove the delimiters used by the prefix.
+fn clean_trigger_component(raw: &str) -> String {
+    raw.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('|', "")
+        .replace('[', "")
+        .replace(']', "")
+}
+
+/// Phase 5: normalize a trigger signature deterministically.
+///
+/// Format: `[domain | tool_or_module | sym1,sym2] symptom`
+///
+/// - whitespace collapses to single spaces;
+/// - `|`, `[` and `]` are stripped from components so the prefix stays
+///   parseable;
+/// - symbols are trimmed, deduplicated and sorted, so input order does not
+///   change the result;
+/// - empty components render as `-`;
+/// - each component is capped, and the whole signature is capped at
+///   [`MAX_TRIGGER_SIGNATURE_CHARS`], so the payload can never crowd the index.
+pub fn normalize_trigger_signature(
+    domain: &str,
+    tool_or_module: &str,
+    symbols: &[&str],
+    symptom: &str,
+) -> String {
+    let domain = clean_trigger_component(domain);
+    let tool = clean_trigger_component(tool_or_module);
+    let symptom = clean_trigger_component(symptom);
+
+    let domain: String = domain.chars().take(MAX_DOMAIN_CHARS).collect();
+    let tool: String = tool.chars().take(MAX_TOOL_CHARS).collect();
+
+    let mut unique: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for symbol in symbols {
+        let cleaned = clean_trigger_component(symbol);
+        if !cleaned.is_empty() {
+            unique.insert(cleaned);
+        }
+    }
+    let symbols_joined: String = unique.into_iter().collect::<Vec<_>>().join(",");
+    let symbols_joined: String = symbols_joined.chars().take(MAX_SYMBOLS_CHARS).collect();
+
+    let prefix = format!(
+        "[{} | {} | {}] ",
+        if domain.is_empty() { "-" } else { &domain },
+        if tool.is_empty() { "-" } else { &tool },
+        if symbols_joined.is_empty() { "-" } else { &symbols_joined },
+    );
+    let budget = MAX_TRIGGER_SIGNATURE_CHARS.saturating_sub(prefix.chars().count());
+    let symptom: String = symptom.chars().take(budget).collect();
+    format!("{prefix}{}", if symptom.is_empty() { "-" } else { &symptom })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::node::{Node, NodeType};
+
+    #[test]
+    fn trigger_signature_is_deterministic_and_order_independent() {
+        let a = normalize_trigger_signature(
+            "rust",
+            "cargo",
+            &["E0382", "borrow", "E0382"],
+            "  cannot move out of borrowed content  ",
+        );
+        let b = normalize_trigger_signature(
+            "rust",
+            "cargo",
+            &["borrow", "E0382"],
+            "cannot move out of borrowed content",
+        );
+        assert_eq!(a, b);
+        assert_eq!(
+            a,
+            "[rust | cargo | E0382,borrow] cannot move out of borrowed content"
+        );
+    }
+
+    #[test]
+    fn trigger_signature_handles_empty_components() {
+        assert_eq!(
+            normalize_trigger_signature("", "", &[], "  boom  "),
+            "[- | - | -] boom"
+        );
+    }
+
+    #[test]
+    fn trigger_signature_strips_prefix_delimiters() {
+        assert_eq!(
+            normalize_trigger_signature("ru|st", "[cargo]", &["a]b"], "x"),
+            "[rust | cargo | ab] x"
+        );
+    }
+
+    #[test]
+    fn trigger_signature_caps_total_length() {
+        let long = "x".repeat(2_000);
+        let sig = normalize_trigger_signature("domain", "tool", &[], &long);
+        assert!(sig.chars().count() <= MAX_TRIGGER_SIGNATURE_CHARS);
+        assert!(sig.starts_with("[domain | tool | -] "));
+    }
 
     #[test]
     fn test_cohorts_dynamic_dimension_384() {

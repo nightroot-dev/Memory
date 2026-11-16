@@ -384,6 +384,7 @@ fn test_stale_state_does_not_override_authoritative() {
          40,    // fusion_cap — contract pins the shipped-default literal (B13 6c flip)
          &cmhm_core::learn_ledger::LearnLedger::new(), // B1b: empty ledger (pre-B1b behavior)
          None, // B6b: no metadata filter — unfiltered contract behavior
+         None, // Stage 2 reranker disabled
      );
 
 

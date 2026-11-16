@@ -645,6 +645,19 @@ impl ContextRuntime {
         handle.record_meta(seq, meta)
     }
 
+    /// Phase 5: attach a typed experience payload to one node. Returns false
+    /// for an unknown node id; the caller must surface that, never guess.
+    pub fn annotate_experience(
+        &mut self,
+        context_id: Option<&str>,
+        node_id: u64,
+        meta: crate::learn_ledger::ExperienceMeta,
+    ) -> Result<bool> {
+        let id = self.resolve_context(context_id)?;
+        let handle = self.ensure_loaded(&id)?;
+        handle.annotate_experience(node_id, meta)
+    }
+
     /// Current value of the adaptive birth gate quantile (P₀.₃₀ estimator).
     /// Returns 0.30 (the default prior) if the context is not loaded.
     /// Read-only — no WAL write. Used by tests to verify quantile convergence.
